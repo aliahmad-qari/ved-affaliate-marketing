@@ -161,9 +161,11 @@ const PartnerSchema: Schema = new Schema(
         // Mask sensitive financial identifiers for privacy
         if (ret.pan) {
           ret.maskedPan = maskPan(ret.pan);
+          delete ret.pan;
         }
         if (ret.bankDetails && ret.bankDetails.accountNumber) {
           ret.bankDetails.maskedAccountNumber = maskAccountNumber(ret.bankDetails.accountNumber);
+          delete ret.bankDetails.accountNumber;
         }
 
         return ret;

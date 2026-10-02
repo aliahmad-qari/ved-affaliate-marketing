@@ -52,7 +52,8 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
     const host = req.get('host') || 'localhost:3000';
     const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const baseUrl = `${protocol}://${host}`;
+    const frontendOrigin = (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
+    const baseUrl = frontendOrigin || `${protocol}://${host}`;
 
     const enhanced = campaigns.map((camp) => {
       // Future-safe partner tracking link with referral and partner ID parameters
@@ -270,7 +271,7 @@ export const getPartnerWallet = async (req: Request, res: Response, next: NextFu
 export const requestWithdrawal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const partner = req.user;
-    const { amount, paymentMethod, destination } = req.body;
+    const { amount, paymentMethod } = req.body;
 
     const cleanAmount = Number(amount);
     if (isNaN(cleanAmount) || cleanAmount < 200) {
@@ -289,14 +290,17 @@ export const requestWithdrawal = async (req: Request, res: Response, next: NextF
       return;
     }
 
-    // Default destination from partner profile if omitted
-    let payoutDest = destination;
-    if (!payoutDest) {
-      if (paymentMethod === 'UPI') {
-        payoutDest = partner.upiId;
-      } else {
-        payoutDest = `${partner.bankDetails?.bankName} - ${partner.bankDetails?.accountNumber} (${partner.bankDetails?.ifscCode})`;
+    let payoutDest = partner.upiId;
+    if (paymentMethod === 'BANK_TRANSFER') {
+      const bankDetails = partner.bankDetails;
+      if (!bankDetails?.accountNumber) {
+        res.status(400).json({
+          success: false,
+          message: 'A saved bank account is required for bank withdrawals.',
+        });
+        return;
       }
+      payoutDest = `${bankDetails.bankName} - A/C ${bankDetails.accountNumber} (${bankDetails.ifscCode})`;
     }
 
     const tx = await LeadStore.requestWithdrawal(partner.partnerId, cleanAmount, paymentMethod, payoutDest);
@@ -357,7 +361,9 @@ export const getPartnerReferrals = async (req: Request, res: Response, next: Nex
 
     const host = req.get('host') || 'localhost:3000';
     const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const referralLink = `${protocol}://${host}/register?ref=${partner.referralCode}`;
+    const frontendOrigin = (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
+    const referralBaseUrl = frontendOrigin || `${protocol}://${host}`;
+    const referralLink = `${referralBaseUrl}/register?ref=${partner.referralCode}`;
 
     res.status(200).json({
       success: true,

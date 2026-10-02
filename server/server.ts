@@ -10,8 +10,20 @@ dotenv.config();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 export const startServer = async () => {
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+      throw new Error('JWT_SECRET must be configured with at least 32 characters in production.');
+    }
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI must be configured in production.');
+    }
+  }
+
   // Connect to MongoDB Atlas
   const connected = await connectDatabase();
+  if (!connected && process.env.NODE_ENV === 'production') {
+    throw new Error('MongoDB is unavailable; refusing to start with volatile storage in production.');
+  }
   if (connected) {
     await ensureSeededData();
   }

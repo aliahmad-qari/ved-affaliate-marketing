@@ -4,7 +4,7 @@ export type UserRole = 'PARTNER' | 'ADMIN';
 
 export interface BankDetails {
   accountHolderName: string;
-  accountNumber: string;
+  accountNumber?: string;
   maskedAccountNumber?: string;
   ifscCode: string;
   bankName: string;
@@ -19,7 +19,7 @@ export interface Partner {
   email: string;
   city: string;
   state: string;
-  pan: string;
+  pan?: string;
   maskedPan?: string;
   bankDetails: BankDetails;
   upiId: string;

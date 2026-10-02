@@ -66,6 +66,7 @@ const WalletTransactionSchema: Schema = new Schema(
     toJSON: {
       transform: function (_doc, ret: Record<string, any>) {
         delete ret.__v;
+        delete ret.payoutDestination;
         return ret;
       },
     },

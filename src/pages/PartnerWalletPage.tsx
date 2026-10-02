@@ -61,8 +61,8 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
       setDestination(partner?.upiId || '');
     } else {
       setDestination(
-        partner?.bankDetails?.accountNumber
-          ? `${partner?.bankDetails?.bankName} - A/C ${partner?.bankDetails?.accountNumber} (${partner?.bankDetails?.ifscCode})`
+        partner?.bankDetails?.maskedAccountNumber
+          ? `${partner?.bankDetails?.bankName} - A/C ${partner?.bankDetails?.maskedAccountNumber} (${partner?.bankDetails?.ifscCode})`
           : ''
       );
     }
@@ -75,8 +75,8 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
       setDestination(partner?.upiId || '');
     } else {
       setDestination(
-        partner?.bankDetails?.accountNumber
-          ? `${partner?.bankDetails?.bankName} - A/C ${partner?.bankDetails?.accountNumber} (${partner?.bankDetails?.ifscCode})`
+        partner?.bankDetails?.maskedAccountNumber
+          ? `${partner?.bankDetails?.bankName} - A/C ${partner?.bankDetails?.maskedAccountNumber} (${partner?.bankDetails?.ifscCode})`
           : ''
       );
     }
@@ -426,8 +426,8 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
                   <input
                     type="text"
                     required
+                    readOnly
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
                     className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
                   />
                 </div>

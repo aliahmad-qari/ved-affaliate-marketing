@@ -9,6 +9,14 @@ import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
 const memoryLeads: ILead[] = [];
 const memoryTransactions: IWalletTransaction[] = [];
 
+function sanitizeWalletTransaction(transaction: any): IWalletTransaction {
+  const safe = transaction?.toJSON
+    ? transaction.toJSON()
+    : JSON.parse(JSON.stringify(transaction));
+  delete safe.payoutDestination;
+  return safe;
+}
+
 export const LeadStore = {
   async createLead(data: {
     partnerId: string;
@@ -302,13 +310,13 @@ export const LeadStore = {
       const docs = await WalletTransaction.find({ partnerId: pId })
         .sort({ createdAt: -1 })
         .exec();
-      return docs.map((d) => d.toJSON());
+      return docs.map(sanitizeWalletTransaction);
     }
 
     const list = memoryTransactions.filter((t) => t.partnerId === pId);
-    return JSON.parse(JSON.stringify(list)).sort(
-      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return list
+      .map(sanitizeWalletTransaction)
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   async requestWithdrawal(
@@ -355,10 +363,10 @@ export const LeadStore = {
     if (isMongooseReady()) {
       const tx = new WalletTransaction(txData);
       await tx.save();
-      return tx.toJSON();
+      return sanitizeWalletTransaction(tx);
     }
 
     memoryTransactions.unshift(txData);
-    return JSON.parse(JSON.stringify(txData));
+    return sanitizeWalletTransaction(txData);
   },
 };

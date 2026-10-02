@@ -2,18 +2,25 @@ import jwt from 'jsonwebtoken';
 import { CookieOptions } from 'express';
 import { AuthTokenPayload } from '../types/index.ts';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ved-affiliate-pvt-ltd-production-jwt-key-2026-auth';
 export const AUTH_COOKIE_NAME = 'ved_auth_token';
 
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required.');
+  }
+  return secret;
+}
+
 export function signToken(payload: AuthTokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: '7d',
   });
 }
 
 export function verifyToken(token: string): AuthTokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+    return jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
   } catch {
     return null;
   }

@@ -118,6 +118,10 @@ export async function submitSupportTicket(
     }
   }
 
+  if (!import.meta.env.DEV) {
+    throw new Error('Unable to submit your support request right now. Please try again later.');
+  }
+
   // Resilient fallback ticket generation if backend is temporarily unreachable
   return {
     success: true,

@@ -20,12 +20,15 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",
     "mongoose": "^9.10.3",
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "tsx": "^4.23.15",
     "vite": "^8.3.0"
   },
   "devDependencies": {
@@ -40,7 +43,6 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
     "typescript": "^7.0.2"
   }
 }

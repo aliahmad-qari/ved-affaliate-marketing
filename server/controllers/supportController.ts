@@ -35,6 +35,14 @@ export const createSupportTicket = async (req: Request, res: Response, next: Nex
     }
 
     const { isConnected } = getDbStatus();
+    if (!isConnected && process.env.NODE_ENV === 'production') {
+      res.status(503).json({
+        success: false,
+        message: 'Support requests are temporarily unavailable. Please try again shortly.',
+      });
+      return;
+    }
+
     let ticketId = `VED-TKT-${Date.now().toString().slice(-6)}`;
 
     if (isConnected) {

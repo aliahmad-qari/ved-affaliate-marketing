@@ -42,12 +42,12 @@ Official WhatsApp Support: **+91 7064866056**
   - Production-ready Express.js backend with REST APIs (`/api/public/campaigns`, `/api/public/support`).
   - Mongoose Campaign & SupportTicket schemas with built-in seeded fallback.
   - Full-stack Vite development integration and production Render/Vercel configuration.
-- **MILESTONE 2 (Planned - 30%)**:
+- **MILESTONE 2 (Complete)**:
   - Partner Registration with unique Partner ID generation.
   - Secure Authentication (JWT / HTTP-only cookies, bcrypt hashing, session protection).
   - Manual PAN & KYC review workflow.
   - Bank Account & UPI ID management.
-- **MILESTONE 3 (Planned - 30%)**:
+- **MILESTONE 3 (Complete)**:
   - Partner Dashboard (`/dashboard`) with mobile bottom navigation.
   - Live campaign access with private affiliate tracking links and WhatsApp sharing.
   - Lead submission portal with Pending / Verified / Approved / Rejected statuses.
@@ -143,7 +143,12 @@ FRONTEND_URL="http://localhost:3000"
 
 # Frontend API URL (Empty string for same-host dev or URL for production backend)
 VITE_API_BASE_URL=""
+
+# Authentication secret (use a unique random value of at least 32 characters)
+JWT_SECRET="replace-with-a-random-secret-at-least-32-characters"
 ```
+
+For production, set `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`, and `FRONTEND_URL` on Render. Render supplies `PORT` automatically. Never commit a real `.env` file.
 
 ---
 
@@ -175,25 +180,41 @@ npm run lint
 
 ## 7. Deployment Instructions
 
-### A. Deploy Frontend to Vercel
-1. Push your repository to GitHub.
-2. In the Vercel Dashboard, import the repository.
-3. Framework Preset: **Vite**.
-4. Build Command: `npm run build`.
-5. Output Directory: `dist`.
-6. Environment Variables:
-   - `VITE_API_BASE_URL`: `https://your-render-backend-url.onrender.com`
+### A. MongoDB Atlas
+1. Create a production database and a dedicated database user with access only to that database.
+2. Add the Render service's outbound IP addresses to Atlas Network Access. Avoid `0.0.0.0/0` unless you knowingly accept public network access.
+3. Copy the Atlas connection string into Render as `MONGODB_URI`; URL-encode special characters in the database username/password.
 
 ### B. Deploy Backend to Render
-1. In the Render Dashboard, create a new **Web Service**.
-2. Connect your GitHub repository.
-3. Runtime: **Node**.
-4. Build Command: `npm install && npm run build`
-5. Start Command: `npm run start`
-6. Environment Variables:
-   - `NODE_ENV`: `production`
-   - `MONGODB_URI`: `your_mongodb_atlas_connection_string`
-   - `FRONTEND_URL`: `https://your-vercel-app.vercel.app`
+The repository root is the service root; there is no separate backend package directory. Create a Blueprint from `render.yaml`, or configure a Node Web Service with:
+
+- Root Directory: `.`
+- Build Command: `npm ci && npm run build`
+- Start Command: `npm start`
+- Health Check Path: `/api/health`
+- Node: `22.12.0` or newer supported by Vite 8
+- Environment variables: `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET` (at least 32 random characters), and `FRONTEND_URL`
+- Leave `PORT` to Render; the server binds `0.0.0.0` and reads `process.env.PORT`.
+
+Set `FRONTEND_URL` to the exact Vercel production origin (scheme and host only). Comma-separated origins are supported if you intentionally allow more than one. The API refuses production startup if MongoDB cannot connect, and `/api/health` returns 503 when the database is unavailable.
+
+### C. Deploy Frontend to Vercel
+1. Import the same repository. Set Root Directory to `.` and Framework Preset to **Vite**.
+2. Build Command: `npm run build`; Output Directory: `dist`.
+3. Set `VITE_API_BASE_URL` to the Render service URL, for example `https://ved-affiliate.onrender.com` (no trailing slash).
+4. Deploy, then set the resulting production origin as Render's `FRONTEND_URL` and restart/redeploy the Render service.
+
+Vercel serves the Vite SPA routes through `vercel.json`. All frontend API clients use `VITE_API_BASE_URL`; authentication requests include credentials. Production auth cookies are HTTP-only, Secure, and SameSite=None for the split Vercel/Render origins. Some browsers restrict third-party cookies; using frontend and API custom domains under the same registrable domain gives more reliable session persistence.
+
+### D. Production Smoke Test
+- Open Home, About, Campaigns, and Contact; verify campaign data loads from Render.
+- Register and log in; reload and confirm session persistence, then log out.
+- Verify the Partner Dashboard, Campaigns, Lead submission, Partner Leads, Earnings, Wallet, and Profile.
+- Confirm submitted leads begin Pending and a partner cannot approve their own lead.
+- Confirm profile responses contain masked PAN/account values only, never raw identifiers.
+- Verify support submission appears successful only when accepted by the backend.
+- Check Render `/api/health` reports `healthy` with MongoDB connected and returns 503 when it is unavailable.
+- Test frontend-to-backend requests and backend-to-Atlas connectivity; do not test Milestone 4 workflows.
 
 ---
 

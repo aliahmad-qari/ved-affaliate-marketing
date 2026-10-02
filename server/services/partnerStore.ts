@@ -5,9 +5,30 @@ import { IPartner } from '../types/index.ts';
 // In-memory fallback map: key is email (lowercased)
 const memoryPartners = new Map<string, IPartner>();
 
+function sanitizeMemoryPartner(partner: any, includePassword = false): any {
+  if (!includePassword) delete partner.passwordHash;
+  delete partner.resetPasswordToken;
+  delete partner.resetPasswordExpires;
+  if (partner.pan) {
+    partner.maskedPan = maskPan(partner.pan);
+    delete partner.pan;
+  }
+  if (partner.bankDetails?.accountNumber) {
+    partner.bankDetails.maskedAccountNumber = maskAccountNumber(partner.bankDetails.accountNumber);
+    delete partner.bankDetails.accountNumber;
+  }
+  return partner;
+}
+
 // Checks if MongoDB Atlas is ready
 export function isMongooseReady(): boolean {
-  return mongoose.connection.readyState === 1;
+  const connected = mongoose.connection.readyState === 1;
+  if (!connected && process.env.NODE_ENV === 'production') {
+    const error: any = new Error('MongoDB is unavailable. Please try again shortly.');
+    error.status = 503;
+    throw error;
+  }
+  return connected;
 }
 
 export const PartnerStore = {
@@ -28,17 +49,7 @@ export const PartnerStore = {
     for (const partner of memoryPartners.values()) {
       if (partner.email === cleanId || partner.mobile === identifier.trim()) {
         const copy = JSON.parse(JSON.stringify(partner));
-        if (!includePassword) {
-          delete copy.passwordHash;
-          delete copy.resetPasswordToken;
-          delete copy.resetPasswordExpires;
-        }
-        // Apply masking
-        copy.maskedPan = maskPan(copy.pan);
-        if (copy.bankDetails) {
-          copy.bankDetails.maskedAccountNumber = maskAccountNumber(copy.bankDetails.accountNumber);
-        }
-        return copy;
+        return sanitizeMemoryPartner(copy, includePassword);
       }
     }
     return null;
@@ -56,16 +67,7 @@ export const PartnerStore = {
     for (const partner of memoryPartners.values()) {
       if ((partner as any)._id === id || partner.partnerId === id) {
         const copy = JSON.parse(JSON.stringify(partner));
-        if (!includePassword) {
-          delete copy.passwordHash;
-          delete copy.resetPasswordToken;
-          delete copy.resetPasswordExpires;
-        }
-        copy.maskedPan = maskPan(copy.pan);
-        if (copy.bankDetails) {
-          copy.bankDetails.maskedAccountNumber = maskAccountNumber(copy.bankDetails.accountNumber);
-        }
-        return copy;
+        return sanitizeMemoryPartner(copy, includePassword);
       }
     }
     return null;
@@ -79,12 +81,7 @@ export const PartnerStore = {
     for (const partner of memoryPartners.values()) {
       if (partner.partnerId === partnerId.toUpperCase()) {
         const copy = JSON.parse(JSON.stringify(partner));
-        delete copy.passwordHash;
-        copy.maskedPan = maskPan(copy.pan);
-        if (copy.bankDetails) {
-          copy.bankDetails.maskedAccountNumber = maskAccountNumber(copy.bankDetails.accountNumber);
-        }
-        return copy;
+        return sanitizeMemoryPartner(copy);
       }
     }
     return null;
@@ -98,8 +95,7 @@ export const PartnerStore = {
     for (const partner of memoryPartners.values()) {
       if (partner.referralCode === code.toUpperCase()) {
         const copy = JSON.parse(JSON.stringify(partner));
-        delete copy.passwordHash;
-        return copy;
+        return sanitizeMemoryPartner(copy);
       }
     }
     return null;
@@ -192,12 +188,7 @@ export const PartnerStore = {
     memoryPartners.set(partnerData.email.toLowerCase(), record);
 
     const safeCopy = JSON.parse(JSON.stringify(record));
-    delete safeCopy.passwordHash;
-    safeCopy.maskedPan = maskPan(safeCopy.pan);
-    if (safeCopy.bankDetails) {
-      safeCopy.bankDetails.maskedAccountNumber = maskAccountNumber(safeCopy.bankDetails.accountNumber);
-    }
-    return safeCopy;
+    return sanitizeMemoryPartner(safeCopy);
   },
 
   async updateById(id: string, updates: Partial<IPartner>): Promise<any | null> {
@@ -219,12 +210,7 @@ export const PartnerStore = {
         };
         memoryPartners.set(emailKey, updated);
         const safeCopy = JSON.parse(JSON.stringify(updated));
-        delete safeCopy.passwordHash;
-        safeCopy.maskedPan = maskPan(safeCopy.pan);
-        if (safeCopy.bankDetails) {
-          safeCopy.bankDetails.maskedAccountNumber = maskAccountNumber(safeCopy.bankDetails.accountNumber);
-        }
-        return safeCopy;
+        return sanitizeMemoryPartner(safeCopy);
       }
     }
     return null;

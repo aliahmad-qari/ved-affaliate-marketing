@@ -7,7 +7,6 @@ export const connectDatabase = async (): Promise<boolean> => {
 
   if (!mongoUri) {
     console.warn('[VED DB WARNING] MONGODB_URI environment variable is not defined.');
-    console.info('[VED DB INFO] Backend is operating with built-in seeded storage until MongoDB Atlas URI is provided.');
     return false;
   }
 
@@ -26,13 +25,15 @@ export const connectDatabase = async (): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('[VED DB ERROR] Failed to connect to MongoDB Atlas:', error instanceof Error ? error.message : error);
-    console.info('[VED DB INFO] Continuing with in-memory fallback store to ensure zero downtime.');
     return false;
   }
 };
 
-export const getDbStatus = () => ({
-  isConnected,
-  readyState: mongoose.connection.readyState,
-  host: isConnected ? mongoose.connection.host : 'fallback-store',
-});
+export const getDbStatus = () => {
+  const connected = mongoose.connection.readyState === 1;
+  return {
+    isConnected: connected,
+    readyState: mongoose.connection.readyState,
+    host: connected ? mongoose.connection.host : 'disconnected',
+  };
+};
