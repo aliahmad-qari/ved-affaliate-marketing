@@ -37,7 +37,7 @@ export const HowItWorksSection: React.FC = () => {
     {
       num: '06',
       title: 'Withdraw Payout',
-      desc: 'Instant request to Bank / UPI (Min ₹200).',
+      desc: 'Withdrawal request to registered Bank / UPI, subject to verification and processing (Min ₹200).',
       icon: ArrowDownToLine,
     },
   ];

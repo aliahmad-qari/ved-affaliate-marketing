@@ -54,7 +54,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                <span>₹50 Referral Bonus per Active Partner</span>
+                <span>₹50 Referral Bonus (T&C apply)</span>
               </div>
             </div>
 
@@ -105,7 +105,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
 
               <div className="relative z-10 pt-4 border-t border-[#1C273C] w-full text-center">
                 <p className="text-xs font-semibold text-[#F8FAFC]">
-                  Official Partner Platform
+                  Partner Platform
                 </p>
                 <p className="text-[11px] text-[#AAB3C2] mt-0.5">
                   Rourkela, Odisha, India

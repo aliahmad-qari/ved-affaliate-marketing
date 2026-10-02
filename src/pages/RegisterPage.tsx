@@ -175,7 +175,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
           <VedLogo size="lg" variant="badge" />
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0D1424] border border-[#D4AF37]/40 text-xs font-semibold text-[#D4AF37] mb-2">
-          <span>Official Partner Enrollment</span>
+          <span>Partner Enrollment</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC]">
           Join VED AFFILIATE
@@ -330,7 +330,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
 
               <div>
                 <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Primary UPI ID (for instant payouts) *
+                  Primary UPI ID (for payouts) *
                 </label>
                 <input
                   type="text"
@@ -525,7 +525,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
                 className="w-full sm:w-1/2 bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono uppercase"
               />
               <p className="text-[11px] text-[#AAB3C2] mt-1">
-                Your referrer will earn a ₹50 reward after your first verified approved campaign task.
+                Your referrer may earn a ₹50 referral bonus, subject to eligibility and campaign terms.
               </p>
             </div>
           </div>

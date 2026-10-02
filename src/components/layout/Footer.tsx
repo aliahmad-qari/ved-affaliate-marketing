@@ -20,7 +20,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Promote • Earn • Grow
             </p>
             <p className="text-xs text-[#AAB3C2] leading-relaxed">
-              Official Indian affiliate platform connecting partners with verified financial and broking campaigns.
+              An Indian affiliate marketing platform connecting partners with service providers.
             </p>
           </div>
 
@@ -44,6 +44,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   className="hover:text-[#D4AF37] transition-colors cursor-pointer"
                 >
                   About Us
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('founder')}
+                  className="hover:text-[#D4AF37] transition-colors cursor-pointer"
+                >
+                  Meet the Founder
                 </button>
               </li>
               <li>

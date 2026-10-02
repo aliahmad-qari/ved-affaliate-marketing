@@ -61,7 +61,7 @@ export const SupportPage: React.FC = () => {
     },
     {
       q: 'When is the ₹50 referral credited?',
-      a: 'The ₹50 referral incentive is earned once your referred partner completes their first eligible verified task.',
+      a: 'The ₹50 referral bonus may be credited once your referred partner completes their first eligible verified task, subject to eligibility and campaign terms.',
     },
   ];
 

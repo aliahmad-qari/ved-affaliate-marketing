@@ -401,7 +401,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
                       }`}
                     >
                       <CreditCard className="w-3.5 h-3.5" />
-                      <span>Instant UPI</span>
+                      <span>UPI</span>
                     </button>
 
                     <button

@@ -30,7 +30,7 @@ export const WhyChooseSection: React.FC = () => {
     },
     {
       title: '₹50 Referral Bonus',
-      desc: 'Earn ₹50 per referred partner upon their first active task.',
+      desc: '₹50 referral bonus, subject to eligibility and campaign terms.',
       icon: Gift,
     },
   ];

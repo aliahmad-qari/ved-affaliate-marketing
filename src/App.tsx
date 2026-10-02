@@ -6,6 +6,7 @@ import { WhatsAppButton } from './components/ui/WhatsAppButton.tsx';
 import { CampaignDetailModal } from './components/ui/CampaignDetailModal.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { AboutPage } from './pages/AboutPage.tsx';
+import { FounderPage } from './pages/FounderPage.tsx';
 import { CampaignsPage } from './pages/CampaignsPage.tsx';
 import { SupportPage } from './pages/SupportPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
@@ -39,6 +40,7 @@ function MainApp() {
     const validRoutes = [
       'home',
       'about',
+      'founder',
       'campaigns',
       'support',
       'login',
@@ -168,6 +170,10 @@ function MainApp() {
           <AboutPage onNavigate={navigateTo} />
         )}
 
+        {currentRoute === 'founder' && (
+          <FounderPage onNavigate={navigateTo} />
+        )}
+
         {currentRoute === 'campaigns' && (
           <CampaignsPage
             campaigns={campaigns}
@@ -211,6 +217,7 @@ function MainApp() {
           'earnings',
           'referrals',
           'about',
+          'founder',
           'campaigns',
           'support',
           'login',

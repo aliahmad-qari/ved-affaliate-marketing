@@ -82,7 +82,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
               Referral Program
             </h1>
             <p className="text-xs text-[#AAB3C2] mt-1 max-w-lg">
-              Invite affiliates to VED and earn <span className="text-[#D4AF37] font-semibold">₹50</span> when your referred partner completes their first approved campaign task.
+              Invite affiliates to VED. A <span className="text-[#D4AF37] font-semibold">₹50</span> referral bonus may apply when your referred partner completes their first approved campaign task, subject to eligibility and campaign terms.
             </p>
           </div>
 

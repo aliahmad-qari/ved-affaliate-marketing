@@ -257,7 +257,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
             <Share2 className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-            Earn ₹50 per referred partner upon their first verified task completion.
+            ₹50 referral bonus, subject to eligibility and campaign terms.
           </p>
         </div>
 
