@@ -9,6 +9,7 @@ function sanitizeMemoryPartner(partner: any, includePassword = false): any {
   if (!includePassword) delete partner.passwordHash;
   delete partner.resetPasswordToken;
   delete partner.resetPasswordExpires;
+  delete partner.sessionsInvalidatedAt;
   if (partner.pan) {
     partner.maskedPan = maskPan(partner.pan);
     delete partner.pan;
@@ -214,6 +215,31 @@ export const PartnerStore = {
       }
     }
     return null;
+  },
+
+  async getSessionsInvalidatedAt(id: string): Promise<number> {
+    if (isMongooseReady()) {
+      const doc: any = await Partner.findById(id).select('+sessionsInvalidatedAt').exec();
+      return doc?.sessionsInvalidatedAt ? new Date(doc.sessionsInvalidatedAt).getTime() : 0;
+    }
+    for (const partner of memoryPartners.values()) {
+      if ((partner as any)._id === id || partner.partnerId === id) {
+        return (partner as any).sessionsInvalidatedAt || 0;
+      }
+    }
+    return 0;
+  },
+
+  async invalidateSessions(id: string): Promise<void> {
+    if (isMongooseReady()) {
+      await Partner.findByIdAndUpdate(id, { $set: { sessionsInvalidatedAt: new Date() } }).exec();
+      return;
+    }
+    for (const partner of memoryPartners.values()) {
+      if ((partner as any)._id === id || partner.partnerId === id) {
+        (partner as any).sessionsInvalidatedAt = Date.now();
+      }
+    }
   },
 
   async updatePassword(id: string, newPasswordHash: string): Promise<boolean> {

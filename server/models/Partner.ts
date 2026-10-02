@@ -147,6 +147,10 @@ const PartnerSchema: Schema = new Schema(
       type: Date,
       select: false,
     },
+    sessionsInvalidatedAt: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -156,6 +160,7 @@ const PartnerSchema: Schema = new Schema(
         delete ret.passwordHash;
         delete ret.resetPasswordToken;
         delete ret.resetPasswordExpires;
+        delete ret.sessionsInvalidatedAt;
         delete ret.__v;
 
         // Mask sensitive financial identifiers for privacy

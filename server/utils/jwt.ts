@@ -13,7 +13,7 @@ function getJwtSecret(): string {
 }
 
 export function signToken(payload: AuthTokenPayload): string {
-  return jwt.sign(payload, getJwtSecret(), {
+  return jwt.sign({ ...payload, issuedAtMs: Date.now() }, getJwtSecret(), {
     expiresIn: '7d',
   });
 }

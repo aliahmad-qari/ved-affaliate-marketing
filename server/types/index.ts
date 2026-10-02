@@ -78,6 +78,8 @@ export interface AuthTokenPayload {
   partnerId: string;
   email: string;
   role: UserRole;
+  iat?: number;
+  issuedAtMs?: number;
 }
 
 // Milestone 3: Lead & Financial Domain Types

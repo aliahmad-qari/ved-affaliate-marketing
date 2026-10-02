@@ -45,6 +45,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    const invalidatedAt = await PartnerStore.getSessionsInvalidatedAt(payload.id);
+    if (invalidatedAt && (!payload.issuedAtMs || payload.issuedAtMs <= invalidatedAt)) {
+      res.status(401).json({
+        success: false,
+        message: 'Session has ended. Please log in again.',
+        code: 'TOKEN_EXPIRED',
+      });
+      return;
+    }
+
     const partner = await PartnerStore.findById(payload.id);
     if (!partner) {
       res.status(401).json({

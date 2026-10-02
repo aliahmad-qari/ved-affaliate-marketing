@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { PartnerStore } from '../services/partnerStore.ts';
-import { signToken, getAuthCookieOptions, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
+import { signToken, verifyToken, getAuthCookieOptions, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
 import {
   generatePartnerId,
   generateReferralCode,
@@ -265,7 +265,13 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
   }
 };
 
-export const logout = async (_req: Request, res: Response): Promise<void> => {
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : undefined;
+  const payload = verifyToken(req.cookies?.[AUTH_COOKIE_NAME] || bearer || '');
+  if (payload?.id) {
+    await PartnerStore.invalidateSessions(payload.id).catch(() => undefined);
+  }
+
   const options = getAuthCookieOptions();
   res.clearCookie(AUTH_COOKIE_NAME, {
     ...options,
