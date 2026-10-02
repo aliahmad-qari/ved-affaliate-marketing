@@ -1,0 +1,27 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vedGoldGrad" x1="40" y1="30" x2="200" y2="210" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFF2B2" />
+      <stop offset="25%" stopColor="#F5D76E" />
+      <stop offset="50%" stopColor="#D4AF37" />
+      <stop offset="80%" stopColor="#B3891D" />
+      <stop offset="100%" stopColor="#8C660D" />
+    </linearGradient>
+    <linearGradient id="arrowGoldGrad" x1="90" y1="100" x2="190" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#F5D76E" />
+      <stop offset="60%" stopColor="#D4AF37" />
+      <stop offset="100%" stopColor="#FFECA0" />
+    </linearGradient>
+    <radialGradient id="badgeDarkSurface" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stopColor="#0B1324" />
+      <stop offset="85%" stopColor="#060912" />
+      <stop offset="100%" stopColor="#030408" />
+    </radialGradient>
+  </defs>
+  <circle cx="120" cy="120" r="105" fill="url(#badgeDarkSurface)" stroke="url(#vedGoldGrad)" stroke-width="5.5" />
+  <circle cx="120" cy="120" r="95" fill="none" stroke="url(#vedGoldGrad)" stroke-width="2.5" opacity="0.9" />
+  <path d="M 94 92 C 120 80, 148 64, 172 48 L 160 34 L 208 38 L 198 86 L 184 72 C 162 88, 134 102, 102 110 Z" fill="url(#arrowGoldGrad)" />
+  <path d="M 52 112 L 71 112 L 87 158 L 103 112 L 122 112 L 96 172 L 77 172 Z" fill="url(#vedGoldGrad)" stroke="#060912" stroke-width="2.5" />
+  <path d="M 115 112 L 152 112 L 152 125 L 131 125 L 131 135 L 149 135 L 149 148 L 131 148 L 131 159 L 153 159 L 153 172 L 115 172 Z" fill="url(#vedGoldGrad)" stroke="#060912" stroke-width="2.5" />
+  <path d="M 158 112 L 183 112 C 199 112, 211 124, 211 142 C 211 160, 199 172, 183 172 L 158 172 Z M 172 125 L 172 159 L 181 159 C 190 159, 196 153, 196 142 C 196 131, 190 125, 181 125 Z" fill="url(#vedGoldGrad)" stroke="#060912" stroke-width="2.5" />
+</svg>

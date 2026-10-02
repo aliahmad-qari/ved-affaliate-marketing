@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <script>
+      // Ensure window.fetch has both a getter and setter to prevent
+      // "Cannot set property fetch of #<Window> which has only a getter"
+      // when sandboxed iframes or proxy wrappers intercept network requests.
+      (function() {
+        try {
+          var _fetchTarget = window.fetch ? window.fetch.bind(window) : undefined;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return _fetchTarget;
+            },
+            set: function(fn) {
+              _fetchTarget = fn;
+            },
+            configurable: true,
+            enumerable: true,
+          });
+        } catch (e) {
+          // Fallback if environment restricts property redefinition
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>VED AFFILIATE PVT. LIMITED | Promote • Earn • Grow</title>
+    <meta name="description" content="VED AFFILIATE PVT. LIMITED connects registered partners with verified financial campaigns to promote, earn, and grow commissions." />
+    <meta property="og:title" content="VED AFFILIATE PVT. LIMITED | Promote • Earn • Grow" />
+    <meta property="og:description" content="VED AFFILIATE PVT. LIMITED connects registered partners with verified financial campaigns to promote, earn, and grow commissions." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#070B14" />
+    <link rel="icon" type="image/svg+xml" href="/ved-logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#070B14] text-[#F8FAFC] min-h-screen antialiased selection:bg-[#D4AF37]/20 selection:text-[#E5C35A]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

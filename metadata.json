@@ -1,0 +1,6 @@
+{
+  "name": "VED AFFILIATE PVT. LIMITED",
+  "description": "VED AFFILIATE PVT. LIMITED connects registered partners with verified financial campaigns to promote, earn, and grow commissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
