@@ -29,6 +29,7 @@ npm run dev:vite      # Terminal 2
 | **Audit Log** | Admin → Audit tab | See all admin actions logged |
 | **Partner Notifications** | Login as partner → /notifications | See system messages |
 | **Referral Sharing** | Partner → Referrals | WhatsApp message says "earn on verified leads" |
+| **Forgot Password** | Login → "Forgot Password?" → Enter email | Receives reset link, can set new password |
 
 ---
 

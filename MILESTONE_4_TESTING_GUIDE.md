@@ -44,16 +44,61 @@ Backend API runs at `http://localhost:3001`
 
 ## 2. ADMIN PROVISIONING & LOGIN
 
-### 2.1 First-Time Admin Setup
-1. Backend automatically creates an Admin user on first startup if environment variables are set
-2. Check MongoDB for `AdminUser` collection - should have one record with your ADMIN_EMAIL
+### 2.1 First-Time Admin Setup (REQUIRED STEP)
+
+**⚠️ IMPORTANT: Admin must be provisioned manually using the provision script. It is NOT created automatically.**
+
+#### Step 1: Set Environment Variables
+In your `.env` file, set:
+```
+ADMIN_NAME=Admin Name
+ADMIN_EMAIL=admin@vedaffiliate.com
+ADMIN_PASSWORD=AdminPassword123456
+MONGODB_URI=your_mongodb_connection_string
+```
+
+**Requirements:**
+- `ADMIN_PASSWORD` must be **at least 12 characters** (example above is 20 chars)
+- `ADMIN_EMAIL` will be converted to lowercase
+- `ADMIN_NAME` will be trimmed
+- `MONGODB_URI` must be valid and accessible
+
+#### Step 2: Run Provisioning Script
+In terminal, run:
+```bash
+npm run admin:provision
+```
+
+**Expected Output:**
+```
+Admin provisioned for admin@vedaffiliate.com. No password was printed.
+```
+
+**What This Does:**
+- Creates a new AdminUser in MongoDB with hashed password
+- Updates existing admin if email already exists
+- Maximum 3 admin users allowed per system
+- Password is bcrypt-hashed with salt factor 12
+
+#### Step 3: Verify in MongoDB
+1. Open MongoDB Atlas
+2. Go to your database
+3. Check `AdminUser` collection
+4. Should have 1 record with your ADMIN_EMAIL and hashed password
 
 ### 2.2 Admin Login
 1. Go to `http://localhost:3000/admin` (or click "Admin" link if visible)
-2. Enter Admin Email and Password:
+2. Enter Admin Email and Password **exactly as provisioned**:
    - Email: `admin@vedaffiliate.com`
-   - Password: `AdminPassword123`
+   - Password: `AdminPassword123456` (same as ADMIN_PASSWORD in .env)
 3. ✅ Should redirect to Admin Dashboard
+
+**If login fails with "Invalid admin credentials":**
+- Check email and password match exactly what you provisioned
+- Email is case-insensitive (stored as lowercase)
+- Password is case-sensitive
+- Verify AdminUser exists in MongoDB
+- Try re-running the provision script
 
 ### 2.3 Expected Behavior
 - Admin Dashboard shows system statistics (total partners, leads, earnings, etc.)
@@ -290,6 +335,105 @@ Backend API runs at `http://localhost:3001`
    - Manually delete authentication cookie
    - Refresh page
    - ✅ Should be logged out
+
+### 7.1.1 Forgot Password Flow (Partner & Admin)
+
+**Test Steps for Partner Forgot Password:**
+
+1. **Access Forgot Password Page:**
+   - Go to `http://localhost:3000/login`
+   - Click "Forgot Password?" link
+   - ✅ Should navigate to `/forgot-password` page
+
+2. **Submit Email for Reset:**
+   - Enter registered email: `testpartner@example.com`
+   - Click "Send Reset Link"
+   - ✅ Should show message: "Check your email for password reset link"
+   - ✅ Email sent notification appears (or check backend logs)
+
+3. **Email Verification (Development):**
+   - Check backend logs or email service for reset token
+   - Copy the password reset link
+   - Format: `http://localhost:3000/reset-password?token=xxxxx`
+   - ✅ Token should be unique and time-limited (typically 24 hours)
+
+4. **Click Reset Link:**
+   - Paste/click the reset link in browser
+   - ✅ Should navigate to reset password page
+   - ✅ Page should display: "Enter new password"
+   - ✅ Token should be validated (if expired, show error)
+
+5. **Set New Password:**
+   - Enter new password: "NewPassword123!"
+   - Confirm password: "NewPassword123!"
+   - Click "Reset Password"
+   - ✅ Should show: "Password reset successful"
+   - ✅ Redirect to login page
+
+6. **Login with New Password:**
+   - Email: `testpartner@example.com`
+   - Password: `NewPassword123!`
+   - ✅ Should login successfully
+
+7. **Test Invalid/Expired Token:**
+   - Go to reset link again (same token)
+   - ✅ Should show error: "Reset link expired" or "Invalid token"
+   - ✅ Must request new reset link
+
+8. **Test Password Mismatch:**
+   - Request new reset link
+   - Click reset link
+   - Enter password: "NewPass123"
+   - Confirm: "DifferentPass456"
+   - Click Reset
+   - ✅ Should show error: "Passwords do not match"
+
+9. **Test Weak Password:**
+   - Request new reset link
+   - Click reset link
+   - Enter password: "123" (too short)
+   - ✅ Should show validation error: "Password must be at least 8 characters"
+
+**Test Steps for Admin Forgot Password:**
+
+1. **Access Admin Forgot Password:**
+   - Go to `http://localhost:3000/admin`
+   - Click "Forgot Password?" link (if available)
+   - ✅ Should navigate to admin forgot password page
+
+2. **Follow same flow as partner:**
+   - Enter admin email: `admin@vedaffiliate.com`
+   - Receive reset link
+   - Click link and set new password
+   - Login with new password
+   - ✅ Should work identically to partner flow
+
+**Security Validations:**
+
+1. **Test Token Reuse Prevention:**
+   - Reset password using token
+   - Try to use same token again
+   - ✅ Should show: "Token already used" or "Invalid token"
+
+2. **Test Token Not Guessable:**
+   - Try to manually craft reset token
+   - ✅ Should show: "Invalid token"
+   - ✅ Random tokens cannot be brute-forced
+
+3. **Test Rate Limiting:**
+   - Request 10 reset links in 1 minute
+   - ✅ Should rate-limit after N attempts
+   - ✅ Show message: "Too many requests. Please try again later"
+
+4. **Test Email Verification:**
+   - Enter non-existent email
+   - ✅ Should still show: "Check your email" (security best practice - don't reveal if email exists)
+   - ✅ No reset link sent
+
+5. **Test Case-Insensitive Email:**
+   - Forgot password with: `TestPartner@Example.com`
+   - ✅ Should find account and send reset link
+   - ✅ Email matching should be case-insensitive
 
 ### 7.2 Input Validation
 1. Admin Campaign Form:

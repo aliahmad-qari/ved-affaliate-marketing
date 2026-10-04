@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes.ts';
 import partnerRoutes from './routes/partnerRoutes.ts';
 import adminAuthRoutes from './routes/adminAuthRoutes.ts';
 import adminRoutes from './routes/adminRoutes.ts';
+import setupAdminRoutes from './routes/setupAdminRoutes.ts';
 import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.ts';
 import { getDbStatus } from './config/db.ts';
 
@@ -92,6 +93,9 @@ export const createApp = (): Express => {
   app.use('/api/partner', partnerRoutes);
   app.use('/api/admin/auth', adminAuthRoutes);
   app.use('/api/admin', adminRoutes);
+
+  // TEMPORARY: Setup endpoint for creating admin (delete after first use)
+  app.use('/api', setupAdminRoutes);
 
   // Error handling
   app.use('/api/*', notFoundHandler);
