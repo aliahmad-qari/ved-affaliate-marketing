@@ -135,8 +135,18 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const content = () => {
     if (tab === 'overview') {
       const metrics = data || {};
-      const items = [['Total Partners', metrics.totalPartners], ['Active Partners', metrics.activePartners], ['Total Leads', metrics.totalLeads], ['Approved Leads', metrics.approvedLeads], ['Pending Leads', metrics.pendingLeads], ['Total Earnings', `₹${metrics.totalEarnings || 0}`], ['Pending Payout', `₹${metrics.pendingPayout || 0}`], ['Paid Payout', `₹${metrics.paidPayout || 0}`], ['Withdrawal Requests', metrics.withdrawalRequests]];
-      return <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{items.map(([label, value]) => <section key={String(label)} className="border border-[#263650] bg-[#0D1424] p-4"><p className="text-xs text-[#AAB3C2]">{label}</p><p className="mt-2 text-2xl font-bold text-[#D4AF37]">{value ?? 0}</p></section>)}</div>;
+      const items: Array<[string, any, AdminTab]> = [
+        ['Total Partners', metrics.totalPartners, 'partners'],
+        ['Active Partners', metrics.activePartners, 'partners'],
+        ['Total Leads', metrics.totalLeads, 'leads'],
+        ['Approved Leads', metrics.approvedLeads, 'leads'],
+        ['Pending Leads', metrics.pendingLeads, 'leads'],
+        ['Total Earnings', `₹${metrics.totalEarnings || 0}`, 'reports'],
+        ['Pending Payout', `₹${metrics.pendingPayout || 0}`, 'withdrawals'],
+        ['Paid Payout', `₹${metrics.paidPayout || 0}`, 'withdrawals'],
+        ['Withdrawal Requests', metrics.withdrawalRequests, 'withdrawals'],
+      ];
+      return <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{items.map(([label, value, targetTab]) => <button key={String(label)} onClick={() => setTab(targetTab)} className="border border-[#263650] bg-[#0D1424] p-4 hover:border-[#D4AF37] hover:bg-[#0D1424]/80 transition-all cursor-pointer text-left"><p className="text-xs text-[#AAB3C2]">{label}</p><p className="mt-2 text-2xl font-bold text-[#D4AF37]">{value ?? 0}</p></button>)}</div>;
     }
     if (tab === 'campaigns') return <div className="space-y-5">
       <form onSubmit={saveCampaign} className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4 sm:grid-cols-2">
