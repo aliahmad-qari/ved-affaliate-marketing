@@ -83,9 +83,9 @@ export const FeaturedCampaignsSection: React.FC<FeaturedCampaignsSectionProps> =
                   </div>
                   <div className="flex items-center gap-2">
                     <Award className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
-                    <span className="text-[#AAB3C2]">Payout:</span>
+                    <span className="text-[#AAB3C2]">Potential Payout:</span>
                     <span className="text-[#D4AF37] font-semibold">
-                      {campaign.payout ? `₹${campaign.payout} INR` : 'Admin Configured'}
+                      {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
                     </span>
                   </div>
                 </div>

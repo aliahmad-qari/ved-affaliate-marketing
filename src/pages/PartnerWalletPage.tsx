@@ -88,8 +88,8 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
     setWithdrawSuccess(null);
 
     const amountNum = Number(withdrawAmount);
-    if (isNaN(amountNum) || amountNum < 200) {
-      setWithdrawError('Minimum withdrawal amount is ₹200.');
+    if (!Number.isFinite(amountNum) || amountNum < minimumWithdrawal) {
+      setWithdrawError(`Minimum withdrawal amount is ₹${minimumWithdrawal}.`);
       return;
     }
 
@@ -131,6 +131,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
   const pending = wallet?.pendingBalance || 0;
   const totalEarned = wallet?.totalEarned || 0;
   const totalWithdrawn = wallet?.totalWithdrawn || 0;
+  const minimumWithdrawal = wallet?.minimumWithdrawal ?? 200;
   const transactions = wallet?.transactions || [];
 
   return (
@@ -159,7 +160,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               variant="primary"
               size="md"
               onClick={handleOpenWithdrawModal}
-              disabled={available < 200}
+              disabled={available < minimumWithdrawal}
               className="flex-1 md:flex-initial"
             >
               <ArrowDownLeft className="w-4 h-4 mr-2" />
@@ -186,7 +187,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               ₹{available.toLocaleString('en-IN')}
             </div>
             <span className="text-[10px] text-[#AAB3C2] mt-1 block">
-              {available >= 200 ? 'Ready for withdrawal' : 'Requires min ₹200 to withdraw'}
+              {available >= minimumWithdrawal ? 'Ready for withdrawal' : `Requires min ₹${minimumWithdrawal} to withdraw`}
             </span>
           </div>
 
@@ -373,16 +374,16 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
                   </label>
                   <input
                     type="number"
-                    min={200}
+                    min={minimumWithdrawal}
                     max={available}
                     required
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder="Min ₹200"
+                    placeholder={`Min ₹${minimumWithdrawal}`}
                     className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
                   />
                   <p className="text-[11px] text-[#AAB3C2] mt-1">
-                    Minimum withdrawal threshold is ₹200.
+                    Minimum withdrawal is ₹{minimumWithdrawal}; requests are subject to verification and processing.
                   </p>
                 </div>
 

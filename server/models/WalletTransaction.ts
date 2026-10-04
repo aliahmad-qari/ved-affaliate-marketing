@@ -33,7 +33,7 @@ const WalletTransactionSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'AVAILABLE', 'PROCESSED', 'REJECTED', 'CANCELLED'],
+      enum: ['PENDING', 'AVAILABLE', 'PROCESSING', 'APPROVED', 'PROCESSED', 'PAID', 'REJECTED', 'CANCELLED'],
       default: 'PENDING',
       index: true,
     },
@@ -59,6 +59,27 @@ const WalletTransactionSchema: Schema = new Schema(
     payoutDestination: {
       type: String,
       trim: true,
+    },
+    idempotencyKey: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
+    paymentReference: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+      default: '',
+    },
+    internalNote: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: '',
+    },
+    processedBy: {
+      type: String,
+      default: '',
     },
   },
   {

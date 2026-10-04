@@ -37,6 +37,8 @@ const SupportTicketSchema: Schema = new Schema(
       default: 'OPEN',
       index: true,
     },
+    adminResponse: { type: String, default: '', maxlength: 4000 },
+    updatedBy: { type: String, default: '' },
   },
   {
     timestamps: true,

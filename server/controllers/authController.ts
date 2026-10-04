@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { PartnerStore } from '../services/partnerStore.ts';
+import { AdminUser } from '../models/AdminUser.ts';
 import { signToken, verifyToken, getAuthCookieOptions, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
 import {
   generatePartnerId,
@@ -265,18 +266,23 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
   }
 };
 
-export const logout = async (req: Request, res: Response): Promise<void> => {
+export const logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : undefined;
   const payload = verifyToken(req.cookies?.[AUTH_COOKIE_NAME] || bearer || '');
-  if (payload?.id) {
-    await PartnerStore.invalidateSessions(payload.id).catch(() => undefined);
-  }
-
   const options = getAuthCookieOptions();
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    ...options,
-    maxAge: 0,
-  });
+  res.clearCookie(AUTH_COOKIE_NAME, { ...options, maxAge: 0 });
+  try {
+    if (payload?.id) {
+      if (payload.role === 'ADMIN') {
+        await AdminUser.findByIdAndUpdate(payload.id, { $set: { sessionsInvalidatedAt: new Date() } }).exec();
+      } else {
+        await PartnerStore.invalidateSessions(payload.id);
+      }
+    }
+  } catch (error) {
+    next(error);
+    return;
+  }
 
   res.status(200).json({
     success: true,

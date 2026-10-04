@@ -6,6 +6,13 @@ export type CampaignCategory =
   | 'Banking & Credit' 
   | 'Fintech & Wallets';
 
+export interface CampaignTerms {
+  eligibility?: string;
+  validationRejection?: string;
+  payoutTimeline?: string;
+  duplicateFraudRules?: string;
+}
+
 export interface Campaign {
   _id?: string;
   name: string;
@@ -18,6 +25,7 @@ export interface Campaign {
   currency: string;
   payoutTerms: string;
   rules: string[];
+  terms?: CampaignTerms;
   status: CampaignStatus;
   logoUrl?: string;
   startDate?: string;

@@ -130,7 +130,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
         
         {/* Available Wallet Balance */}
-        <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-[#111A2D] to-[#0A1224] border border-[#D4AF37]/50 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xl">
+        <div className="col-span-2 sm:col-span-1 bg-linear-to-br from-[#111A2D] to-[#0A1224] border border-[#D4AF37]/50 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xl">
           <div className="flex items-center justify-between text-[#D4AF37] mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Available Wallet</span>
             <Wallet className="w-5 h-5" />
@@ -227,7 +227,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
             <ArrowUpRight className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-            Access ~10–12 active financial campaigns with your unique tracking links.
+            Access 12+ active financial campaigns with your unique tracking links.
           </p>
         </div>
 

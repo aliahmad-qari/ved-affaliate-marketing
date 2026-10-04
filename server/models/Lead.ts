@@ -91,6 +91,16 @@ const LeadSchema: Schema = new Schema(
     paidAt: {
       type: Date,
     },
+    reviewedBy: {
+      type: String,
+      default: '',
+    },
+    reviewNote: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: '',
+    },
   },
   {
     timestamps: true,

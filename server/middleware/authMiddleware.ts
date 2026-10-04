@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
+import { AdminUser } from '../models/AdminUser.ts';
 import { UserRole } from '../types/index.ts';
 
 // Extend Express Request
@@ -8,6 +9,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: any;
+      authRole?: UserRole;
     }
   }
 }
@@ -45,13 +47,31 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    if (payload.role === 'ADMIN') {
+      const admin: any = await AdminUser.findById(payload.id).select('+sessionsInvalidatedAt').exec();
+      if (!admin || admin.status !== 'ACTIVE') {
+        res.status(401).json({ success: false, message: 'Admin account is unavailable.', code: 'USER_NOT_FOUND' });
+        return;
+      }
+      if (admin.sessionsInvalidatedAt && (!payload.issuedAtMs || payload.issuedAtMs <= admin.sessionsInvalidatedAt.getTime())) {
+        res.status(401).json({ success: false, message: 'Session has ended. Please log in again.', code: 'TOKEN_EXPIRED' });
+        return;
+      }
+      req.authRole = 'ADMIN';
+      req.user = { ...admin.toJSON(), _id: admin._id.toString(), role: 'ADMIN' };
+      next();
+      return;
+    }
+
+    if (payload.role !== 'PARTNER') {
+      res.status(401).json({ success: false, message: 'Invalid account role.', code: 'TOKEN_EXPIRED' });
+      return;
+    }
+    req.authRole = 'PARTNER';
+
     const invalidatedAt = await PartnerStore.getSessionsInvalidatedAt(payload.id);
     if (invalidatedAt && (!payload.issuedAtMs || payload.issuedAtMs <= invalidatedAt)) {
-      res.status(401).json({
-        success: false,
-        message: 'Session has ended. Please log in again.',
-        code: 'TOKEN_EXPIRED',
-      });
+      res.status(401).json({ success: false, message: 'Session has ended. Please log in again.', code: 'TOKEN_EXPIRED' });
       return;
     }
 
@@ -65,10 +85,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    if (partner.accountStatus === 'SUSPENDED') {
+    if (partner.accountStatus !== 'ACTIVE') {
       res.status(403).json({
         success: false,
-        message: 'Your partner account has been suspended by administration. Please contact support.',
+        message: 'Your partner account is not active. Please contact support.',
         code: 'ACCOUNT_SUSPENDED',
       });
       return;
@@ -92,7 +112,7 @@ export function requireRole(requiredRole: UserRole) {
       return;
     }
 
-    if (req.user.role !== requiredRole) {
+    if (req.authRole !== requiredRole) {
       res.status(403).json({
         success: false,
         message: `Forbidden. This operation requires ${requiredRole} permissions.`,

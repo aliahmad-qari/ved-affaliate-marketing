@@ -513,7 +513,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
 
             {/* Optional Referral Code */}
             <div className="mt-3.5 pt-3 border-t border-[#1C273C]/60">
-              <label className="block text-xs font-medium text-[#AAB3C2] mb-1 flex items-center gap-1.5">
+              <label className="flex text-xs font-medium text-[#AAB3C2] mb-1 items-center gap-1.5">
                 <Gift className="w-3.5 h-3.5 text-[#D4AF37]" />
                 <span>Referral Code (Optional)</span>
               </label>

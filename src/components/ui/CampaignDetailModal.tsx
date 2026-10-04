@@ -73,10 +73,10 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
             <div className="bg-[#0E162A] border border-[#1C273C] rounded-xl p-3.5">
               <div className="text-xs text-[#AAB3C2] mb-1 flex items-center gap-1 font-medium">
                 <Award className="w-3.5 h-3.5 text-[#D4AF37]" />
-                Payout Structure
+                Potential Payout
               </div>
               <p className="text-xs sm:text-sm font-semibold text-[#D4AF37]">
-                {campaign.payout ? `₹${campaign.payout} INR` : 'Admin Configured'}
+                {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
               </p>
               <p className="text-[10px] text-[#AAB3C2] mt-0.5">{campaign.payoutTerms}</p>
             </div>
@@ -98,6 +98,28 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
               </ul>
             </div>
           )}
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#AAB3C2] mb-2 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+              Terms & Conditions
+            </h3>
+            <dl className="space-y-2 text-xs bg-[#0E162A]/60 border border-[#1C273C] rounded-xl p-3">
+              {[
+                ['Eligibility', campaign.terms?.eligibility || 'New customers only, as defined by the campaign provider.'],
+                ['Required Action', campaign.requiredAction],
+                ['Potential Payout', campaign.payout ? `₹${campaign.payout} per eligible, verified lead. ${campaign.payoutTerms}` : campaign.payoutTerms],
+                ['Validation / Rejection', campaign.terms?.validationRejection || 'Leads that fail provider validation, are incomplete, or are ineligible will be rejected.'],
+                ['Payout Timeline', campaign.terms?.payoutTimeline || 'Payout is credited after Admin verification and provider validation.'],
+                ['Duplicate / Fraud Rules', campaign.terms?.duplicateFraudRules || 'Duplicate, self-referred, or fraudulent submissions are rejected and may lead to account suspension.'],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-[#D4AF37] font-semibold">{label}</dt>
+                  <dd className="text-[#AAB3C2] mt-0.5 whitespace-pre-line">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
           <div className="bg-[#05080F] border border-[#1C273C] rounded-lg p-3 text-[11px] text-[#AAB3C2] leading-relaxed">
             <span className="text-[#D4AF37] font-semibold">Verification Rule: </span>

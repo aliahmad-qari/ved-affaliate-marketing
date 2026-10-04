@@ -14,12 +14,13 @@ import {
   requestWithdrawal,
   getPartnerReferrals,
 } from '../controllers/partnerDataController.ts';
-import { requireAuth } from '../middleware/authMiddleware.ts';
+import { requireAuth, requireRole } from '../middleware/authMiddleware.ts';
+import notificationRoutes from './notificationRoutes.ts';
 
 const router = Router();
 
 // All partner routes require authentication
-router.use(requireAuth);
+router.use(requireAuth, requireRole('PARTNER'));
 
 // Milestone 3: Dashboard & Financial Endpoints
 router.get('/dashboard', getDashboard);
@@ -30,6 +31,7 @@ router.get('/earnings', getPartnerEarnings);
 router.get('/wallet', getPartnerWallet);
 router.post('/wallet/withdraw', requestWithdrawal);
 router.get('/referrals', getPartnerReferrals);
+router.use('/notifications', notificationRoutes);
 
 // Milestone 2: Profile & Security Endpoints
 router.get('/profile', getProfile);

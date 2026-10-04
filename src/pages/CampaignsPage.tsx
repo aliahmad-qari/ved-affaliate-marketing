@@ -256,7 +256,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                       <div>
                         <span className="text-[#AAB3C2]">Required Action: </span>
-                        <span className="text-[#F8FAFC] font-medium block truncate max-w-[220px]">
+                        <span className="text-[#F8FAFC] font-medium block truncate max-w-55">
                           {campaign.requiredAction}
                         </span>
                       </div>
@@ -265,9 +265,9 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                     <div className="flex items-start gap-2 text-xs">
                       <Award className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
                       <div>
-                        <span className="text-[#AAB3C2]">Payout: </span>
+                        <span className="text-[#AAB3C2]">Potential Payout: </span>
                         <span className="text-[#D4AF37] font-medium">
-                          {campaign.payout ? `₹${campaign.payout} INR` : 'Admin Configured'}
+                          {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
                         </span>
                       </div>
                     </div>
@@ -284,7 +284,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           size="sm"
                           fullWidth
                           onClick={() => handleCopyPartnerLink(campaign.slug)}
-                          className="!py-1.5 !text-xs"
+                          className="py-1.5! text-xs!"
                         >
                           {copiedSlug === campaign.slug ? (
                             <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" />
@@ -298,7 +298,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           variant="primary"
                           size="sm"
                           onClick={() => handleShareWhatsApp(campaign)}
-                          className="!py-1.5 !px-2.5 !bg-[#25D366] !text-black !hover:bg-[#20ba59]"
+                          className="py-1.5! px-2.5! bg-[#25D366]! text-black! hover:bg-[#20ba59]!"
                           aria-label="Share on WhatsApp"
                         >
                           <Share2 className="w-3.5 h-3.5" />

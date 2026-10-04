@@ -176,6 +176,17 @@ Starts `server.ts` via `tsx` on `PORT` (or 3001), serving both the `/api/*` endp
 npm run lint
 ```
 
+### Admin Provisioning
+Admin registration is not public. Set `MONGODB_URI`, `ADMIN_NAME`, `ADMIN_EMAIL`, and a unique `ADMIN_PASSWORD` of at least 12 characters in a trusted local shell, then run:
+
+```bash
+npm run admin:provision
+```
+
+The provisioning command creates or updates that Admin account and refuses to create more than three Admin users. Do not set `ADMIN_PASSWORD` in Vercel, and do not commit it. Admin login is at `/admin/login`; all Admin APIs independently enforce the `ADMIN` role.
+
+Campaign logo uploads require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on Render. Uploads are limited to 3 MB and validated by file signature for PNG, JPEG, or WebP. MongoDB Atlas must support replica-set transactions for idempotent lead approval and reserved withdrawals.
+
 ---
 
 ## 7. Deployment Instructions
@@ -194,6 +205,7 @@ The repository root is the service root; there is no separate backend package di
 - Health Check Path: `/api/health`
 - Node: `22.12.0` or newer supported by Vite 8
 - Environment variables: `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET` (at least 32 random characters), and `FRONTEND_URL`
+- Optional logo storage: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - Leave `PORT` to Render; the server binds `0.0.0.0` and reads `process.env.PORT`.
 
 Set `FRONTEND_URL` to the exact Vercel production origin (scheme and host only). Comma-separated origins are supported if you intentionally allow more than one. The API refuses production startup if MongoDB cannot connect, and `/api/health` returns 503 when the database is unavailable.
@@ -211,10 +223,11 @@ Vercel serves the Vite SPA routes through `vercel.json`. All frontend API client
 - Register and log in; reload and confirm session persistence, then log out.
 - Verify the Partner Dashboard, Campaigns, Lead submission, Partner Leads, Earnings, Wallet, and Profile.
 - Confirm submitted leads begin Pending and a partner cannot approve their own lead.
+- Provision an Admin privately; test Admin login, partner denial from `/api/admin/*`, lead approval/rejection, earning idempotency, withdrawal reservation/rejection/manual-paid reference, notifications, CSV exports, and audit records.
 - Confirm profile responses contain masked PAN/account values only, never raw identifiers.
 - Verify support submission appears successful only when accepted by the backend.
 - Check Render `/api/health` reports `healthy` with MongoDB connected and returns 503 when it is unavailable.
-- Test frontend-to-backend requests and backend-to-Atlas connectivity; do not test Milestone 4 workflows.
+- Test frontend-to-backend requests and backend-to-Atlas connectivity, including a second concurrent withdrawal request to confirm reserved balance cannot be spent twice.
 
 ---
 

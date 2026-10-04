@@ -57,6 +57,12 @@ export interface PartnerCampaignItem {
   currency: string;
   payoutTerms: string;
   rules: string[];
+  terms?: {
+    eligibility?: string;
+    validationRejection?: string;
+    payoutTimeline?: string;
+    duplicateFraudRules?: string;
+  };
   status: string;
   logoUrl?: string;
   trackingUrl: string;
@@ -78,7 +84,7 @@ export interface WalletTransactionItem {
   partnerId: string;
   type: 'LEAD_EARNING' | 'REFERRAL_REWARD' | 'WITHDRAWAL' | 'ADJUSTMENT';
   amount: number;
-  status: 'PENDING' | 'AVAILABLE' | 'PROCESSED' | 'REJECTED' | 'CANCELLED';
+  status: 'PENDING' | 'AVAILABLE' | 'PROCESSING' | 'APPROVED' | 'PROCESSED' | 'PAID' | 'REJECTED' | 'CANCELLED';
   referenceType: string;
   referenceId: string;
   description: string;

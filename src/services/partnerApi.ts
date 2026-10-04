@@ -111,3 +111,16 @@ export async function fetchPartnerReferrals(): Promise<ReferralsData> {
   const res = await partnerFetch('/api/partner/referrals');
   return res.data;
 }
+
+export async function fetchPartnerNotifications(): Promise<{ data: any[]; unreadCount: number }> {
+  const res = await partnerFetch('/api/partner/notifications');
+  return { data: res.data, unreadCount: res.unreadCount };
+}
+
+export async function markPartnerNotificationRead(id: string): Promise<void> {
+  await partnerFetch(`/api/partner/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+}
+
+export async function markAllPartnerNotificationsRead(): Promise<void> {
+  await partnerFetch('/api/partner/notifications/read-all', { method: 'PATCH' });
+}

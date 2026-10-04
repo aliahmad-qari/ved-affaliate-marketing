@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, ArrowUpRight, User, LogOut, LayoutDashboard, Layers, FileText, Wallet, Gift, TrendingUp } from 'lucide-react';
+import { Menu, X, ArrowUpRight, User, LogOut, LayoutDashboard, Layers, FileText, Wallet, Gift, TrendingUp, Bell } from 'lucide-react';
 import { Button } from '../ui/Button.tsx';
 import { VedLogo } from '../ui/VedLogo.tsx';
 import { useAuth } from '../../context/AuthContext.tsx';
@@ -21,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onNavigate }) => {
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'earnings', label: 'Earnings', icon: TrendingUp },
     { id: 'referrals', label: 'Referrals', icon: Gift },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
   // Public visitor nav links
@@ -130,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onNavigate }) => {
             <Button
               variant="secondary"
               size="sm"
-              className="!px-2.5 !py-1 !text-xs !min-h-[34px] font-mono text-[#D4AF37]"
+              className="px-2.5! py-1! text-xs! min-h-8.5! font-mono text-[#D4AF37]"
               onClick={() => handleLinkClick('profile')}
             >
               <User className="w-3 h-3 mr-1" />
@@ -140,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onNavigate }) => {
             <Button
               variant="primary"
               size="sm"
-              className="!px-3 !py-1.5 !text-xs !min-h-[36px]"
+              className="px-3! py-1.5! text-xs! min-h-9!"
               onClick={() => handleLinkClick('register')}
             >
               Join

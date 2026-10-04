@@ -7,6 +7,8 @@ import { CampaignDetailModal } from './components/ui/CampaignDetailModal.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { AboutPage } from './pages/AboutPage.tsx';
 import { FounderPage } from './pages/FounderPage.tsx';
+import { AdminPage } from './pages/AdminPage.tsx';
+import { NotificationsPage } from './pages/NotificationsPage.tsx';
 import { CampaignsPage } from './pages/CampaignsPage.tsx';
 import { SupportPage } from './pages/SupportPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
@@ -41,6 +43,8 @@ function MainApp() {
       'home',
       'about',
       'founder',
+      'admin',
+      'admin/login',
       'campaigns',
       'support',
       'login',
@@ -51,6 +55,7 @@ function MainApp() {
       'wallet',
       'earnings',
       'referrals',
+      'notifications',
       'privacy',
       'terms',
     ];
@@ -90,7 +95,7 @@ function MainApp() {
   // Route protection
   useEffect(() => {
     if (!authLoading) {
-      const protectedRoutes = ['dashboard', 'leads', 'wallet', 'earnings', 'referrals', 'profile'];
+      const protectedRoutes = ['dashboard', 'leads', 'wallet', 'earnings', 'referrals', 'profile', 'notifications'];
       if (protectedRoutes.includes(currentRoute) && !isAuthenticated) {
         navigateTo('login');
       } else if ((currentRoute === 'login' || currentRoute === 'register') && isAuthenticated) {
@@ -129,11 +134,12 @@ function MainApp() {
     setIsModalOpen(false);
     setSelectedCampaign(null);
   };
+  const isAdminRoute = currentRoute === 'admin' || currentRoute.startsWith('admin/');
 
   return (
     <div className="min-h-screen flex flex-col bg-[#070B14] text-[#F8FAFC]">
       {/* Top Navigation */}
-      <Navbar currentTab={currentRoute} onNavigate={navigateTo} />
+      {!isAdminRoute && <Navbar currentTab={currentRoute} onNavigate={navigateTo} />}
 
       {/* Main Page Content */}
       <main className="flex-1 pb-16 md:pb-0">
@@ -173,6 +179,10 @@ function MainApp() {
         {currentRoute === 'founder' && (
           <FounderPage onNavigate={navigateTo} />
         )}
+
+        {isAdminRoute && <AdminPage route={currentRoute} onNavigate={navigateTo} />}
+
+        {currentRoute === 'notifications' && <NotificationsPage />}
 
         {currentRoute === 'campaigns' && (
           <CampaignsPage
@@ -218,11 +228,14 @@ function MainApp() {
           'referrals',
           'about',
           'founder',
+          'admin',
+          'admin/login',
           'campaigns',
           'support',
           'login',
           'register',
           'profile',
+          'notifications',
           'privacy',
           'terms',
         ].includes(currentRoute) && (
@@ -239,17 +252,17 @@ function MainApp() {
       />
 
       {/* Floating Direct WhatsApp Action (bottom right) */}
-      <WhatsAppButton
+      {!isAdminRoute && <WhatsAppButton
         phoneNumber="7064866056"
         defaultMessage="Hello VED Affiliate Team, I would like more information about your partner marketing opportunities."
         variant="floating"
-      />
+      />}
 
       {/* Mobile Bottom Navigation (for Android / mobile users) */}
-      <MobileBottomNav currentTab={currentRoute} onNavigate={navigateTo} />
+      {!isAdminRoute && <MobileBottomNav currentTab={currentRoute} onNavigate={navigateTo} />}
 
       {/* Global Footer */}
-      <Footer onNavigate={navigateTo} />
+      {!isAdminRoute && <Footer onNavigate={navigateTo} />}
     </div>
   );
 }

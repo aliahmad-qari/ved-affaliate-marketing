@@ -13,7 +13,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
       {/* Golden Ambient Glow */}
       <div 
         aria-hidden="true" 
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[400px] pointer-events-none opacity-25 bg-[radial-gradient(circle_at_50%_0%,#D4AF37_0%,transparent_70%)]" 
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-100 pointer-events-none opacity-25 bg-[radial-gradient(circle_at_50%_0%,#D4AF37_0%,transparent_70%)]" 
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -30,7 +30,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
             {/* Display Headline */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#F8FAFC] tracking-tight leading-[1.15]">
               Promote Financial Apps. <br />
-              <span className="text-[#D4AF37]">Earn Verified Commissions.</span>
+              <span className="text-[#D4AF37]">Earn on Verified Leads.</span>
             </h1>
 
             {/* Concise Value Proposition */}
@@ -42,7 +42,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs sm:text-sm text-[#F8FAFC]">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                <span>10–12 Top Indian Financial Campaigns</span>
+                <span>12+ Financial Campaigns</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0" />

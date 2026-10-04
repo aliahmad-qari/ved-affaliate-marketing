@@ -214,7 +214,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             />
             <Search className="w-3.5 h-3.5 text-[#AAB3C2] absolute left-2.5 top-2.5" />
           </div>
-          <Button type="submit" variant="secondary" size="sm" className="!py-1.5 !text-xs">
+          <Button type="submit" variant="secondary" size="sm" className="py-1.5! text-xs!">
             Search
           </Button>
         </form>
@@ -412,7 +412,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                   >
                     {liveCampaigns.map((camp) => (
                       <option key={camp.slug || camp._id} value={camp.slug || camp._id}>
-                        {camp.name} — Payout: ₹{camp.payout} ({camp.companyName})
+                        {camp.name} — Potential Payout: ₹{camp.payout} ({camp.companyName})
                       </option>
                     ))}
                   </select>

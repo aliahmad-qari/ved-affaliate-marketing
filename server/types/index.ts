@@ -17,6 +17,12 @@ export interface ICampaign {
   currency: string;
   payoutTerms: string;
   rules: string[];
+  terms?: {
+    eligibility?: string;
+    validationRejection?: string;
+    payoutTimeline?: string;
+    duplicateFraudRules?: string;
+  };
   status: CampaignStatus;
   logoUrl?: string;
   baseTrackingUrl?: string; // Private, not sent to public clients
@@ -75,7 +81,7 @@ export interface IPartner {
 
 export interface AuthTokenPayload {
   id: string;
-  partnerId: string;
+  partnerId?: string;
   email: string;
   role: UserRole;
   iat?: number;
@@ -109,7 +115,7 @@ export interface ILead {
 }
 
 export type TransactionType = 'LEAD_EARNING' | 'REFERRAL_REWARD' | 'WITHDRAWAL' | 'ADJUSTMENT';
-export type TransactionStatus = 'PENDING' | 'AVAILABLE' | 'PROCESSED' | 'REJECTED' | 'CANCELLED';
+export type TransactionStatus = 'PENDING' | 'AVAILABLE' | 'PROCESSING' | 'APPROVED' | 'PROCESSED' | 'PAID' | 'REJECTED' | 'CANCELLED';
 
 export interface IWalletTransaction {
   transactionId: string;

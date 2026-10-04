@@ -91,7 +91,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
-      `Join VED AFFILIATE PVT. LIMITED to promote leading financial apps in India and earn verified commissions! Register using my official partner referral code: ${partner.referralCode}\n${referralUrl}`
+      `Join VED AFFILIATE PVT. LIMITED to promote leading financial apps in India and earn on verified leads! Register using my official partner referral code: ${partner.referralCode}\n${referralUrl}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -238,7 +238,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               variant="secondary"
               size="sm"
               onClick={handleCopyReferral}
-              className="!py-1 !text-xs !min-h-[32px]"
+              className="py-1! text-xs! min-h-8!"
             >
               {copiedReferral ? <Check className="w-3 h-3 mr-1 text-emerald-400" /> : <Copy className="w-3 h-3 mr-1" />}
               <span>{copiedReferral ? 'Copied' : 'Copy Link'}</span>
@@ -247,7 +247,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               variant="primary"
               size="sm"
               onClick={handleShareWhatsApp}
-              className="!py-1 !text-xs !min-h-[32px] !bg-[#25D366] !text-black !hover:bg-[#20ba59]"
+              className="py-1! text-xs! min-h-8! bg-[#25D366]! text-black! hover:bg-[#20ba59]!"
             >
               <Share2 className="w-3 h-3 mr-1" />
               <span>WhatsApp</span>

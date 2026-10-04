@@ -60,7 +60,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
   const handleShareWhatsApp = () => {
     if (!data) return;
     const text = encodeURIComponent(
-      `Join VED AFFILIATE PVT. LIMITED to promote leading financial apps in India and earn verified commissions! Register using my official partner referral link:\n${data.referralLink}`
+      `Join VED AFFILIATE PVT. LIMITED to promote leading financial apps in India and earn on verified leads! Register using my official partner referral link:\n${data.referralLink}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -111,7 +111,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
                 variant="secondary"
                 size="sm"
                 onClick={handleCopyCode}
-                className="!py-1 !text-xs !min-h-[32px]"
+                className="py-1! text-xs! min-h-8!"
               >
                 {copiedCode ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
                 <span>{copiedCode ? 'Copied' : 'Copy'}</span>
@@ -134,7 +134,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
                 variant="secondary"
                 size="sm"
                 onClick={handleCopyLink}
-                className="!py-1 !text-xs !min-h-[32px] shrink-0"
+                className="py-1! text-xs! min-h-8! shrink-0"
               >
                 {copiedLink ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
                 <span>{copiedLink ? 'Copied' : 'Copy'}</span>
@@ -143,7 +143,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
                 variant="primary"
                 size="sm"
                 onClick={handleShareWhatsApp}
-                className="!py-1 !text-xs !min-h-[32px] !bg-[#25D366] !text-black !hover:bg-[#20ba59] shrink-0"
+                className="py-1! text-xs! min-h-8! bg-[#25D366]! text-black! hover:bg-[#20ba59]! shrink-0"
               >
                 <Share2 className="w-3.5 h-3.5 mr-1" />
                 <span>WhatsApp</span>

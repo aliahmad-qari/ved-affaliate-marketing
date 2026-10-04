@@ -55,6 +55,12 @@ const CampaignSchema: Schema = new Schema(
       type: [String],
       default: [],
     },
+    terms: {
+      eligibility: { type: String, trim: true, maxlength: 2000, default: '' },
+      validationRejection: { type: String, trim: true, maxlength: 2000, default: '' },
+      payoutTimeline: { type: String, trim: true, maxlength: 2000, default: '' },
+      duplicateFraudRules: { type: String, trim: true, maxlength: 2000, default: '' },
+    },
     status: {
       type: String,
       enum: ['LIVE', 'PAUSED', 'DRAFT', 'ENDED'],

@@ -6,6 +6,8 @@ import campaignRoutes from './routes/campaignRoutes.ts';
 import supportRoutes from './routes/supportRoutes.ts';
 import authRoutes from './routes/authRoutes.ts';
 import partnerRoutes from './routes/partnerRoutes.ts';
+import adminAuthRoutes from './routes/adminAuthRoutes.ts';
+import adminRoutes from './routes/adminRoutes.ts';
 import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.ts';
 import { getDbStatus } from './config/db.ts';
 
@@ -88,6 +90,8 @@ export const createApp = (): Express => {
   // Authentication & Partner Profile Routes (Milestone 2)
   app.use('/api/auth', authRoutes);
   app.use('/api/partner', partnerRoutes);
+  app.use('/api/admin/auth', adminAuthRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // Error handling
   app.use('/api/*', notFoundHandler);

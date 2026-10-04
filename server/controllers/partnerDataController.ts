@@ -5,6 +5,7 @@ import { getDbStatus } from '../config/db.ts';
 import { LeadStore } from '../services/leadStore.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
+import { AppSetting } from '../models/AppSetting.ts';
 
 // Helper to get LIVE campaigns
 async function getLiveCampaigns(): Promise<any[]> {
@@ -247,6 +248,7 @@ export const getPartnerWallet = async (req: Request, res: Response, next: NextFu
     const partnerId = req.user.partnerId;
     const summary = await LeadStore.getDashboardSummary(partnerId);
     const transactions = await LeadStore.getWalletTransactions(partnerId);
+    const setting: any = getDbStatus().isConnected ? await AppSetting.findOne({ key: 'business' }).lean().exec() : null;
 
     res.status(200).json({
       success: true,
@@ -255,7 +257,7 @@ export const getPartnerWallet = async (req: Request, res: Response, next: NextFu
         pendingBalance: summary.pendingEarnings,
         totalEarned: summary.totalEarnings,
         totalWithdrawn: summary.totalWithdrawn,
-        minimumWithdrawal: 200,
+        minimumWithdrawal: Number(setting?.minimumWithdrawalAmount ?? 200),
         transactions,
       },
     });
@@ -274,10 +276,12 @@ export const requestWithdrawal = async (req: Request, res: Response, next: NextF
     const { amount, paymentMethod } = req.body;
 
     const cleanAmount = Number(amount);
-    if (isNaN(cleanAmount) || cleanAmount < 200) {
+    const setting: any = getDbStatus().isConnected ? await AppSetting.findOne({ key: 'business' }).lean().exec() : null;
+    const minimumWithdrawalAmount = Number(setting?.minimumWithdrawalAmount ?? 200);
+    if (!Number.isFinite(cleanAmount) || cleanAmount < minimumWithdrawalAmount) {
       res.status(400).json({
         success: false,
-        message: 'Minimum withdrawal amount is ₹200.',
+        message: `Minimum withdrawal amount is ₹${minimumWithdrawalAmount}.`,
       });
       return;
     }

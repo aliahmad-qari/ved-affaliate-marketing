@@ -4,6 +4,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { ILead, IWalletTransaction, DashboardSummary, LeadStatus } from '../types/index.ts';
 import { isMongooseReady } from './partnerStore.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
+import { AppSetting } from '../models/AppSetting.ts';
 
 // In-memory fallback stores
 const memoryLeads: ILead[] = [];
@@ -213,17 +214,19 @@ export const LeadStore = {
 
     // Include referral rewards or adjustments if any
     let referralRewards = 0;
+    let availableReferralRewards = 0;
     let totalWithdrawn = 0;
     let pendingWithdrawals = 0;
 
     for (const tx of transactions) {
-      if (tx.type === 'REFERRAL_REWARD' && (tx.status === 'AVAILABLE' || tx.status === 'PROCESSED')) {
+      if (tx.type === 'REFERRAL_REWARD') {
         referralRewards += tx.amount;
+        if (tx.status === 'AVAILABLE') availableReferralRewards += tx.amount;
       }
       if (tx.type === 'WITHDRAWAL') {
-        if (tx.status === 'PROCESSED') {
+        if (tx.status === 'PROCESSED' || tx.status === 'PAID') {
           totalWithdrawn += tx.amount;
-        } else if (tx.status === 'PENDING') {
+        } else if (['PENDING', 'PROCESSING', 'APPROVED'].includes(tx.status)) {
           pendingWithdrawals += tx.amount;
         }
       }
@@ -231,7 +234,7 @@ export const LeadStore = {
 
     // Available Wallet Balance = (Approved Earnings + Referral Rewards) - (Total Withdrawn + Pending Withdrawals)
     const totalEarned = approvedEarnings + paidEarnings + referralRewards;
-    const availableWalletBalance = Math.max(0, approvedEarnings + referralRewards - (totalWithdrawn + pendingWithdrawals));
+    const availableWalletBalance = Math.max(0, approvedEarnings + availableReferralRewards - (totalWithdrawn + pendingWithdrawals));
 
     return {
       totalEarnings: Math.round(totalEarned * 100) / 100,
@@ -328,18 +331,13 @@ export const LeadStore = {
     const pId = partnerId.toUpperCase();
     const cleanAmount = Math.round(Number(amount) * 100) / 100;
 
-    if (isNaN(cleanAmount) || cleanAmount < 200) {
-      const error: any = new Error('Minimum withdrawal amount is ₹200.');
+    if (!Number.isFinite(cleanAmount) || cleanAmount < 0) {
+      const error: any = new Error('Withdrawal amount must be a valid positive number.');
       error.status = 400;
       throw error;
     }
-
-    // Check available balance
-    const summary = await this.getDashboardSummary(pId);
-    if (cleanAmount > summary.availableWalletBalance) {
-      const error: any = new Error(
-        `Insufficient available wallet balance. Available: ₹${summary.availableWalletBalance}, Requested: ₹${cleanAmount}.`
-      );
+    if (!isMongooseReady() && cleanAmount < 200) {
+      const error: any = new Error('Minimum withdrawal amount is ₹200 in development fallback mode.');
       error.status = 400;
       throw error;
     }
@@ -361,9 +359,39 @@ export const LeadStore = {
     };
 
     if (isMongooseReady()) {
-      const tx = new WalletTransaction(txData);
-      await tx.save();
-      return sanitizeWalletTransaction(tx);
+      const session = await mongoose.startSession();
+      let saved: any;
+      try {
+        await session.withTransaction(async () => {
+          const settings: any = await AppSetting.findOne({ key: 'business' }).session(session).lean().exec();
+          const minimum = Number(settings?.minimumWithdrawalAmount ?? 200);
+          if (cleanAmount < minimum) {
+            throw Object.assign(new Error(`Minimum withdrawal amount is ₹${minimum}.`), { status: 400 });
+          }
+          const [leads, transactions, partner] = await Promise.all([
+            Lead.find({ partnerId: pId }).session(session).exec(),
+            WalletTransaction.find({ partnerId: pId }).session(session).exec(),
+            mongoose.model('Partner').findOne({ partnerId: pId }).select('_id').session(session).exec(),
+          ]);
+          if (!partner) throw Object.assign(new Error('Partner not found.'), { status: 404 });
+          const approvedEarnings = leads.filter((lead) => lead.status === 'APPROVED').reduce((sum, lead) => sum + Math.round(lead.payoutSnapshot * 100), 0);
+          const referralCredits = transactions.filter((tx) => tx.type === 'REFERRAL_REWARD' && tx.status === 'AVAILABLE').reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);
+          const withdrawn = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PAID', 'PROCESSED'].includes(tx.status)).reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);
+          const reserved = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PENDING', 'PROCESSING', 'APPROVED'].includes(tx.status)).reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);
+          const availableCents = Math.max(0, approvedEarnings + referralCredits - withdrawn - reserved);
+          if (Math.round(cleanAmount * 100) > availableCents) {
+            throw Object.assign(new Error(`Insufficient available wallet balance. Available: ₹${(availableCents / 100).toFixed(2)}.`), { status: 400 });
+          }
+
+          await mongoose.model('Partner').updateOne({ _id: partner._id }, { $inc: { walletRevision: 1 } }, { session });
+          const tx = new WalletTransaction(txData);
+          await tx.save({ session });
+          saved = tx.toJSON();
+        });
+      } finally {
+        await session.endSession();
+      }
+      return sanitizeWalletTransaction(saved);
     }
 
     memoryTransactions.unshift(txData);

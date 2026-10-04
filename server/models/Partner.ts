@@ -151,6 +151,11 @@ const PartnerSchema: Schema = new Schema(
       type: Date,
       select: false,
     },
+    walletRevision: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
   },
   {
     timestamps: true,

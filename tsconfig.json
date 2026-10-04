@@ -10,10 +10,10 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
+    "types": ["vite/client", "node", "multer"],
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts", "server.ts", "vite.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts", "scripts/**/*.ts", "server.ts", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
