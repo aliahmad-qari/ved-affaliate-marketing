@@ -145,3 +145,37 @@ export const getPublicCampaignBySlug = async (req: Request, res: Response, next:
     next(error);
   }
 };
+
+/**
+ * GET /api/public/campaigns/:slug/go?ref=&pid=
+ * Redirects a visitor to the broker tracking URL configured by Admin, tagged with the partner's codes.
+ */
+export const redirectToCampaignTracking = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const codePattern = /^[A-Za-z0-9-]{3,40}$/;
+    const ref = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
+    const pid = typeof req.query.pid === 'string' ? req.query.pid.trim() : '';
+
+    const campaign: any = getDbStatus().isConnected
+      ? await Campaign.findOne({ slug: req.params.slug, status: 'LIVE' }).select('+baseTrackingUrl').lean().exec()
+      : null;
+
+    let target: URL | null = null;
+    try {
+      target = campaign?.baseTrackingUrl ? new URL(campaign.baseTrackingUrl) : null;
+    } catch {
+      target = null;
+    }
+
+    if (!target || !['http:', 'https:'].includes(target.protocol)) {
+      res.status(404).json({ success: false, message: 'This campaign link is not active yet.' });
+      return;
+    }
+
+    if (codePattern.test(ref)) target.searchParams.set('ref', ref);
+    if (codePattern.test(pid)) target.searchParams.set('pid', pid);
+    res.redirect(302, target.toString());
+  } catch (error) {
+    next(error);
+  }
+};

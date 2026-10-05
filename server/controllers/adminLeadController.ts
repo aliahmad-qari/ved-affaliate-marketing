@@ -37,16 +37,18 @@ export const getAdminDashboard = async (_req: Request, res: Response, next: Next
       { $match: { type: 'WITHDRAWAL', status: { $in: ['PAID', 'PROCESSED'] } } },
       { $group: { _id: null, amount: { $sum: '$amount' } } },
     ]);
+    const paidWithdrawals = Number(paidWithdrawalRows[0]?.amount || 0);
+    // Paid withdrawals release APPROVED earnings without changing the lead status, so offset them here.
     res.json({
       success: true,
       data: {
         totalPartners, activePartners, totalLeads, approvedLeads, pendingLeads,
         totalEarnings: Number(payouts.APPROVED || 0) + Number(payouts.PAID || 0),
-        pendingPayout: Number(payouts.APPROVED || 0),
-        paidPayout: Number(payouts.PAID || 0),
+        pendingPayout: Math.max(0, Number(payouts.APPROVED || 0) - paidWithdrawals),
+        paidPayout: Number(payouts.PAID || 0) + paidWithdrawals,
         withdrawalRequests,
         pendingWithdrawals: Number(pendingWithdrawalRows[0]?.amount || 0),
-        paidWithdrawals: Number(paidWithdrawalRows[0]?.amount || 0),
+        paidWithdrawals,
       },
     });
   } catch (error) { next(error); }

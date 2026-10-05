@@ -237,36 +237,36 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                     <StatusBadge status={campaign.status} />
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-xs text-[#AAB3C2] mb-1">
-                    <Building className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <div className="flex items-center gap-1.5 text-[13px] text-[#AAB3C2] mb-1">
+                    <Building className="w-4 h-4 text-[#D4AF37]" />
                     <span className="truncate">{campaign.companyName}</span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-bold text-[#F8FAFC] group-hover:text-[#D4AF37] transition-colors leading-snug mb-3">
+                  <h3 className="text-[17px] sm:text-lg font-bold text-[#F8FAFC] group-hover:text-[#D4AF37] transition-colors leading-snug mb-3">
                     {campaign.name}
                   </h3>
 
-                  <p className="text-xs text-[#AAB3C2] leading-relaxed mb-5 line-clamp-2">
+                  <p className="text-[13px] text-[#AAB3C2] leading-relaxed mb-5 line-clamp-3">
                     {campaign.description}
                   </p>
 
                   {/* Requirements & Payout Attributes */}
                   <div className="bg-[#111A2D]/60 border border-[#1C273C] rounded-lg p-3 space-y-2 mb-5">
-                    <div className="flex items-start gap-2 text-xs">
+                    <div className="flex items-start gap-2 text-[13px]">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                       <div>
                         <span className="text-[#AAB3C2]">Required Action: </span>
-                        <span className="text-[#F8FAFC] font-medium block truncate max-w-55">
+                        <span className="text-[#F8FAFC] font-medium block line-clamp-2">
                           {campaign.requiredAction}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2 text-xs">
+                    <div className="flex items-start gap-2 text-sm">
                       <Award className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
                       <div>
                         <span className="text-[#AAB3C2]">Potential Payout: </span>
-                        <span className="text-[#D4AF37] font-medium">
+                        <span className="text-[#D4AF37] font-bold">
                           {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
                         </span>
                       </div>
@@ -284,7 +284,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           size="sm"
                           fullWidth
                           onClick={() => handleCopyPartnerLink(campaign.slug)}
-                          className="py-1.5! text-xs!"
+                          className="py-1.5! text-[13px]!"
                         >
                           {copiedSlug === campaign.slug ? (
                             <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" />
@@ -310,6 +310,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectCampaign(campaign)}
+                          className="text-[13px]!"
                         >
                           Details
                         </Button>
@@ -319,6 +320,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           size="sm"
                           onClick={() => onNavigate('leads')}
                           disabled={campaign.status !== 'LIVE'}
+                          className="text-[13px]!"
                         >
                           <PlusCircle className="w-3.5 h-3.5 mr-1" />
                           <span>Submit Lead</span>
@@ -331,6 +333,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => onSelectCampaign(campaign)}
+                        className="text-[13px]!"
                       >
                         View Details
                       </Button>
@@ -339,6 +342,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                         variant="primary"
                         size="sm"
                         onClick={() => onNavigate('register')}
+                        className="text-[13px]!"
                       >
                         <span>Join to Promote</span>
                         <ChevronRight className="w-3.5 h-3.5" />

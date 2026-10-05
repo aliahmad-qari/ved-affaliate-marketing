@@ -52,7 +52,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
   // Parse referral code from URL if present (e.g. /register?ref=VED9X4K)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const ref = urlParams.get('ref') || urlParams.get('referral');
+    const ref = urlParams.get('ref') || urlParams.get('referral') || sessionStorage.getItem('ved_ref');
     if (ref) {
       setFormData((prev) => ({ ...prev, referralCodeInput: ref.toUpperCase().trim() }));
     }

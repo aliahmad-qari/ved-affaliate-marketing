@@ -10,6 +10,7 @@ interface CampaignDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectRegister: () => void;
+  continueUrl?: string;
 }
 
 export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
@@ -17,6 +18,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
   isOpen,
   onClose,
   onSelectRegister,
+  continueUrl,
 }) => {
   if (!isOpen || !campaign) return null;
 
@@ -133,8 +135,19 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
             Close
           </Button>
 
+          {continueUrl && campaign.status === 'LIVE' && (
+            <a
+              href={continueUrl}
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#D4AF37] px-3.5 py-2 min-h-9 text-[13px] font-semibold text-[#070B14] hover:bg-[#E5C35A]"
+            >
+              <span>Continue to {campaign.companyName}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          )}
+
           <Button
-            variant="primary"
+            variant={continueUrl ? 'outline' : 'primary'}
             size="sm"
             onClick={() => {
               onClose();

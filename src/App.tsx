@@ -25,6 +25,8 @@ import { fetchCampaigns } from './services/api.ts';
 import { Campaign } from './types/campaign.ts';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
 function MainApp() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('home');
@@ -33,10 +35,13 @@ function MainApp() {
   const [campaignsError, setCampaignsError] = useState<string | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [continueUrl, setContinueUrl] = useState<string | undefined>(undefined);
 
   // Sync route with URL path or hash
   const parseRouteFromLocation = useCallback(() => {
-    const rawPath = window.location.pathname.replace(/^\//, '').toLowerCase();
+    const rawPath = window.location.pathname.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
+    // Partner tracking links look like /campaigns/<slug>?ref=...; render them on the campaigns page
+    if (/^campaigns\/[^/]+$/.test(rawPath)) return 'campaigns';
     // Normalize aliases
     const path = rawPath === 'contact' ? 'support' : rawPath;
     const validRoutes = [
@@ -125,7 +130,30 @@ function MainApp() {
     loadCampaigns();
   }, []);
 
+  // Keep the partner referral code from a tracking link so registration can pre-fill it
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) sessionStorage.setItem('ved_ref', ref.toUpperCase().trim());
+  }, []);
+
+  // Open the campaign details when arriving via /campaigns/<slug>
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/campaigns\/([^/]+)\/?$/i);
+    if (!match || campaigns.length === 0) return;
+    const found = campaigns.find((c) => c.slug.toLowerCase() === decodeURIComponent(match[1]).toLowerCase());
+    if (found) {
+      const params = new URLSearchParams(window.location.search);
+      const query = new URLSearchParams();
+      if (params.get('ref')) query.set('ref', params.get('ref')!);
+      if (params.get('pid')) query.set('pid', params.get('pid')!);
+      setContinueUrl(query.size ? `${API_BASE}/api/public/campaigns/${encodeURIComponent(found.slug)}/go?${query}` : undefined);
+      setSelectedCampaign(found);
+      setIsModalOpen(true);
+    }
+  }, [campaigns]);
+
   const handleOpenDetailModal = (campaign: Campaign) => {
+    setContinueUrl(undefined);
     setSelectedCampaign(campaign);
     setIsModalOpen(true);
   };
@@ -249,6 +277,7 @@ function MainApp() {
         isOpen={isModalOpen}
         onClose={handleCloseDetailModal}
         onSelectRegister={() => navigateTo(isAuthenticated ? 'leads' : 'register')}
+        continueUrl={continueUrl}
       />
 
       {/* Floating Direct WhatsApp Action (bottom right) */}
