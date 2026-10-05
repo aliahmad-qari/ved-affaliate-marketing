@@ -14,11 +14,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
-import {
-  fetchPartnerLeads,
-  submitPartnerLead,
-  fetchPartnerCampaigns,
-} from '../services/partnerApi.ts';
+import { fetchPartnerLeads, fetchPartnerCampaigns, submitPartnerLead } from '../services/partnerApi.ts';
 import { LeadItem, PartnerCampaignItem, LeadStatus } from '../types/partner.ts';
 
 interface PartnerLeadsPageProps {
@@ -33,15 +29,13 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   // Filters
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
-
-  // Submit Lead Modal
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [liveCampaigns, setLiveCampaigns] = useState<PartnerCampaignItem[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
-  const [clientName, setClientName] = useState<string>('');
-  const [clientMobile, setClientMobile] = useState<string>('');
-  const [accountId, setAccountId] = useState<string>('');
-  const [submittedNotes, setSubmittedNotes] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientMobile, setClientMobile] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [submittedNotes, setSubmittedNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
@@ -66,17 +60,12 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     loadLeads();
   }, [selectedStatus]);
 
-  // Load campaigns for modal
   useEffect(() => {
     if (isSubmitModalOpen && liveCampaigns.length === 0) {
-      fetchPartnerCampaigns()
-        .then((camps) => {
-          setLiveCampaigns(camps);
-          if (camps.length > 0) {
-            setSelectedCampaignId(camps[0].slug || camps[0]._id || '');
-          }
-        })
-        .catch(() => {});
+      fetchPartnerCampaigns().then((campaigns) => {
+        setLiveCampaigns(campaigns);
+        if (campaigns.length > 0) setSelectedCampaignId(campaigns[0].slug || campaigns[0]._id || '');
+      }).catch(() => setSubmitError('Unable to load live campaigns.'));
     }
   }, [isSubmitModalOpen, liveCampaigns.length]);
 
@@ -85,16 +74,13 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     loadLeads();
   };
 
-  const handleOpenSubmitModal = (preselectedCampaignId?: string) => {
+  const openSubmitModal = () => {
     setSubmitError(null);
     setSubmitSuccess(null);
-    if (preselectedCampaignId) {
-      setSelectedCampaignId(preselectedCampaignId);
-    }
     setIsSubmitModalOpen(true);
   };
 
-  const handleCloseSubmitModal = () => {
+  const closeSubmitModal = () => {
     setIsSubmitModalOpen(false);
     setClientName('');
     setClientMobile('');
@@ -104,50 +90,23 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     setSubmitSuccess(null);
   };
 
-  const selectedCampaign = liveCampaigns.find(
-    (c) => c.slug === selectedCampaignId || c._id === selectedCampaignId
-  );
+  const selectedCampaign = liveCampaigns.find((campaign) => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId);
 
-  const handleSubmitLead = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitLead = async (event: React.FormEvent) => {
+    event.preventDefault();
     setSubmitError(null);
-    setSubmitSuccess(null);
-
-    if (!selectedCampaignId) {
-      setSubmitError('Please select a campaign.');
+    if (!selectedCampaignId || clientName.trim().length < 2 || !/^[6-9]\d{9}$/.test(clientMobile.trim()) || !accountId.trim()) {
+      setSubmitError('Enter a campaign, customer name, valid 10-digit mobile, and account/reference ID.');
       return;
     }
-
-    if (!clientName.trim() || clientName.trim().length < 2) {
-      setSubmitError('Enter client full name.');
-      return;
-    }
-
-    if (!/^[6-9]\d{9}$/.test(clientMobile.trim())) {
-      setSubmitError('Enter a valid 10-digit Indian mobile number.');
-      return;
-    }
-
-    if (!accountId.trim()) {
-      setSubmitError('Enter account or application reference ID.');
-      return;
-    }
-
     try {
       setIsSubmitting(true);
-      await submitPartnerLead({
-        campaignId: selectedCampaignId,
-        clientName: clientName.trim(),
-        clientMobile: clientMobile.trim(),
-        accountId: accountId.trim(),
-        submittedNotes: submittedNotes.trim() || undefined,
-      });
-
-      setSubmitSuccess('Lead submitted successfully! It has been recorded as PENDING for admin review.');
-      setTimeout(() => {
-        handleCloseSubmitModal();
-        loadLeads();
-      }, 1800);
+      await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: clientMobile.trim(), accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined });
+      setSubmitSuccess('Lead submitted for Admin verification.');
+      window.setTimeout(() => {
+        closeSubmitModal();
+        void loadLeads();
+      }, 1200);
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to submit lead.');
     } finally {
@@ -167,19 +126,17 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             Lead Management & Submissions
           </h1>
           <p className="text-xs text-[#AAB3C2] mt-0.5">
-            Submit customer leads against verified LIVE campaigns and track manual admin review status.
+            Review submitted leads. Vendor-reported conversions also appear here automatically when campaign callbacks are connected.
           </p>
         </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => handleOpenSubmitModal()}
-          className="w-full sm:w-auto"
-        >
+        <Button variant="primary" size="md" onClick={openSubmitModal} className="w-full sm:w-auto">
           <PlusCircle className="w-4 h-4 mr-2" />
           <span>Submit New Lead</span>
         </Button>
+      </div>
+
+      <div className="border border-[#263650] bg-[#0D1424] p-3 text-xs text-[#AAB3C2]">
+        Automatic provider updates are additive. When a vendor callback is configured, those conversions will appear alongside manually submitted leads.
       </div>
 
       {/* Filter and Search Bar */}
@@ -209,7 +166,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search Client, Lead ID, Account..."
+              placeholder="Search customer, lead ID, or account..."
               className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#F8FAFC] outline-none"
             />
             <Search className="w-3.5 h-3.5 text-[#AAB3C2] absolute left-2.5 top-2.5" />
@@ -243,10 +200,10 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             <p className="text-xs text-[#AAB3C2] mt-1 max-w-sm mx-auto">
               {selectedStatus !== 'ALL'
                 ? `No leads with status '${selectedStatus}' were found.`
-                : 'You have not submitted any customer leads yet. Process a campaign and submit the resulting lead to earn payouts.'}
+                : 'You have not submitted any customer leads yet, and no provider conversions have reached VED.'}
             </p>
             <div className="mt-4">
-              <Button variant="primary" size="sm" onClick={() => handleOpenSubmitModal()}>
+              <Button variant="primary" size="sm" onClick={openSubmitModal}>
                 Submit a Lead Now
               </Button>
             </div>
@@ -278,8 +235,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                         <div className="text-[11px] text-[#AAB3C2]">{lead.action}</div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-medium text-[#F8FAFC]">{lead.clientName}</div>
-                        <div className="font-mono text-[11px] text-[#AAB3C2]">{lead.clientMobile}</div>
+                        <div className="font-medium text-[#F8FAFC]">{lead.clientName || 'Not provided by provider'}</div>
+                        <div className="font-mono text-[11px] text-[#AAB3C2]">{lead.clientMobile || 'Not provided by provider'}</div>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-xs text-[#AAB3C2]">
                         {lead.accountId}
@@ -313,6 +270,29 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                     </tr>
                   ))}
                 </tbody>
+
+                {isSubmitModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" role="presentation" onClick={closeSubmitModal}>
+                    <section role="dialog" aria-modal="true" aria-labelledby="submit-lead-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}>
+                      <div className="mb-4 flex items-center justify-between border-b border-[#263650] pb-3">
+                        <h2 id="submit-lead-title" className="text-lg font-bold text-white">Submit Partner Lead</h2>
+                        <button type="button" onClick={closeSubmitModal} aria-label="Close lead form" className="text-[#AAB3C2] hover:text-white"><X className="h-5 w-5" /></button>
+                      </div>
+                      {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
+                        <form onSubmit={handleSubmitLead} className="space-y-3">
+                          {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
+                          <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
+                          <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
+                          <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
+                          <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
+                          <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
+                          {selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
+                          <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || liveCampaigns.length === 0}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
+                        </form>
+                      )}
+                    </section>
+                  </div>
+                )}
               </table>
             </div>
 
@@ -342,7 +322,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                   <div>
                     <div className="text-sm font-semibold text-[#F8FAFC]">{lead.campaignName}</div>
                     <div className="text-xs text-[#AAB3C2] flex items-center justify-between mt-1">
-                      <span>Client: {lead.clientName} ({lead.clientMobile})</span>
+                      <span>Client: {lead.clientName || 'Details unavailable'} ({lead.clientMobile || 'Phone unavailable'})</span>
                       <span className="font-mono font-bold text-emerald-400">₹{lead.payoutSnapshot}</span>
                     </div>
                     <div className="text-xs font-mono text-[#AAB3C2] mt-0.5">
@@ -357,7 +337,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                   )}
 
                   <div className="text-[11px] text-[#AAB3C2] flex justify-between pt-1 border-t border-[#1C273C]/50">
-                    <span>Submitted:</span>
+                    <span>Received:</span>
                     <span>{lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-IN') : '—'}</span>
                   </div>
                 </div>
@@ -367,144 +347,26 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
         )}
       </div>
 
-      {/* Submit Lead Modal */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-lg bg-[#0D1424] border border-[#1C273C] rounded-2xl p-6 shadow-2xl text-left my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1C273C] mb-4">
-              <div className="flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-[#D4AF37]" />
-                <h3 className="text-base font-bold text-[#F8FAFC]">Submit Partner Lead</h3>
-              </div>
-              <button
-                onClick={handleCloseSubmitModal}
-                className="text-[#AAB3C2] hover:text-[#F8FAFC] p-1 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" role="presentation" onClick={closeSubmitModal}>
+          <section role="dialog" aria-modal="true" aria-labelledby="submit-lead-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between border-b border-[#263650] pb-3">
+              <h2 id="submit-lead-title" className="text-lg font-bold text-white">Submit Partner Lead</h2>
+              <button type="button" onClick={closeSubmitModal} aria-label="Close lead form" className="text-[#AAB3C2] hover:text-white"><X className="h-5 w-5" /></button>
             </div>
-
-            {submitSuccess ? (
-              <div className="py-6 text-center space-y-3">
-                <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-                <h4 className="text-base font-bold text-[#F8FAFC]">Submission Recorded</h4>
-                <p className="text-xs text-[#AAB3C2]">{submitSuccess}</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitLead} className="space-y-4">
-                
-                {submitError && (
-                  <div className="bg-rose-950/50 border border-rose-800 rounded-xl p-3 text-xs text-rose-200 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    <span>{submitError}</span>
-                  </div>
-                )}
-
-                {/* Campaign Selection */}
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Select LIVE Campaign *
-                  </label>
-                  <select
-                    value={selectedCampaignId}
-                    onChange={(e) => setSelectedCampaignId(e.target.value)}
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                  >
-                    {liveCampaigns.map((camp) => (
-                      <option key={camp.slug || camp._id} value={camp.slug || camp._id}>
-                        {camp.name} — Potential Payout: ₹{camp.payout} ({camp.companyName})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedCampaign && (
-                  <div className="bg-[#111A2D] border border-[#1C273C] rounded-lg p-3 text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-[#AAB3C2]">Required Action:</span>
-                      <span className="font-semibold text-[#F8FAFC]">{selectedCampaign.requiredAction}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#AAB3C2]">Locked Payout Snapshot:</span>
-                      <span className="font-mono font-bold text-emerald-400">₹{selectedCampaign.payout}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Client Name */}
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Customer / Client Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Full name as on customer account"
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                  />
-                </div>
-
-                {/* Client Mobile */}
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Customer 10-Digit Mobile *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    maxLength={10}
-                    value={clientMobile}
-                    onChange={(e) => setClientMobile(e.target.value.replace(/\D/g, ''))}
-                    placeholder="9876543210"
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
-                  />
-                </div>
-
-                {/* Account / Application ID */}
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Account / Application / Reference ID *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    placeholder="e.g. Demat UCC, App ID, or Bank Application Reference"
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
-                  />
-                  <p className="text-[11px] text-[#AAB3C2] mt-1">
-                    This ID is verified by VED compliance with the financial institution before approving payout.
-                  </p>
-                </div>
-
-                {/* Optional Notes */}
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Additional Submission Notes (Optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={submittedNotes}
-                    onChange={(e) => setSubmittedNotes(e.target.value)}
-                    placeholder="e.g. Completed first trade on 02/10/2026"
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={handleCloseSubmitModal}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" variant="primary" size="md" disabled={isSubmitting}>
-                    {isSubmitting ? 'Recording Lead...' : 'Submit for Verification'}
-                  </Button>
-                </div>
+            {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
+              <form onSubmit={handleSubmitLead} className="space-y-3">
+                {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
+                <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
+                <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
+                <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
+                <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
+                <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
+                {selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
+                <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || liveCampaigns.length === 0}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
               </form>
             )}
-          </div>
+          </section>
         </div>
       )}
 

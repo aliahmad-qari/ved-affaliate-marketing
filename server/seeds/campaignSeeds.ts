@@ -201,7 +201,7 @@ export const initialCampaignSeeds: ICampaign[] = [
     ],
     status: 'LIVE',
     logoUrl: '/logos/kotakcherry.svg',
-    baseTrackingUrl: 'https://internal-tracking.vedafl.com/kotakcherry/v1',
+    baseTrackingUrl: 'https://wa.me/919321884488?text=Hi%2C%20I%20am%20interested%20in%20Kotak%20Mutual%20Fund%20investment%20of%20%E2%82%B9100%E2%80%93%E2%82%B9110.%20Please%20share%20the%20details.',
     isFeatured: false,
     sortOrder: 10,
   },

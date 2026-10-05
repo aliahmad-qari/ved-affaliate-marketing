@@ -20,10 +20,9 @@ import { useAuth } from '../context/AuthContext.tsx';
 
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
-  onOpenSubmitLead?: () => void;
 }
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpenSubmitLead }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const { partner } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -85,6 +84,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
           <Button
             variant="primary"
+            size="sm"
+            onClick={() => onNavigate('campaigns')}
+            className="flex-1 sm:flex-initial"
+          >
+            <ExternalLink className="w-4 h-4 mr-1.5" />
+            <span>Get Tracking Link</span>
+          </Button>
+
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => onNavigate('leads')}
             className="flex-1 sm:flex-initial"
@@ -242,7 +251,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
             <ArrowUpRight className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-            Submit new client leads and monitor real-time approval status.
+              Monitor vendor-reported conversions and their current status.
           </p>
         </div>
 
@@ -303,7 +312,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onOpen
                       {lead.campaignName}
                     </td>
                     <td className="py-3 px-3 text-[#AAB3C2]">
-                      {lead.clientName}
+                      {lead.clientName || 'Details unavailable'}
                     </td>
                     <td className="py-3 px-3 font-mono text-xs">
                       {lead.accountId}

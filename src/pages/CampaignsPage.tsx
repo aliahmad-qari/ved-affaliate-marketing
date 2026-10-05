@@ -121,8 +121,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
           <p className="text-sm sm:text-base text-[#AAB3C2] mt-3 leading-relaxed">
             Browse active Indian broking, investment, and demat campaigns.
             {isAuthenticated
-              ? ' Copy your secure partner tracking links and submit client leads.'
-              : ' Register as a partner to receive confidential tracking links and submit client leads.'}
+              ? ' Copy your partner tracking links. Vendor-reported conversions will appear in your Leads dashboard.'
+              : ' Register as a partner to receive confidential tracking links and view vendor-reported conversions.'}
           </p>
         </div>
 
@@ -314,7 +314,6 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                         >
                           Details
                         </Button>
-
                         <Button
                           variant="primary"
                           size="sm"

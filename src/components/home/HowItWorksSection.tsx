@@ -17,14 +17,14 @@ export const HowItWorksSection: React.FC = () => {
     },
     {
       num: '03',
-      title: 'Process & Submit Lead',
-      desc: 'Submit client lead details in Partner Portal.',
+      title: 'Share Link or Submit Lead',
+      desc: 'Use a partner tracking link, or submit a lead manually where needed.',
       icon: Send,
     },
     {
       num: '04',
-      title: 'Admin Verification',
-      desc: 'Admin cross-checks with vendor records.',
+      title: 'Track & Verify',
+      desc: 'Authorized provider callbacks can update conversions automatically; Admin review remains available.',
       icon: ShieldCheck,
       highlight: true,
     },
@@ -96,7 +96,7 @@ export const HowItWorksSection: React.FC = () => {
           <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
             <strong className="text-[#F8FAFC]">Verification Policy: </strong>
-            Lead submission does not automatically approve commission. Admin manually confirms validity before payout.
+            Conversion updates require an authorized provider API, webhook, or postback. Payout follows the campaign rules and VED verification policy.
           </span>
         </div>
 

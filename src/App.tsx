@@ -278,6 +278,7 @@ function MainApp() {
         onClose={handleCloseDetailModal}
         onSelectRegister={() => navigateTo(isAuthenticated ? 'leads' : 'register')}
         continueUrl={continueUrl}
+        isPartner={isAuthenticated}
       />
 
       {/* Floating Direct WhatsApp Action (bottom right) */}

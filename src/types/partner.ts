@@ -7,8 +7,8 @@ export interface LeadItem {
   campaignId: string;
   campaignName: string;
   campaignType?: string;
-  clientName: string;
-  clientMobile: string;
+  clientName?: string;
+  clientMobile?: string;
   accountId: string;
   action: string;
   submittedData?: {

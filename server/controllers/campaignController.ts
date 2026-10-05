@@ -26,6 +26,10 @@ export const ensureSeededData = async () => {
       await Campaign.insertMany(initialCampaignSeeds);
       console.log(`[VED SEED SUCCESS] Seeded ${initialCampaignSeeds.length} campaigns.`);
     }
+    await Campaign.updateOne(
+      { slug: 'kotak-cherry', baseTrackingUrl: 'https://internal-tracking.vedafl.com/kotakcherry/v1' },
+      { $set: { baseTrackingUrl: initialCampaignSeeds.find((campaign) => campaign.slug === 'kotak-cherry')?.baseTrackingUrl } },
+    );
   } catch (err) {
     console.error('[VED SEED ERROR] Error seeding initial campaign data:', err);
   }
@@ -196,13 +200,22 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });
-      target.searchParams.set('ref', partner.referralCode);
-      target.searchParams.set('pid', partner.partnerId);
-      target.searchParams.set('partner_id', partner.partnerId);
-      target.searchParams.set('campaign_id', String(campaign._id));
-      target.searchParams.set('clickid', clickId);
-      target.searchParams.set('click_id', clickId);
-      target.searchParams.set('subid', clickId);
+      const isWhatsApp = ['wa.me', 'www.whatsapp.com', 'api.whatsapp.com'].includes(target.hostname.toLowerCase());
+      if (isWhatsApp) {
+        const message = target.searchParams.get('text') || '';
+        target.searchParams.set('text', `${message}${message ? '\n\n' : ''}VED reference: ${clickId}`);
+        for (const key of [...target.searchParams.keys()]) {
+          if (key.toLowerCase().startsWith('utm_')) target.searchParams.delete(key);
+        }
+      } else {
+        target.searchParams.set('ref', partner.referralCode);
+        target.searchParams.set('pid', partner.partnerId);
+        target.searchParams.set('partner_id', partner.partnerId);
+        target.searchParams.set('campaign_id', String(campaign._id));
+        target.searchParams.set('clickid', clickId);
+        target.searchParams.set('click_id', clickId);
+        target.searchParams.set('subid', clickId);
+      }
     }
     res.redirect(302, target.toString());
   } catch (error) {

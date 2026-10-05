@@ -64,9 +64,9 @@ export const LegalPage: React.FC<LegalPageProps> = ({ initialTab = 'terms' }) =>
               </section>
 
               <section>
-                <h3 className="text-base font-bold text-[#F8FAFC] mb-2">2. Lead Submission & Verification Rule</h3>
+                <h3 className="text-base font-bold text-[#F8FAFC] mb-2">2. Tracking, Lead Verification & Commission</h3>
                 <p>
-                  Submitting a lead through the Partner Portal does not create an automatic right to commission. All submissions are placed in Pending status and must be validated manually by VED Administrators against broker vendor transaction logs. VED reserves the sole right to approve or reject leads that fail eligibility conditions.
+                  Partner referrals are attributed through campaign tracking links. Conversion details and statuses are received only when the relevant provider supplies them through an authorized API, webhook, or postback. Commission remains subject to campaign eligibility, provider validation, and VED compliance review.
                 </p>
               </section>
 

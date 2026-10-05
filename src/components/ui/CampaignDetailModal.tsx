@@ -11,6 +11,7 @@ interface CampaignDetailModalProps {
   onClose: () => void;
   onSelectRegister: () => void;
   continueUrl?: string;
+  isPartner?: boolean;
 }
 
 export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
@@ -19,6 +20,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
   onClose,
   onSelectRegister,
   continueUrl,
+  isPartner = false,
 }) => {
   if (!isOpen || !campaign) return null;
 
@@ -146,8 +148,8 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
             </a>
           )}
 
-          <Button
-            variant={continueUrl ? 'outline' : 'primary'}
+          {!isPartner && <Button
+            variant="primary"
             size="sm"
             onClick={() => {
               onClose();
@@ -156,7 +158,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
           >
             <span>Register to Promote</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </Button>
+          </Button>}
         </div>
       </div>
     </div>
