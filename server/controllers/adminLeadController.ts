@@ -159,7 +159,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
 export const adjustAdminLeadPayout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const payout = Number(req.body.payoutSnapshot);
-    if (!Number.isFinite(payout) || payout < 0 || Math.round(payout * 100) !== payout * 100) {
+    if (!Number.isFinite(payout) || payout < 0 || Math.abs(payout * 100 - Math.round(payout * 100)) >= 1e-6) {
       res.status(400).json({ success: false, message: 'Payout must be a non-negative amount with at most two decimals.' });
       return;
     }

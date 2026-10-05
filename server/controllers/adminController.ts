@@ -22,8 +22,14 @@ const cleanCampaignInput = (body: Record<string, any>) => {
       termFields.map((field) => [field, typeof source[field] === 'string' ? source[field].trim().slice(0, 2000) : '']),
     );
   }
+  // The form sends '' for unset dates, which Mongoose cannot cast.
+  if (input.startDate === '') delete input.startDate;
+  if (input.endDate === '') input.endDate = null;
   return input;
 };
+
+const validPayoutAmount = (payout: number): boolean =>
+  Number.isFinite(payout) && payout >= 0 && Math.abs(payout * 100 - Math.round(payout * 100)) < 1e-6;
 
 const pageOptions = (req: Request) => {
   const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
@@ -34,6 +40,9 @@ const pageOptions = (req: Request) => {
 const validHttpUrl = (value: string): boolean => {
   try { return ['http:', 'https:'].includes(new URL(value).protocol); } catch { return false; }
 };
+
+// Seeded campaigns store site-relative logo paths such as /logos/angelone.svg.
+const validLogoUrl = (value: string): boolean => /^\/(?!\/)[\w./-]*$/.test(value) || validHttpUrl(value);
 
 const serializeAdminCampaign = (campaign: any) => {
   const serialized = campaign.toObject({ transform: false });
@@ -53,14 +62,14 @@ export const createAdminCampaign = async (req: Request, res: Response, next: Nex
     const input = cleanCampaignInput(req.body);
     if (input.payout !== undefined && input.payout !== null) {
       const payout = Number(input.payout);
-      if (!Number.isFinite(payout) || payout < 0 || Math.round(payout * 100) !== payout * 100) {
+      if (!validPayoutAmount(payout)) {
         res.status(400).json({ success: false, message: 'Payout must be a non-negative amount with at most two decimals.' });
         return;
       }
       input.payout = Math.round(payout * 100) / 100;
     }
-    if (input.logoUrl && !validHttpUrl(input.logoUrl)) {
-      res.status(400).json({ success: false, message: 'Campaign logo URL must be HTTP or HTTPS.' });
+    if (input.logoUrl && !validLogoUrl(input.logoUrl)) {
+      res.status(400).json({ success: false, message: 'Campaign logo URL must be HTTP, HTTPS, or a site path starting with /.' });
       return;
     }
     if (input.baseTrackingUrl && !validHttpUrl(input.baseTrackingUrl)) {
@@ -82,14 +91,14 @@ export const updateAdminCampaign = async (req: Request, res: Response, next: Nex
     const updates = cleanCampaignInput(req.body);
     if (updates.payout !== undefined && updates.payout !== null) {
       const payout = Number(updates.payout);
-      if (!Number.isFinite(payout) || payout < 0 || Math.round(payout * 100) !== payout * 100) {
+      if (!validPayoutAmount(payout)) {
         res.status(400).json({ success: false, message: 'Payout must be a non-negative amount with at most two decimals.' });
         return;
       }
       updates.payout = Math.round(payout * 100) / 100;
     }
-    if (updates.logoUrl && !validHttpUrl(updates.logoUrl)) {
-      res.status(400).json({ success: false, message: 'Campaign logo URL must be HTTP or HTTPS.' });
+    if (updates.logoUrl && !validLogoUrl(updates.logoUrl)) {
+      res.status(400).json({ success: false, message: 'Campaign logo URL must be HTTP, HTTPS, or a site path starting with /.' });
       return;
     }
     if (updates.baseTrackingUrl && !validHttpUrl(updates.baseTrackingUrl)) {
