@@ -8,6 +8,7 @@ import { AppSetting } from '../models/AppSetting.ts';
 import { Notification } from '../models/Notification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { Lead } from '../models/Lead.ts';
+import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { notifyPartners, writeAudit } from '../services/adminServices.ts';
 
 const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
@@ -303,5 +304,62 @@ export const getAuditLogs = async (req: Request, res: Response, next: NextFuncti
     const { limit } = pageOptions(req);
     const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(limit).lean().exec();
     res.json({ success: true, data: logs });
+  } catch (error) { next(error); }
+};
+
+export const listAdminReferrals = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { page, limit, skip } = pageOptions(req);
+    const referredPartners = await Partner.find({ referredBy: { $exists: true, $nin: ['', null] } })
+      .select('partnerId fullName email referralCode referredBy createdAt accountStatus')
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+    const referrerIds = [...new Set(referredPartners.map((partner: any) => partner.referredBy))];
+    const referredIds = referredPartners.map((partner: any) => partner.partnerId);
+    const [referrers, qualificationRows, rewards] = await Promise.all([
+      Partner.find({ partnerId: { $in: referrerIds } }).select('partnerId fullName email').lean().exec(),
+      Lead.aggregate([
+        { $match: { partnerId: { $in: referredIds }, status: { $in: ['APPROVED', 'PAID'] } } },
+        { $group: { _id: '$partnerId', qualifiedLeads: { $sum: 1 } } },
+      ]).exec(),
+      WalletTransaction.find({ type: 'REFERRAL_REWARD', referenceId: { $in: referredIds } })
+        .select('referenceId amount status transactionId createdAt')
+        .lean()
+        .exec(),
+    ]);
+    const referrerById = new Map(referrers.map((partner: any) => [partner.partnerId, partner]));
+    const qualifiedById = new Map(qualificationRows.map((row: any) => [row._id, row.qualifiedLeads]));
+    const rewardById = new Map(rewards.map((reward: any) => [reward.referenceId, reward]));
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'ALL';
+    const data = referredPartners.map((referred: any) => {
+      const referrer: any = referrerById.get(referred.referredBy);
+      const reward: any = rewardById.get(referred.partnerId);
+      const qualifiedLeads = qualifiedById.get(referred.partnerId) || 0;
+      return {
+        referredPartnerId: referred.partnerId,
+        referredName: referred.fullName,
+        referredEmail: referred.email,
+        referralCode: referred.referralCode,
+        joinedAt: referred.createdAt,
+        accountStatus: referred.accountStatus,
+        referrerPartnerId: referred.referredBy,
+        referrerName: referrer?.fullName || 'Referrer unavailable',
+        referrerEmail: referrer?.email || '',
+        qualifiedLeads,
+        qualificationStatus: qualifiedLeads > 0 ? 'QUALIFIED' : 'PENDING',
+        rewardAmount: reward?.amount ?? (qualifiedLeads > 0 ? 50 : 0),
+        rewardStatus: reward?.status || (qualifiedLeads > 0 ? 'PROCESSING' : 'NOT_QUALIFIED'),
+        rewardTransactionId: reward?.transactionId || '',
+      };
+    }).filter((item) => {
+      const matchesSearch = !search || [item.referredPartnerId, item.referredName, item.referredEmail, item.referrerPartnerId, item.referrerName, item.referrerEmail, item.referralCode]
+        .some((value) => value.toLowerCase().includes(search));
+      const matchesStatus = status === 'ALL' || item.qualificationStatus === status || item.rewardStatus === status;
+      return matchesSearch && matchesStatus;
+    });
+
+    res.json({ success: true, data: data.slice(skip, skip + limit), total: data.length, page, totalPages: Math.ceil(data.length / limit) || 1 });
   } catch (error) { next(error); }
 };

@@ -187,6 +187,11 @@ The provisioning command creates or updates that Admin account and refuses to cr
 
 Campaign logo uploads require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on Render. Uploads are limited to 3 MB and validated by file signature for PNG, JPEG, or WebP. MongoDB Atlas must support replica-set transactions for idempotent lead approval and reserved withdrawals.
 
+### Vendor conversion callbacks
+Set a random `VENDOR_WEBHOOK_SECRET` on Render and share it with the vendor through a secure channel. Partner campaign redirects create a 180-day click attribution ID and append `clickid`, `click_id`, `subid`, `partner_id`, `campaign_id`, `ref`, and `pid` parameters to the configured vendor URL. The vendor must return the click ID in its callback; parameter names may need adapting to the vendor's tracking macros.
+
+Send `POST /api/webhooks/vendor` with `Authorization: Bearer <VENDOR_WEBHOOK_SECRET>` and JSON fields `eventId`, `clickId`, `conversionId`, `status`, and optionally `customerName`, `customerMobile`, `accountId`, and `rejectionReason`. Supported statuses map from `pending`/`registered`/`in_progress`, `approved`/`converted`/`completed`/`success`, and `rejected`/`declined`/`dropped`/`cancelled`. Approved conversions create an available partner earning using the payout snapshot captured when the click was routed; vendor-supplied payout values are ignored. Event IDs and conversion IDs are idempotent. Vendor-specific payload mappings, signature verification, and callback registration still require that vendor's integration documentation and test credentials.
+
 ---
 
 ## 7. Deployment Instructions
@@ -232,4 +237,4 @@ Vercel serves the Vite SPA routes through `vercel.json`. All frontend API client
 ---
 
 ## 8. Compliance & Disclaimer
-VED AFFILIATE PVT. LIMITED is an affiliate marketing platform and is not a registered stockbroker, investment advisor, or banking institution. All logos and campaign trademarks are the property of their respective holders. Lead verification and commission approval are manually determined by the company's compliance administrators.
+VED AFFILIATE PVT. LIMITED is an affiliate marketing platform and is not a registered stockbroker, investment advisor, or banking institution. All logos and campaign trademarks are the property of their respective holders. Lead verification and commission approval follow configured provider callbacks and may be subject to compliance administrator review.

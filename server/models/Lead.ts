@@ -37,12 +37,12 @@ const LeadSchema: Schema = new Schema(
     },
     clientName: {
       type: String,
-      required: [true, 'Client full name is required'],
+      default: '',
       trim: true,
     },
     clientMobile: {
       type: String,
-      required: [true, 'Client mobile number is required'],
+      default: '',
       trim: true,
     },
     accountId: {
@@ -50,6 +50,8 @@ const LeadSchema: Schema = new Schema(
       required: [true, 'Account/Reference ID is required'],
       trim: true,
     },
+    vendorClickId: { type: String, default: '', index: true },
+    vendorConversionKey: { type: String, unique: true, sparse: true },
     action: {
       type: String,
       required: [true, 'Campaign action is required'],

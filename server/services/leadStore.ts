@@ -153,8 +153,8 @@ export const LeadStore = {
       filtered = filtered.filter(
         (l) =>
           l.leadId.toLowerCase().includes(s) ||
-          l.clientName.toLowerCase().includes(s) ||
-          l.clientMobile.includes(s) ||
+          (l.clientName || '').toLowerCase().includes(s) ||
+          (l.clientMobile || '').includes(s) ||
           l.accountId.toLowerCase().includes(s) ||
           l.campaignName.toLowerCase().includes(s)
       );

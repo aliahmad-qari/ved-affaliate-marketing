@@ -9,6 +9,7 @@ import {
   getAuditLogs,
   getBusinessSettings,
   listAdminPartners,
+  listAdminReferrals,
   listAdminSupportTickets,
   updateAdminCampaign,
   updateAdminPartner,
@@ -38,6 +39,7 @@ router.patch('/campaigns/:id', updateAdminCampaign);
 router.delete('/campaigns/:id', archiveAdminCampaign);
 router.post('/campaigns/:id/logo', logoUpload.single('logo'), uploadCampaignLogo);
 router.get('/partners', listAdminPartners);
+router.get('/referrals', listAdminReferrals);
 router.get('/partners/:id/kyc', getAdminPartnerKyc);
 router.patch('/partners/:id', updateAdminPartner);
 router.get('/leads', listAdminLeads);

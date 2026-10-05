@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { Campaign } from '../models/Campaign.ts';
+import { Partner } from '../models/Partner.ts';
+import { TrackingClick } from '../models/TrackingClick.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 
@@ -99,7 +102,7 @@ export const getPublicCampaigns = async (req: Request, res: Response, next: Next
       data: campaigns,
       meta: {
         totalSupportedCampaigns: 12,
-        clientNotice: 'Campaign payouts are configured and verified by Admin upon lead submission.',
+        clientNotice: 'Campaign payouts are configured in VED and conversion status may be confirmed by the provider callback or Admin review.',
       },
     });
   } catch (error) {
@@ -172,8 +175,35 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
       return;
     }
 
-    if (codePattern.test(ref)) target.searchParams.set('ref', ref);
-    if (codePattern.test(pid)) target.searchParams.set('pid', pid);
+    if (codePattern.test(ref) || codePattern.test(pid)) {
+      const partner = await Partner.findOne({
+        referralCode: ref.toUpperCase(),
+        partnerId: pid.toUpperCase(),
+        accountStatus: 'ACTIVE',
+      }).select('partnerId').lean().exec();
+      if (!partner) {
+        res.status(400).json({ success: false, message: 'Partner attribution is invalid or inactive.' });
+        return;
+      }
+
+      const clickId = crypto.randomUUID();
+      await TrackingClick.create({
+        clickId,
+        partnerId: partner.partnerId,
+        campaignId: String(campaign._id),
+        campaignSlug: campaign.slug,
+        payoutSnapshot: Number(campaign.payout || 0),
+        currency: campaign.currency || 'INR',
+        expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      });
+      target.searchParams.set('ref', partner.referralCode);
+      target.searchParams.set('pid', partner.partnerId);
+      target.searchParams.set('partner_id', partner.partnerId);
+      target.searchParams.set('campaign_id', String(campaign._id));
+      target.searchParams.set('clickid', clickId);
+      target.searchParams.set('click_id', clickId);
+      target.searchParams.set('subid', clickId);
+    }
     res.redirect(302, target.toString());
   } catch (error) {
     next(error);

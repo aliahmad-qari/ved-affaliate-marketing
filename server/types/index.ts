@@ -97,10 +97,12 @@ export interface ILead {
   campaignId: string;
   campaignName: string;
   campaignType?: string;
-  clientName: string;
-  clientMobile: string;
+  clientName?: string;
+  clientMobile?: string;
   accountId: string;
   action: string;
+  vendorClickId?: string;
+  vendorConversionKey?: string;
   submittedData?: Record<string, any>;
   status: LeadStatus;
   payoutSnapshot: number;
