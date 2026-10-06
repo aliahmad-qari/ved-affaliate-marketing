@@ -76,6 +76,12 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       await VendorWebhookEvent.create([{ eventId, clickId, conversionId, status: targetStatus }], { session });
       const conversionKey = `${campaign._id}:${conversionId}`;
       let lead: any = await Lead.findOne({ vendorConversionKey: conversionKey }).session(session).exec();
+      // Form enquiries are reviewed by Admin; keep callbacks from creating a second earning for the same click.
+      if (!lead) lead = await Lead.findOne({ vendorClickId: clickId, 'submittedData.source': 'CUSTOMER_FORM' }).session(session).exec();
+      if (lead?.submittedData?.source === 'CUSTOMER_FORM') {
+        response = { leadId: lead.leadId, status: lead.status, ignoredManualEnquiry: true };
+        return;
+      }
       const beforeStatus = lead?.status;
 
       if (lead && lead.partnerId !== partner.partnerId) {

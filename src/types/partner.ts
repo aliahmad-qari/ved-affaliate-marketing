@@ -14,6 +14,10 @@ export interface LeadItem {
   submittedData?: {
     notes?: string;
     submittedIp?: string;
+    source?: 'CUSTOMER_FORM';
+    processStatus?: 'IN_PROCESS' | 'NOT_SUBMITTED';
+    consentAt?: string;
+    consentVersion?: string;
   };
   status: LeadStatus;
   payoutSnapshot: number;

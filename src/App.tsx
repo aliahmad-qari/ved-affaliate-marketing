@@ -24,6 +24,7 @@ import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { fetchCampaigns } from './services/api.ts';
 import { Campaign } from './types/campaign.ts';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
+import { campaignCaptureUrl, campaignSlugFromPath } from './lib/campaignTracking.ts';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -37,6 +38,11 @@ function MainApp() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [continueUrl, setContinueUrl] = useState<string | undefined>(undefined);
   const [isTrackingLanding, setIsTrackingLanding] = useState(false);
+  const [captureUrl] = useState(() => campaignCaptureUrl(window.location.pathname, window.location.search, API_BASE));
+
+  useEffect(() => {
+    if (captureUrl) window.location.replace(captureUrl);
+  }, [captureUrl]);
 
   // Sync route with URL path or hash
   const parseRouteFromLocation = useCallback(() => {
@@ -128,8 +134,8 @@ function MainApp() {
   };
 
   useEffect(() => {
-    loadCampaigns();
-  }, []);
+    if (!captureUrl) loadCampaigns();
+  }, [captureUrl]);
 
   // Keep the partner referral code from a tracking link so registration can pre-fill it
   useEffect(() => {
@@ -139,9 +145,9 @@ function MainApp() {
 
   // Open the campaign details when arriving via /campaigns/<slug>
   useEffect(() => {
-    const match = window.location.pathname.match(/^\/campaigns\/([^/]+)\/?$/i);
-    if (!match || campaigns.length === 0) return;
-    const found = campaigns.find((c) => c.slug.toLowerCase() === decodeURIComponent(match[1]).toLowerCase());
+    const slug = campaignSlugFromPath(window.location.pathname);
+    if (captureUrl || !slug || campaigns.length === 0) return;
+    const found = campaigns.find((c) => c.slug.toLowerCase() === slug);
     if (found) {
       const params = new URLSearchParams(window.location.search);
       const query = new URLSearchParams();
@@ -153,7 +159,7 @@ function MainApp() {
       setSelectedCampaign(found);
       setIsModalOpen(true);
     }
-  }, [campaigns]);
+  }, [campaigns, captureUrl]);
 
   const handleOpenDetailModal = (campaign: Campaign) => {
     setContinueUrl(undefined);
@@ -169,6 +175,12 @@ function MainApp() {
     setContinueUrl(undefined);
   };
   const isAdminRoute = currentRoute === 'admin' || currentRoute.startsWith('admin/');
+
+  if (captureUrl) return <main className="flex min-h-screen items-center justify-center bg-[#070B14] px-6 text-center text-[#F8FAFC]">
+    <div><p role="status" className="mb-4">Opening your application form…</p>
+      <a className="text-[#D4AF37] underline" href={captureUrl}>Continue to the form</a>
+    </div>
+  </main>;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#070B14] text-[#F8FAFC]">

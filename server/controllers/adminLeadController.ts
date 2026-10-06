@@ -58,7 +58,14 @@ export const listAdminLeads = async (req: Request, res: Response, next: NextFunc
   try {
     const { page, limit, skip } = listOptions(req);
     const query: Record<string, any> = {};
-    if (typeof req.query.status === 'string' && req.query.status !== 'ALL') query.status = req.query.status.toUpperCase();
+    if (typeof req.query.status === 'string' && req.query.status !== 'ALL') {
+      const status = req.query.status.toUpperCase();
+      if (['IN_PROCESS', 'NOT_SUBMITTED'].includes(status)) {
+        query['submittedData.source'] = 'CUSTOMER_FORM';
+        query['submittedData.processStatus'] = status;
+        query.status = { $in: ['PENDING', 'VERIFIED'] };
+      } else query.status = status;
+    }
     if (typeof req.query.partnerId === 'string') query.partnerId = req.query.partnerId.toUpperCase();
     if (typeof req.query.search === 'string' && req.query.search.trim()) {
       const pattern = new RegExp(escapeRegex(req.query.search.trim().slice(0, 80)), 'i');
@@ -90,6 +97,9 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
     await session.withTransaction(async () => {
       const lead: any = await Lead.findById(req.params.id).session(session).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
+      if (lead.submittedData?.source === 'CUSTOMER_FORM' && lead.submittedData.processStatus === 'NOT_SUBMITTED' && target !== 'REJECTED') {
+        throw Object.assign(new Error('Mark this enquiry In Process before verifying or approving it.'), { status: 409 });
+      }
       const before = { status: lead.status, payoutSnapshot: lead.payoutSnapshot, rejectionReason: lead.rejectionReason };
       const allowed: Record<string, string[]> = {
         PENDING: ['VERIFIED', 'APPROVED', 'REJECTED'],
