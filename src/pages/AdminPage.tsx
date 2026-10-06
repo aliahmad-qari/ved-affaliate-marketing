@@ -198,11 +198,11 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       </div>
       <section className="space-y-3 border border-[#263650] bg-[#0D1424] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-semibold text-white">Campaign Reports</h2><p className="text-xs text-[#AAB3C2]">Excel workbook with campaign metrics, leads, clicks, referrals, and AI insights when configured.</p></div>
-          <Button variant="primary" onClick={() => void downloadCampaignWorkbook()}>Download Campaigns Report (.xlsx)</Button>
+          <h2 className="font-semibold text-white">Campaign Reports</h2>
+          <Button variant="primary" onClick={() => void downloadCampaignWorkbook()}>Download Campaigns Report</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {records.map((item) => <Button key={item._id} variant="outline" onClick={() => void downloadCampaignWorkbook({ _id: item._id, slug: item.slug })}>Download Excel Report · {item.name}</Button>)}
+          {records.map((item) => <Button key={item._id} variant="outline" onClick={() => void downloadCampaignWorkbook({ _id: item._id, slug: item.slug })}>{item.name}</Button>)}
           {records.length === 0 && <p className="text-sm text-[#AAB3C2]">Campaign list unavailable.</p>}
         </div>
       </section>
