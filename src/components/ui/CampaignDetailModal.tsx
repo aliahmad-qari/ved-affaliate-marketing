@@ -12,6 +12,7 @@ interface CampaignDetailModalProps {
   onSelectRegister: () => void;
   continueUrl?: string;
   isPartner?: boolean;
+  isTrackingLanding?: boolean;
 }
 
 export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
@@ -21,6 +22,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
   onSelectRegister,
   continueUrl,
   isPartner = false,
+  isTrackingLanding = false,
 }) => {
   if (!isOpen || !campaign) return null;
 
@@ -74,7 +76,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
               <p className="text-xs sm:text-sm font-semibold text-[#F8FAFC]">{campaign.requiredAction}</p>
             </div>
 
-            <div className="bg-[#0E162A] border border-[#1C273C] rounded-xl p-3.5">
+            {!isTrackingLanding && <div className="bg-[#0E162A] border border-[#1C273C] rounded-xl p-3.5">
               <div className="text-xs text-[#AAB3C2] mb-1 flex items-center gap-1 font-medium">
                 <Award className="w-3.5 h-3.5 text-[#D4AF37]" />
                 Potential Payout
@@ -83,7 +85,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
                 {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
               </p>
               <p className="text-[10px] text-[#AAB3C2] mt-0.5">{campaign.payoutTerms}</p>
-            </div>
+            </div>}
           </div>
 
           {campaign.rules && campaign.rules.length > 0 && (
@@ -103,7 +105,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
             </div>
           )}
 
-          <div>
+          {!isTrackingLanding && <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[#AAB3C2] mb-2 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
               Terms & Conditions
@@ -123,7 +125,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
                 </div>
               ))}
             </dl>
-          </div>
+          </div>}
 
           <div className="bg-[#05080F] border border-[#1C273C] rounded-lg p-3 text-[11px] text-[#AAB3C2] leading-relaxed">
             <span className="text-[#D4AF37] font-semibold">Verification Rule: </span>

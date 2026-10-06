@@ -45,7 +45,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       const paths: Record<AdminTab, string> = {
         overview: '/admin/dashboard', campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`,
         leads: `/admin/leads${suffix}`, withdrawals: `/admin/withdrawals${suffix}`, support: `/admin/support${suffix}`,
-        announcements: '/admin/announcements', notifications: '/admin/notifications', reports: '/admin/dashboard',
+        announcements: '/admin/announcements', notifications: '/admin/notifications', reports: '/admin/campaigns',
         settings: '/admin/settings', audit: '/admin/audit',
       };
       const result = await adminApi.get(paths[target]);
@@ -132,6 +132,22 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
     } catch (err: any) { setError(err.message); }
   };
 
+  const downloadCampaignWorkbook = async (campaign?: { _id: string; slug?: string }) => {
+    try {
+      const query = new URLSearchParams();
+      if (reportFilters.startDate) query.set('startDate', reportFilters.startDate);
+      if (reportFilters.endDate) query.set('endDate', reportFilters.endDate);
+      if (campaign?._id || reportFilters.campaignId) query.set('campaignId', campaign?._id || reportFilters.campaignId);
+      const blob = await adminApi.get(`/admin/reports/campaign-report.xlsx${query.size ? `?${query}` : ''}`);
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = `ved-${campaign?._id || 'all-campaigns'}-campaign-report.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(href);
+    } catch (err: any) { setError(err.message || 'Unable to download campaign report.'); }
+  };
+
   const content = () => {
     if (tab === 'overview') {
       const metrics = data || {};
@@ -172,7 +188,29 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
     if (tab === 'settings') return <form className="max-w-lg border border-[#263650] bg-[#0D1424] p-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void run(() => adminApi.patch('/admin/settings', { minimumWithdrawalAmount: Number(form.get('minimumWithdrawalAmount')) })); }}><h2 className="mb-4 text-lg font-bold">Business settings</h2><label className="mb-4 block text-sm text-[#AAB3C2]">Minimum withdrawal (₹)<input className={`${inputClass} mt-1`} name="minimumWithdrawalAmount" type="number" min="1" step="0.01" defaultValue={data?.minimumWithdrawalAmount ?? 200} required /></label><Button type="submit" variant="primary" disabled={busy}>Save setting</Button></form>;
     if (tab === 'announcements') return <div className="space-y-4"><form className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4" onSubmit={(event) => { event.preventDefault(); void run(async () => { await adminApi.post('/admin/announcements', { ...announcement, status: 'PUBLISHED' }); setAnnouncement({ title: '', message: '' }); }); }}><h2 className="text-lg font-bold">Publish announcement</h2><input className={inputClass} placeholder="Title" value={announcement.title} onChange={(event) => setAnnouncement({ ...announcement, title: event.target.value })} required /><textarea className={inputClass} placeholder="Message" rows={3} value={announcement.message} onChange={(event) => setAnnouncement({ ...announcement, message: event.target.value })} required /><Button type="submit" variant="primary" disabled={busy}>Publish</Button></form>{records.map((item) => <section key={item._id} className="border border-[#263650] bg-[#0D1424] p-4"><h3 className="font-semibold">{item.title} · {item.status}</h3><p className="mt-1 text-sm text-[#AAB3C2]">{item.message}</p></section>)}</div>;
     if (tab === 'notifications') return <div className="max-w-2xl space-y-4"><form className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4" onSubmit={(event) => { event.preventDefault(); void run(async () => { await adminApi.post('/admin/notifications', { type: notification.type, title: notification.title, message: notification.message, allActive: notification.target === 'all', partnerId: notification.target === 'partner' ? notification.partnerId : undefined, partnerIds: notification.target === 'selected' ? notification.partnerIds.split(',').map((id) => id.trim()).filter(Boolean) : undefined }); setNotification({ ...notification, title: '', message: '' }); }); }}><h2 className="text-lg font-bold">Send notification</h2><select className={inputClass} value={notification.type} onChange={(event) => setNotification({ ...notification, type: event.target.value })}>{['NEW_CAMPAIGN','CAMPAIGN_RATE_CHANGE','LEAD_UPDATE','PAYMENT_UPDATE','WITHDRAWAL_UPDATE','ANNOUNCEMENT','ACCOUNT_UPDATE'].map((value) => <option key={value}>{value}</option>)}</select><select className={inputClass} value={notification.target} onChange={(event) => setNotification({ ...notification, target: event.target.value })}><option value="all">All active partners</option><option value="partner">One partner</option><option value="selected">Selected partners</option></select>{notification.target === 'partner' && <input className={inputClass} placeholder="Partner ID" value={notification.partnerId} onChange={(event) => setNotification({ ...notification, partnerId: event.target.value })} required />}{notification.target === 'selected' && <input className={inputClass} placeholder="Partner IDs separated by commas" value={notification.partnerIds} onChange={(event) => setNotification({ ...notification, partnerIds: event.target.value })} required />}<input className={inputClass} placeholder="Title" value={notification.title} onChange={(event) => setNotification({ ...notification, title: event.target.value })} required /><textarea className={inputClass} placeholder="Message" rows={3} value={notification.message} onChange={(event) => setNotification({ ...notification, message: event.target.value })} required /><Button type="submit" variant="primary" disabled={busy}>Send</Button></form>{records.map((item) => <p key={item._id} className="border border-[#263650] bg-[#0D1424] p-3 text-sm">{item.title} · {item.partnerId}</p>)}</div>;
-    if (tab === 'reports') return <div className="space-y-4"><div className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4 sm:grid-cols-2 lg:grid-cols-3"><label className="text-xs text-[#AAB3C2]">From<input className={`${inputClass} mt-1`} type="date" value={reportFilters.startDate} onChange={(event) => setReportFilters({ ...reportFilters, startDate: event.target.value })} /></label><label className="text-xs text-[#AAB3C2]">To<input className={`${inputClass} mt-1`} type="date" value={reportFilters.endDate} onChange={(event) => setReportFilters({ ...reportFilters, endDate: event.target.value })} /></label><label className="text-xs text-[#AAB3C2]">Status<input className={`${inputClass} mt-1`} value={reportFilters.status} onChange={(event) => setReportFilters({ ...reportFilters, status: event.target.value })} placeholder="Optional" /></label><label className="text-xs text-[#AAB3C2]">Campaign ID<input className={`${inputClass} mt-1`} value={reportFilters.campaignId} onChange={(event) => setReportFilters({ ...reportFilters, campaignId: event.target.value })} placeholder="Optional" /></label><label className="text-xs text-[#AAB3C2]">Partner ID<input className={`${inputClass} mt-1`} value={reportFilters.partnerId} onChange={(event) => setReportFilters({ ...reportFilters, partnerId: event.target.value })} placeholder="Optional" /></label></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{['partners','campaigns','leads','earnings','payouts','withdrawals'].map((type) => <Button key={type} variant="outline" onClick={() => void downloadReport(type)}>Download {type} CSV</Button>)}</div></div>;
+    if (tab === 'reports') return <div className="space-y-5">
+      <div className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs text-[#AAB3C2]">From<input className={`${inputClass} mt-1`} type="date" value={reportFilters.startDate} onChange={(event) => setReportFilters({ ...reportFilters, startDate: event.target.value })} /></label>
+        <label className="text-xs text-[#AAB3C2]">To<input className={`${inputClass} mt-1`} type="date" value={reportFilters.endDate} onChange={(event) => setReportFilters({ ...reportFilters, endDate: event.target.value })} /></label>
+        <label className="text-xs text-[#AAB3C2]">Status<input className={`${inputClass} mt-1`} value={reportFilters.status} onChange={(event) => setReportFilters({ ...reportFilters, status: event.target.value })} placeholder="Optional" /></label>
+        <label className="text-xs text-[#AAB3C2]">Campaign ID<input className={`${inputClass} mt-1`} value={reportFilters.campaignId} onChange={(event) => setReportFilters({ ...reportFilters, campaignId: event.target.value })} placeholder="Optional" /></label>
+        <label className="text-xs text-[#AAB3C2]">Partner ID<input className={`${inputClass} mt-1`} value={reportFilters.partnerId} onChange={(event) => setReportFilters({ ...reportFilters, partnerId: event.target.value })} placeholder="Optional" /></label>
+      </div>
+      <section className="space-y-3 border border-[#263650] bg-[#0D1424] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-semibold text-white">Campaign Reports</h2><p className="text-xs text-[#AAB3C2]">Excel workbook with campaign metrics, leads, clicks, referrals, and AI insights when configured.</p></div>
+          <Button variant="primary" onClick={() => void downloadCampaignWorkbook()}>Download Campaigns Report (.xlsx)</Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {records.map((item) => <Button key={item._id} variant="outline" onClick={() => void downloadCampaignWorkbook({ _id: item._id, slug: item.slug })}>Download Excel Report · {item.name}</Button>)}
+          {records.length === 0 && <p className="text-sm text-[#AAB3C2]">Campaign list unavailable.</p>}
+        </div>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-[#AAB3C2]">Raw CSV exports</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{['partners','campaigns','leads','earnings','payouts','withdrawals'].map((type) => <Button key={type} variant="outline" onClick={() => void downloadReport(type)}>Download {type} CSV</Button>)}</div>
+      </section>
+    </div>;
     if (tab === 'audit') return <div className="overflow-x-auto border border-[#263650]"><table className="w-full min-w-180 text-left text-sm"><thead className="bg-[#0D1424] text-[#AAB3C2]"><tr>{['Time','Admin','Action','Entity','ID'].map((value) => <th key={value} className="p-3">{value}</th>)}</tr></thead><tbody>{records.map((item) => <tr key={item._id} className="border-t border-[#263650]"><td className="p-3">{new Date(item.createdAt).toLocaleString()}</td><td className="p-3">{item.adminEmail}</td><td className="p-3">{item.action}</td><td className="p-3">{item.entityType}</td><td className="p-3">{item.entityId}</td></tr>)}</tbody></table></div>;
     return <p className="text-sm text-[#AAB3C2]">Select a section.</p>;
   };

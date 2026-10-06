@@ -36,6 +36,7 @@ function MainApp() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [continueUrl, setContinueUrl] = useState<string | undefined>(undefined);
+  const [isTrackingLanding, setIsTrackingLanding] = useState(false);
 
   // Sync route with URL path or hash
   const parseRouteFromLocation = useCallback(() => {
@@ -146,7 +147,9 @@ function MainApp() {
       const query = new URLSearchParams();
       if (params.get('ref')) query.set('ref', params.get('ref')!);
       if (params.get('pid')) query.set('pid', params.get('pid')!);
-      setContinueUrl(query.size ? `${API_BASE}/api/public/campaigns/${encodeURIComponent(found.slug)}/go?${query}` : undefined);
+      const hasPartnerAttribution = Boolean(params.get('ref') && params.get('pid'));
+      setIsTrackingLanding(hasPartnerAttribution);
+      setContinueUrl(hasPartnerAttribution ? `${API_BASE}/api/public/campaigns/${encodeURIComponent(found.slug)}/go?${query}` : undefined);
       setSelectedCampaign(found);
       setIsModalOpen(true);
     }
@@ -154,6 +157,7 @@ function MainApp() {
 
   const handleOpenDetailModal = (campaign: Campaign) => {
     setContinueUrl(undefined);
+    setIsTrackingLanding(false);
     setSelectedCampaign(campaign);
     setIsModalOpen(true);
   };
@@ -161,6 +165,8 @@ function MainApp() {
   const handleCloseDetailModal = () => {
     setIsModalOpen(false);
     setSelectedCampaign(null);
+    setIsTrackingLanding(false);
+    setContinueUrl(undefined);
   };
   const isAdminRoute = currentRoute === 'admin' || currentRoute.startsWith('admin/');
 
@@ -279,6 +285,7 @@ function MainApp() {
         onSelectRegister={() => navigateTo(isAuthenticated ? 'leads' : 'register')}
         continueUrl={continueUrl}
         isPartner={isAuthenticated}
+        isTrackingLanding={isTrackingLanding}
       />
 
       {/* Floating Direct WhatsApp Action (bottom right) */}

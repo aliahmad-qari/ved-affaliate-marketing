@@ -20,7 +20,7 @@ import {
 import { adjustAdminLeadPayout, getAdminDashboard, listAdminLeads, markAdminLeadPaid, reviewAdminLead } from '../controllers/adminLeadController.ts';
 import { listWithdrawals, updateWithdrawal } from '../controllers/adminWithdrawalController.ts';
 import { sendAdminNotification, listAdminAnnouncements, saveAdminAnnouncement, listAdminNotifications } from '../controllers/adminCommunicationController.ts';
-import { exportAdminReport } from '../controllers/adminReportController.ts';
+import { exportAdminCampaignWorkbook, exportAdminReport } from '../controllers/adminReportController.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -53,6 +53,7 @@ router.patch('/settings', updateBusinessSettings);
 router.get('/support', listAdminSupportTickets);
 router.patch('/support/:id', updateAdminSupportTicket);
 router.get('/audit', getAuditLogs);
+router.get('/reports/campaign-report.xlsx', exportAdminCampaignWorkbook);
 router.get('/reports/:type.csv', exportAdminReport);
 router.get('/announcements', listAdminAnnouncements);
 router.post('/announcements', saveAdminAnnouncement);

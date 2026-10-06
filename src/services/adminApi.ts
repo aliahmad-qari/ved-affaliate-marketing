@@ -10,7 +10,7 @@ async function adminFetch(path: string, init: RequestInit = {}): Promise<any> {
   });
   if (response.status === 204) return null;
   const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('text/csv')) return response.blob();
+  if (contentType.includes('text/csv') || contentType.includes('spreadsheetml')) return response.blob();
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || `Request failed with status ${response.status}`);
   return data;

@@ -16,13 +16,13 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ campaignCount }) => 
     {
       label: 'Active Partners',
       value: '—',
-      detail: 'Opens in Milestone 2',
+      detail: 'Partner accounts',
       icon: Users,
     },
     {
       label: 'Approved Leads',
       value: '—',
-      detail: 'Manual Admin Verified',
+      detail: 'Verified campaign conversions',
       icon: CheckCircle,
     },
     {
