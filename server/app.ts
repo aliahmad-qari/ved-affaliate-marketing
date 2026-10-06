@@ -60,9 +60,14 @@ export const createApp = (): Express => {
   app.use((req, res, next) => {
     const origin = req.get('origin');
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    let renderOrigin: string | undefined;
+    try {
+      const renderUrl = new URL(process.env.RENDER_EXTERNAL_URL || '');
+      if (['http:', 'https:'].includes(renderUrl.protocol)) renderOrigin = renderUrl.origin;
+    } catch { /* Local development and other hosts may not define a Render URL. */ }
     // The public capture form is served by this API, including when the frontend is hosted separately.
     const isCaptureFormPost = req.method === 'POST' && /^\/api\/public\/campaigns\/[^/]+\/go$/.test(req.path)
-      && origin === `${req.protocol}://${req.get('host')}`;
+      && (origin === `${req.protocol}://${req.get('host')}` || (renderOrigin !== undefined && origin === renderOrigin));
     if (isMutation && origin && !getAllowedOrigins().has(origin) && !isCaptureFormPost) {
       res.status(403).json({ success: false, message: 'Request origin is not allowed.' });
       return;

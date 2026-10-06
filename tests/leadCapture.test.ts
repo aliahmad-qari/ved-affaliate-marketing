@@ -21,6 +21,8 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   process.env.JWT_SECRET = 'test-secret-for-capture-only-32-characters';
   process.env.VENDOR_WEBHOOK_SECRET = 'test-vendor-secret';
   process.env.NODE_ENV = 'test';
+  const renderOrigin = 'https://ved-affaliate-marketing.onrender.com';
+  process.env.RENDER_EXTERNAL_URL = renderOrigin;
   mongoose.connection.readyState = 1;
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
@@ -102,6 +104,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(html.includes('Broker &amp; Co'));
     assert.ok(html.includes('name="clientName"') && html.includes('name="clientMobile"'));
     assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('referrer-policy'), 'same-origin', 'Native forms must preserve their same-origin Origin header');
     return html.match(/name="captureToken" value="([^"]+)"/)![1];
   };
   const post = (token: string, fields: Record<string, string> = {}, origin = base) => fetch(`${base}/api/public/campaigns/sample/go`, {
@@ -120,13 +123,20 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal((await post(token, { consent: '' })).status, 400);
     assert.equal((await post('tampered')).status, 400);
     assert.equal((await post(token, {}, 'https://untrusted.example')).status, 403);
+    assert.equal((await post(token, {}, 'null')).status, 403, 'Do not allow arbitrary opaque origins to bypass the check');
+    assert.equal((await post(token, {}, 'https://another-service.onrender.com')).status, 403);
+    assert.equal((await post('tampered', {}, renderOrigin)).status, 400, 'The Render origin still requires a valid signed capture token');
+    const unrelatedMutation = await fetch(`${base}/api/admin/auth/login`, {
+      method: 'POST', headers: { Origin: renderOrigin, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(unrelatedMutation.status, 403, 'The Render exception only applies to the public form route');
     assert.equal(leads.length, 0);
     const expired = jwt.sign({ slug: 'sample', ref: 'REF-123', pid: 'VED-PTR-123', clickId: 'expired' }, process.env.JWT_SECRET, { expiresIn: -1, audience: 'ved-lead-capture', issuer: 'ved-api' });
     const expiredResponse = await post(expired);
     assert.equal(expiredResponse.status, 400);
     assert.ok((await expiredResponse.text()).includes('Reopen the form'), 'Expired forms offer a safe way to resume');
 
-    const saved = await post(token);
+    const saved = await post(token, {}, renderOrigin);
     assert.equal(saved.status, 303);
     const target = new URL(saved.headers.get('location')!);
     assert.equal(target.origin, 'https://vendor.example');
@@ -176,6 +186,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const failureHtml = await failed.text();
     assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="+91 98765 43210"'), 'Failed saves retain entered details on the form');
     assert.ok(failureHtml.includes('name="consent" value="yes" checked'));
+    assert.equal(failed.headers.get('referrer-policy'), 'same-origin', 'Retry forms must preserve the native POST origin too');
     assert.equal(leads.length, 1);
     failSave = false;
     campaign.baseTrackingUrl = 'https://wa.me/911234567890?text=Hello&utm_source=old';

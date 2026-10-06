@@ -61,7 +61,9 @@ function destination(target: URL, campaign: any, partner: any, clickId: string) 
 
 function renderPage(res: Response, content: string, status = 200) {
   res.set('Cache-Control', 'no-store');
-  res.set('Referrer-Policy', 'no-referrer');
+  // Native form POSTs can send Origin: null under no-referrer; keep the origin for this same-origin submission.
+  // The policy still suppresses the Referer when redirecting to an external vendor.
+  res.set('Referrer-Policy', 'same-origin');
   // Browsers also check form-action on the vendor's redirect chain after a POST.
   // This page executes no scripts and the server alone chooses the HTTP(S) destination.
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https: http:; base-uri 'none'; frame-ancestors 'none'");
