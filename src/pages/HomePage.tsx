@@ -25,7 +25,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     <div className="space-y-0">
       <HeroSection onNavigate={onNavigate} />
       
-      <StatsSection campaignCount={campaigns.length} />
+      <StatsSection />
 
       <FeaturedCampaignsSection
         campaigns={campaigns}

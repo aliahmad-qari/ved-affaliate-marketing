@@ -3,6 +3,27 @@ import { fallbackCampaigns } from '../constants/fallbackCampaigns.ts';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
+export interface PublicStats {
+  liveCampaigns: number;
+  activePartners: number;
+  approvedLeads: number;
+  totalPayouts: number;
+}
+
+export async function fetchPublicStats(signal?: AbortSignal): Promise<PublicStats> {
+  const response = await safeFetch(`${API_BASE}/api/public/stats`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+  if (!response.ok) throw new Error('Unable to fetch homepage statistics.');
+  const result = await response.json();
+  const fields: (keyof PublicStats)[] = ['liveCampaigns', 'activePartners', 'approvedLeads', 'totalPayouts'];
+  if (!result.success || !result.data || fields.some((field) =>
+    typeof result.data[field] !== 'number' || !Number.isFinite(result.data[field]) || result.data[field] < 0
+  )) throw new Error('Invalid homepage statistics response.');
+  return result.data;
+}
+
 // Safe fetch invoker
 const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const fetchFn = typeof window !== 'undefined' && window.fetch ? window.fetch : globalThis.fetch;

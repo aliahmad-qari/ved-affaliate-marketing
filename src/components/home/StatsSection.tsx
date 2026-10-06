@@ -1,33 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layers, Users, CheckCircle, IndianRupee } from 'lucide-react';
+import { fetchPublicStats, type PublicStats } from '../../services/api.ts';
 
-interface StatsSectionProps {
-  campaignCount: number;
-}
+export const StatsSection: React.FC = () => {
+  const [data, setData] = useState<PublicStats | null>(null);
 
-export const StatsSection: React.FC<StatsSectionProps> = ({ campaignCount }) => {
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPublicStats(controller.signal)
+      .then((stats) => { if (!controller.signal.aborted) setData(stats); })
+      .catch(() => { /* Keep placeholders when real statistics are unavailable. */ });
+    return () => controller.abort();
+  }, []);
+
+  const formatCount = (value: number | undefined) => value === undefined ? '—' : value.toLocaleString('en-IN');
   const stats = [
     {
       label: 'Live Campaigns',
-      value: campaignCount > 0 ? `${campaignCount}` : '12',
+      value: formatCount(data?.liveCampaigns),
       detail: 'Demat, Trading & AMC',
       icon: Layers,
     },
     {
       label: 'Active Partners',
-      value: '—',
+      value: formatCount(data?.activePartners),
       detail: 'Partner accounts',
       icon: Users,
     },
     {
       label: 'Approved Leads',
-      value: '—',
+      value: formatCount(data?.approvedLeads),
       detail: 'Verified campaign conversions',
       icon: CheckCircle,
     },
     {
       label: 'Total Payouts',
-      value: '₹—',
+      value: data ? `₹${data.totalPayouts.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '₹—',
       detail: 'Direct Bank & UPI',
       icon: IndianRupee,
     },
