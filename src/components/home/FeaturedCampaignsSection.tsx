@@ -3,6 +3,7 @@ import { ArrowRight, Building, CheckCircle2, ChevronRight, Award } from 'lucide-
 import { Campaign } from '../../types/campaign.ts';
 import { StatusBadge } from '../ui/StatusBadge.tsx';
 import { Button } from '../ui/Button.tsx';
+import { CampaignLogo } from '../ui/CampaignLogo.tsx';
 
 interface FeaturedCampaignsSectionProps {
   campaigns: Campaign[];
@@ -54,7 +55,7 @@ export const FeaturedCampaignsSection: React.FC<FeaturedCampaignsSectionProps> =
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-lg bg-[#142038] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] font-extrabold text-sm">
-                      {campaign.name.substring(0, 2).toUpperCase()}
+                      <CampaignLogo name={campaign.name} logoUrl={campaign.logoUrl} />
                     </div>
                     <div>
                       <div className="text-xs text-[#AAB3C2] flex items-center gap-1">

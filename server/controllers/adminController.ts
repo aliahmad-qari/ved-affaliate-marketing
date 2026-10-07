@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { fileTypeFromBuffer } from 'file-type';
+import crypto from 'node:crypto';
 import { Campaign } from '../models/Campaign.ts';
 import { Partner } from '../models/Partner.ts';
 import { SupportTicket } from '../models/SupportTicket.ts';
@@ -48,6 +49,7 @@ const validLogoUrl = (value: string): boolean => /^\/(?!\/)[\w./-]*$/.test(value
 const serializeAdminCampaign = (campaign: any) => {
   const serialized = campaign.toObject({ transform: false });
   delete serialized.__v;
+  delete serialized.logoImage;
   return serialized;
 };
 
@@ -157,17 +159,22 @@ export const uploadCampaignLogo = async (req: Request, res: Response, next: Next
       res.status(400).json({ success: false, message: 'Only verified PNG, JPEG, and WebP images are accepted.' });
       return;
     }
-    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      res.status(503).json({ success: false, message: 'Campaign image storage is not configured.' });
-      return;
-    }
-    cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
-    const uploaded: any = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream({ folder: 'ved-affiliate/campaigns', resource_type: 'image', allowed_formats: ['png', 'jpg', 'jpeg', 'webp'] }, (error, result) => error ? reject(error) : resolve(result));
-      stream.end(req.file!.buffer);
-    });
     const oldUrl = campaign.logoUrl;
-    campaign.logoUrl = uploaded.secure_url;
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+      cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
+      const uploaded: any = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({ folder: 'ved-affiliate/campaigns', resource_type: 'image', allowed_formats: ['png', 'jpg', 'jpeg', 'webp'] }, (error, result) => error ? reject(error) : resolve(result));
+        stream.end(req.file!.buffer);
+      });
+      campaign.logoUrl = uploaded.secure_url;
+      campaign.set('logoImage', undefined);
+    } else {
+      // Save bounded image bytes and their public URL atomically in the existing database.
+      const version = crypto.randomUUID();
+      campaign.set('logoImage', { data: req.file.buffer, contentType: fileType.mime, version });
+      const origin = new URL(process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).origin;
+      campaign.logoUrl = `${origin}/api/public/campaigns/logos/${campaign._id}/${version}`;
+    }
     await campaign.save();
     await writeAudit(req, 'CAMPAIGN_LOGO_UPDATED', 'Campaign', String(campaign._id), { logoUrl: oldUrl }, { logoUrl: campaign.logoUrl });
     res.json({ success: true, data: serializeAdminCampaign(campaign) });

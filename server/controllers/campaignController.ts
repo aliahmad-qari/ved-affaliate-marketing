@@ -11,6 +11,7 @@ const sanitizeCampaign = (campaign: any) => {
   const obj = campaign.toObject ? campaign.toObject() : { ...campaign };
   delete obj.baseTrackingUrl;
   delete obj.__v;
+  delete obj.logoImage;
   return obj;
 };
 

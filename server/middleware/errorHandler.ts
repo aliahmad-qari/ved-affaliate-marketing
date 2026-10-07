@@ -17,8 +17,8 @@ export const globalErrorHandler = (
 ) => {
   console.error('[VED SERVER ERROR]', err);
 
-  const statusCode = err.statusCode || err.status || (err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500);
-  const message = statusCode >= 500 && process.env.NODE_ENV === 'production'
+  const statusCode = err.code === 'LIMIT_FILE_SIZE' ? 400 : err.statusCode || err.status || (err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500);
+  const message = err.code === 'LIMIT_FILE_SIZE' ? 'Provide an image file no larger than 3 MB.' : statusCode >= 500 && process.env.NODE_ENV === 'production'
     ? 'An internal server error occurred while processing your request.'
     : err.message || 'An internal server error occurred while processing your request.';
 

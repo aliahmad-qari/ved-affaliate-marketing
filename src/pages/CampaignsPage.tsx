@@ -15,6 +15,7 @@ import {
 import { Campaign, CampaignCategory } from '../types/campaign.ts';
 import { StatusBadge } from '../components/ui/StatusBadge.tsx';
 import { Button } from '../components/ui/Button.tsx';
+import { CampaignLogo } from '../components/ui/CampaignLogo.tsx';
 import { CampaignSkeletonCard } from '../components/ui/LoadingSkeleton.tsx';
 import { EmptyState } from '../components/ui/EmptyState.tsx';
 import { ErrorState } from '../components/ui/ErrorState.tsx';
@@ -231,7 +232,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                   {/* Card Header */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="w-11 h-11 rounded-lg bg-[#111A2D] border border-[#1C273C] flex items-center justify-center text-[#D4AF37] font-bold text-sm group-hover:border-[#D4AF37]/50 transition-colors">
-                      {campaign.name.substring(0, 2).toUpperCase()}
+                      <CampaignLogo name={campaign.name} logoUrl={campaign.logoUrl} />
                     </div>
 
                     <StatusBadge status={campaign.status} />

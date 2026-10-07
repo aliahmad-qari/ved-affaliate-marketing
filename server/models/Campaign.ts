@@ -71,6 +71,14 @@ const CampaignSchema: Schema = new Schema(
       type: String,
       default: '',
     },
+    logoImage: {
+      type: new Schema({
+        data: { type: Buffer, required: true },
+        contentType: { type: String, enum: ['image/png', 'image/jpeg', 'image/webp'], required: true },
+        version: { type: String, required: true },
+      }, { _id: false }),
+      select: false,
+    },
     baseTrackingUrl: {
       type: String,
       default: '',
@@ -100,6 +108,7 @@ const CampaignSchema: Schema = new Schema(
       transform: function (_doc, ret: Record<string, any>) {
         // Strip sensitive internal fields from output
         delete ret.baseTrackingUrl;
+        delete ret.logoImage;
         delete ret.__v;
         return ret;
       },
