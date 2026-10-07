@@ -1,0 +1,82 @@
+/* Scoped to admin records and editors; overview and withdrawals retain their layouts. */
+.admin-content {
+  --admin-border: #203755;
+  color: #e2e8f0;
+}
+
+.admin-content :is(form, section),
+.admin-content [class*="border"][class*="bg-[#0D1424]"],
+.admin-content > div[class*="overflow-x-auto"],
+.admin-filters,
+.admin-login,
+.admin-kyc {
+  border: 1px solid #203755;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0f2038, #091323);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
+}
+
+.admin-content :is(form, section) { padding: 22px; }
+.admin-content form { gap: 18px; }
+.admin-content :is(h2, h3) { color: #f8fafc; line-height: 1.5; }
+.admin-content h2 { padding-bottom: 12px; border-bottom: 1px solid #203755; }
+.admin-content p { line-height: 1.8; }
+.admin-content section { min-width: 0; overflow-wrap: anywhere; }
+.admin-content section > div:first-child { min-width: 0; }
+.admin-content :is(.space-y-2, .space-y-3) > section + section { margin-top: 12px; }
+
+:is(.admin-content, .admin-filters, .admin-login) :is(input:not([type="checkbox"]):not([type="file"]), select, textarea) {
+  min-height: 42px;
+  border: 1px solid #234263;
+  border-radius: 9px;
+  background: #091425;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  color-scheme: dark;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+:is(.admin-content, .admin-filters, .admin-login) :is(input, select, textarea):focus-visible {
+  border-color: #38bdf8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(56 189 248 / 10%);
+}
+.admin-content textarea { resize: vertical; }
+.admin-content label { line-height: 1.6; }
+.admin-content input[type="checkbox"] { accent-color: #38bdf8; width: 16px; height: 16px; }
+.admin-content label:has(input[type="file"]) {
+  border-color: #234263;
+  background: #10243b;
+  color: #bae6fd;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+}
+.admin-content label:has(input[type="file"]):hover { background: #15304b; }
+.admin-content button[class*="border"], .admin-filters button[class*="border"] {
+  border-color: #234263;
+  border-radius: 8px;
+  background: rgb(14 165 233 / 5%);
+  color: #bae6fd;
+}
+.admin-content button[class*="border"]:hover, .admin-filters button[class*="border"]:hover { background: rgb(14 165 233 / 12%); }
+.admin-content button:focus-visible, .admin-filters button:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
+}
+.admin-filters { padding: 16px; gap: 12px; }
+.admin-content table { border-collapse: collapse; }
+.admin-content thead { background: #0a1628; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.admin-content th { padding: 16px; font-weight: 600; }
+.admin-content td { padding: 18px 16px; border-color: #203755; font-size: 12px; }
+.admin-content tbody tr { border-color: #203755; }
+.admin-content tbody tr:hover { background: rgb(14 165 233 / 5%); }
+.admin-login { position: relative; overflow: hidden; border-top: 3px solid #38bdf8; }
+.admin-kyc { max-height: 85vh; overflow-y: auto; padding: 24px; }
+
+@media (max-width: 639px) {
+  .admin-content :is(form, section) { padding: 16px; }
+  .admin-content form { gap: 14px; }
+  .admin-content section button { max-width: 100%; }
+  .admin-filters { padding: 12px; }
+  .admin-content section p { overflow-wrap: anywhere; }
+}
