@@ -72,6 +72,9 @@
 .admin-content tbody tr:hover { background: rgb(14 165 233 / 5%); }
 .admin-login { position: relative; overflow: hidden; border-top: 3px solid #38bdf8; }
 .admin-kyc { max-height: 85vh; overflow-y: auto; padding: 24px; }
+.admin-content input.admin-notification-search { padding-left: 36px; }
+.admin-content .admin-support button { height: 36px; min-height: 36px; padding: 8px 14px; }
+.admin-content .admin-support select { width: auto; min-height: 36px; padding: 7px 12px; font-size: 12px; }
 
 @media (max-width: 639px) {
   .admin-content :is(form, section) { padding: 16px; }
