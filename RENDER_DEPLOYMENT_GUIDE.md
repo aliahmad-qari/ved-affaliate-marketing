@@ -46,6 +46,17 @@ CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 ```
 
+For Cloudinary campaign logo storage:
+
+1. Open Cloudinary Console and select your product environment. In **Settings > API Keys**, copy its cloud name, API key, and API secret from the same environment.
+2. Open your **Render backend web service > Environment > Add Environment Variable**. Add the three keys above with their actual values (without surrounding quotes).
+3. Choose **Save, rebuild, and deploy** after your latest backend code is pushed. Wait for the deployment to become live.
+4. Refresh the Admin Campaigns page and upload a PNG, JPEG, or WebP logo up to 3 MB. New uploads use Cloudinary and are stored under `ved-affiliate/campaigns`.
+
+The backend already performs authenticated server-side uploads. An unsigned upload preset and `CLOUDINARY_URL` are not required by this implementation. Keep the credentials on Render only, not in Vercel frontend variables or Git. Previously saved logos remain available; upload them again if you want to move them to Cloudinary.
+
+References: [Cloudinary credentials](https://cloudinary.com/documentation/developer_onboarding_faq_find_credentials), [Render environment variables](https://render.com/docs/configure-environment-variables).
+
 ### Step 3: IMPORTANT Security Notes
 
 ⚠️ **DO NOT commit ADMIN_PASSWORD to git or leave in production permanently**

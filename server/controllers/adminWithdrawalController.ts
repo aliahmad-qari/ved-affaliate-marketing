@@ -4,6 +4,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { Partner } from '../models/Partner.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { Notification } from '../models/Notification.ts';
+import { escapeRegex } from '../services/adminServices.ts';
 
 export const listWithdrawals = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -11,6 +12,25 @@ export const listWithdrawals = async (req: Request, res: Response, next: NextFun
     const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
     const query: Record<string, any> = { type: 'WITHDRAWAL' };
     if (typeof req.query.status === 'string' && req.query.status !== 'ALL') query.status = req.query.status.toUpperCase();
+    if (typeof req.query.paymentMethod === 'string' && req.query.paymentMethod !== 'ALL') {
+      if (!['UPI', 'BANK_TRANSFER'].includes(req.query.paymentMethod)) {
+        res.status(400).json({ success: false, message: 'Select a valid payment method.' });
+        return;
+      }
+      query.paymentMethod = req.query.paymentMethod;
+    }
+    const startDate = typeof req.query.startDate === 'string' && req.query.startDate ? new Date(req.query.startDate) : undefined;
+    const endDate = typeof req.query.endDate === 'string' && req.query.endDate ? new Date(req.query.endDate) : undefined;
+    if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime())) || (startDate && endDate && startDate > endDate)) {
+      res.status(400).json({ success: false, message: 'Enter a valid requested date range.' });
+      return;
+    }
+    if (startDate || endDate) query.createdAt = { ...(startDate ? { $gte: startDate } : {}), ...(endDate ? { $lte: endDate } : {}) };
+    if (typeof req.query.search === 'string' && req.query.search.trim()) {
+      const pattern = new RegExp(escapeRegex(req.query.search.trim().slice(0, 100)), 'i');
+      const matchingPartners = await Partner.find({ $or: [{ fullName: pattern }, { email: pattern }, { partnerId: pattern }] }).select('partnerId').lean().exec();
+      query.$or = [{ transactionId: pattern }, { partnerId: pattern }, { payoutDestination: pattern }, { paymentReference: pattern }, { partnerId: { $in: matchingPartners.map((partner: any) => partner.partnerId) } }];
+    }
     const [transactions, total] = await Promise.all([
       WalletTransaction.find(query).select('+payoutDestination').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean().exec(),
       WalletTransaction.countDocuments(query),

@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../services/adminApi.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { AdminLeadCard } from '../components/admin/AdminLeadCard.tsx';
+import { AdminOverview } from '../components/admin/AdminOverview.tsx';
+import { AdminWithdrawals, defaultWithdrawalFilters } from '../components/admin/AdminWithdrawals.tsx';
+import { VedLogo } from '../components/ui/VedLogo.tsx';
+import { LayoutDashboard, Layers, Users, Link2, ListChecks, Wallet, Headphones, Megaphone, Bell, BarChart3, Settings, FileText, LogOut } from 'lucide-react';
 
 type AdminTab = 'overview' | 'campaigns' | 'partners' | 'referrals' | 'leads' | 'withdrawals' | 'support' | 'announcements' | 'notifications' | 'reports' | 'settings' | 'audit';
 
@@ -24,6 +28,9 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [password, setPassword] = useState('');
   const [tab, setTab] = useState<AdminTab>('overview');
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [withdrawalFilters, setWithdrawalFilters] = useState({ ...defaultWithdrawalFilters });
+  const selectTab = (next: AdminTab) => { if (next === tab) return; setSearch(''); setStatus('ALL'); setData(null); setTab(next); };
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [error, setError] = useState('');
@@ -41,11 +48,22 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
 
   const load = async (target = tab) => {
     const requestId = ++loadRequestId.current;
+    setLoading(true);
     setError('');
     try {
       const query = new URLSearchParams();
-      if (search.trim()) query.set('search', search.trim());
-      if (status !== 'ALL') query.set('status', status);
+      if (target === 'withdrawals') {
+        if (withdrawalFilters.search.trim()) query.set('search', withdrawalFilters.search.trim());
+        if (withdrawalFilters.status !== 'ALL') query.set('status', withdrawalFilters.status);
+        if (withdrawalFilters.paymentMethod !== 'ALL') query.set('paymentMethod', withdrawalFilters.paymentMethod);
+        if (withdrawalFilters.startDate) query.set('startDate', new Date(withdrawalFilters.startDate + 'T00:00:00').toISOString());
+        if (withdrawalFilters.endDate) query.set('endDate', new Date(withdrawalFilters.endDate + 'T23:59:59.999').toISOString());
+        query.set('page', String(withdrawalFilters.page));
+        query.set('limit', '20');
+      } else {
+        if (search.trim()) query.set('search', search.trim());
+        if (status !== 'ALL') query.set('status', status);
+      }
       const suffix = query.size ? `?${query}` : '';
       const paths: Record<AdminTab, string> = {
         overview: '/admin/dashboard', campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`,
@@ -54,9 +72,11 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         settings: '/admin/settings', audit: '/admin/audit',
       };
       const result = await adminApi.get(paths[target]);
-      if (requestId === loadRequestId.current && target === activeTab.current) setData(result?.data ?? result);
+      if (requestId === loadRequestId.current && target === activeTab.current) setData(target === 'withdrawals' ? result : result?.data ?? result);
     } catch (err: any) {
       if (requestId === loadRequestId.current && target === activeTab.current) setError(err.message || 'Unable to load Admin data.');
+    } finally {
+      if (requestId === loadRequestId.current && target === activeTab.current) setLoading(false);
     }
   };
 
@@ -71,7 +91,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   useEffect(() => {
     if (admin) void load(tab);
     return () => { loadRequestId.current++; };
-  }, [admin, tab]);
+  }, [admin, tab, withdrawalFilters]);
 
   useEffect(() => {
     if (!admin || tab !== 'leads') return;
@@ -165,21 +185,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   };
 
   const content = () => {
-    if (tab === 'overview') {
-      const metrics = data || {};
-      const items: Array<[string, any, AdminTab]> = [
-        ['Total Partners', metrics.totalPartners, 'partners'],
-        ['Active Partners', metrics.activePartners, 'partners'],
-        ['Total Leads', metrics.totalLeads, 'leads'],
-        ['Approved Leads', metrics.approvedLeads, 'leads'],
-        ['Pending Leads', metrics.pendingLeads, 'leads'],
-        ['Total Earnings', `₹${metrics.totalEarnings || 0}`, 'reports'],
-        ['Pending Payout', `₹${metrics.pendingPayout || 0}`, 'withdrawals'],
-        ['Paid Payout', `₹${metrics.paidPayout || 0}`, 'withdrawals'],
-        ['Withdrawal Requests', metrics.withdrawalRequests, 'withdrawals'],
-      ];
-      return <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{items.map(([label, value, targetTab]) => <button key={String(label)} onClick={() => setTab(targetTab)} className="border border-[#263650] bg-[#0D1424] p-4 hover:border-[#D4AF37] hover:bg-[#0D1424]/80 transition-all cursor-pointer text-left"><p className="text-xs text-[#AAB3C2]">{label}</p><p className="mt-2 text-2xl font-bold text-[#D4AF37]">{value ?? 0}</p></button>)}</div>;
-    }
+    if (tab === 'overview') return <AdminOverview metrics={data} onSelect={(target) => selectTab(target as AdminTab)} />;
     if (tab === 'campaigns') return <div className="space-y-5">
       <form onSubmit={saveCampaign} className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4 sm:grid-cols-2">
         <h2 className="sm:col-span-2 text-lg font-bold">{editingCampaignId ? 'Edit campaign' : 'Add campaign'}</h2>
@@ -201,7 +207,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
     if (tab === 'leads') return <div className="space-y-2">{records.map((item) =>
       <AdminLeadCard key={item._id} item={item} busy={busy} onAction={(path, body) => void run(() => adminApi.patch(path, body))} />
     )}</div>;
-    if (tab === 'withdrawals') return <div className="space-y-2">{records.map((item) => <section key={item._id} className="border border-[#263650] bg-[#0D1424] p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><h3 className="font-semibold">₹{item.amount} · {item.status}</h3><p className="text-xs text-[#AAB3C2]">{item.partner?.fullName} ({item.partnerId}) · {item.partner?.email}</p><p className="break-all text-xs text-[#D4AF37]">{item.paymentMethod}: {item.payoutDestination}</p><p className="text-xs text-[#8F9DB2]">{item.transactionId} · {new Date(item.createdAt).toLocaleString()}</p></div><div className="flex flex-wrap gap-2">{item.status === 'PENDING' && <Button size="sm" variant="outline" onClick={() => void run(() => adminApi.patch(`/admin/withdrawals/${item._id}`, { status: 'PROCESSING' }))}>Processing</Button>}{['PENDING','PROCESSING'].includes(item.status) && <Button size="sm" variant="primary" onClick={() => void run(() => adminApi.patch(`/admin/withdrawals/${item._id}`, { status: 'APPROVED' }))}>Approve</Button>}{['PENDING','PROCESSING','APPROVED'].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { const note = window.prompt('Rejection reason'); if (note) void run(() => adminApi.patch(`/admin/withdrawals/${item._id}`, { status: 'REJECTED', internalNote: note })); }}>Reject</Button>}{['PROCESSING','APPROVED'].includes(item.status) && <Button size="sm" variant="primary" onClick={() => { const paymentReference = window.prompt('Manual payment reference (required)'); if (paymentReference) void run(() => adminApi.patch(`/admin/withdrawals/${item._id}`, { status: 'PAID', paymentReference })); }}>Mark paid</Button>}</div></div></section>)}</div>;
+    if (tab === 'withdrawals') return <AdminWithdrawals response={data} filters={withdrawalFilters} busy={busy || loading} onFilters={setWithdrawalFilters} onAction={(path, body) => void run(() => adminApi.patch(path, body))} />;
     if (tab === 'support') return <div className="space-y-2">{records.map((item) => <section key={item._id} className="border border-[#263650] bg-[#0D1424] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:justify-between"><div><h3 className="font-semibold">{item.subject} <span className="text-xs text-[#D4AF37]">{item.status}</span></h3><p className="text-xs text-[#AAB3C2]">{item.name} · {item.email} · {item.mobile}</p><p className="mt-2 whitespace-pre-wrap text-sm">{item.message}</p><textarea className={`${inputClass} mt-3`} aria-label="Admin response" placeholder="Write a response" rows={3} value={supportResponses[item._id] ?? item.adminResponse ?? ''} onChange={(event) => setSupportResponses({ ...supportResponses, [item._id]: event.target.value })} /></div><div className="flex flex-wrap gap-2"><select className={selectClass} value={item.status} onChange={(event) => void run(() => adminApi.patch(`/admin/support/${item._id}`, { status: event.target.value, adminResponse: supportResponses[item._id] ?? item.adminResponse ?? '' }))}>{['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="primary" size="sm" onClick={() => void run(() => adminApi.patch(`/admin/support/${item._id}`, { status: item.status, adminResponse: supportResponses[item._id] ?? item.adminResponse ?? '' }))}>Save response</Button></div></div></section>)}</div>;
     if (tab === 'settings') return <form className="max-w-lg border border-[#263650] bg-[#0D1424] p-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void run(() => adminApi.patch('/admin/settings', { minimumWithdrawalAmount: Number(form.get('minimumWithdrawalAmount')) })); }}><h2 className="mb-4 text-lg font-bold">Business settings</h2><label className="mb-4 block text-sm text-[#AAB3C2]">Minimum withdrawal (₹)<input className={`${inputClass} mt-1`} name="minimumWithdrawalAmount" type="number" min="1" step="0.01" defaultValue={data?.minimumWithdrawalAmount ?? 200} required /></label><Button type="submit" variant="primary" disabled={busy}>Save setting</Button></form>;
     if (tab === 'announcements') return <div className="space-y-4"><form className="grid gap-3 border border-[#263650] bg-[#0D1424] p-4" onSubmit={(event) => { event.preventDefault(); void run(async () => { await adminApi.post('/admin/announcements', { ...announcement, status: 'PUBLISHED' }); setAnnouncement({ title: '', message: '' }); }); }}><h2 className="text-lg font-bold">Publish announcement</h2><input className={inputClass} placeholder="Title" value={announcement.title} onChange={(event) => setAnnouncement({ ...announcement, title: event.target.value })} required /><textarea className={inputClass} placeholder="Message" rows={3} value={announcement.message} onChange={(event) => setAnnouncement({ ...announcement, message: event.target.value })} required /><Button type="submit" variant="primary" disabled={busy}>Publish</Button></form>{records.map((item) => <section key={item._id} className="border border-[#263650] bg-[#0D1424] p-4"><h3 className="font-semibold">{item.title} · {item.status}</h3><p className="mt-1 text-sm text-[#AAB3C2]">{item.message}</p></section>)}</div>;
@@ -235,14 +241,19 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+      <div className="mb-6 flex items-center gap-3 border-b border-[#203755] pb-4"><VedLogo size="sm" variant="badge" /><p className="text-xs font-semibold text-slate-200">VED AFFILIATE PVT. LIMITED <span className="ml-3 border-l border-[#234263] pl-3 text-sky-400">Admin Panel</span></p></div>
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#263650] pb-4">
         <div><p className="text-xs font-bold uppercase text-[#D4AF37]">Administration</p><h1 className="text-2xl font-bold text-white">Operations</h1><p className="text-xs text-[#AAB3C2]">Signed in as {admin.email}</p></div>
-        <Button variant="outline" size="sm" onClick={logout}>Sign out</Button>
+        <Button variant="outline" size="sm" onClick={logout}><LogOut className="h-3.5 w-3.5" />Sign out</Button>
       </header>
-      <nav className="mb-5 flex gap-2 overflow-x-auto pb-2" aria-label="Admin sections">{tabs.map((item) => <button key={item.id} onClick={() => setTab(item.id)} className={`shrink-0 border px-3 py-2 text-xs font-semibold ${tab === item.id ? 'border-[#D4AF37] bg-[#D4AF37] text-black' : 'border-[#263650] text-[#AAB3C2] hover:text-white'}`}>{item.label}</button>)}</nav>
+      <nav className="mb-6 flex gap-2 overflow-x-auto rounded-xl border border-[#1b304b] bg-[#0b1525] p-2" aria-label="Admin sections">{tabs.map((item) => {
+        const icons = { overview: LayoutDashboard, campaigns: Layers, partners: Users, referrals: Link2, leads: ListChecks, withdrawals: Wallet, support: Headphones, announcements: Megaphone, notifications: Bell, reports: BarChart3, settings: Settings, audit: FileText };
+        const Icon = icons[item.id];
+        return <button key={item.id} aria-current={tab === item.id ? 'page' : undefined} onClick={() => selectTab(item.id)} className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${tab === item.id ? 'border-[#D4AF37] bg-[#D4AF37] text-[#07101d] shadow-lg shadow-amber-500/10' : 'border-transparent text-slate-400 hover:border-sky-900 hover:bg-sky-500/5 hover:text-sky-200'}`}><Icon className="h-3.5 w-3.5" />{item.label}</button>;
+      })}</nav>
       {error && <p role="alert" className="mb-4 border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
-      {['partners','referrals','leads','withdrawals','support'].includes(tab) && <div className="mb-4 flex flex-col gap-2 sm:flex-row"><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} /><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={() => void load()}>Apply</Button></div>}
-      {content()}
+      {['partners','referrals','leads','support'].includes(tab) && <div className="mb-4 flex flex-col gap-2 sm:flex-row"><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} /><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={() => void load()}>Apply</Button></div>}
+      {loading && !data && tab !== 'overview' ? <div role="status" className="rounded-xl border border-[#203755] bg-[#0d192b] px-6 py-14 text-center text-sm text-slate-400">Loading records…</div> : content()}
       {kycDetails && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="presentation" onClick={() => setKycDetails(null)}><section role="dialog" aria-modal="true" aria-labelledby="kyc-title" className="w-full max-w-lg space-y-3 border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><h2 id="kyc-title" className="text-lg font-bold">KYC details · {kycDetails.partnerId}</h2><button className="text-sm text-[#D4AF37]" onClick={() => setKycDetails(null)}>Close</button></div><p>{kycDetails.fullName} · {kycDetails.kycStatus}</p><p className="text-sm text-[#AAB3C2]">PAN: <span className="font-mono text-white">{kycDetails.pan}</span></p><div className="space-y-1 border-t border-[#263650] pt-3 text-sm text-[#AAB3C2]"><p>Account holder: {kycDetails.bankDetails?.accountHolderName}</p><p>Account number: <span className="font-mono text-white">{kycDetails.bankDetails?.accountNumber}</span></p><p>IFSC: {kycDetails.bankDetails?.ifscCode}</p><p>Bank: {kycDetails.bankDetails?.bankName}</p></div></section></div>}
     </div>
   );
