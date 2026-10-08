@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Campaign } from '../models/Campaign.ts';
+import { Lead } from '../models/Lead.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { LeadStore } from '../services/leadStore.ts';
@@ -7,7 +8,7 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 
-// Helper to get LIVE campaigns
+// Helper to get LIVE campaigns only (for new lead submissions)
 async function getLiveCampaigns(): Promise<any[]> {
   const { isConnected } = getDbStatus();
   if (isConnected) {
@@ -18,6 +19,19 @@ async function getLiveCampaigns(): Promise<any[]> {
     if (campaigns.length > 0) return campaigns.map((c) => c.toJSON());
   }
   return initialCampaignSeeds.filter((c) => c.status === 'LIVE');
+}
+
+// Helper to get ALL available campaigns (LIVE + PAUSED) - for updating existing leads
+async function getAvailableCampaigns(): Promise<any[]> {
+  const { isConnected } = getDbStatus();
+  if (isConnected) {
+    const campaigns = await Campaign.find({ status: { $in: ['LIVE', 'PAUSED'] } })
+      .select('-baseTrackingUrl -__v')
+      .sort({ sortOrder: 1, isFeatured: -1 })
+      .exec();
+    if (campaigns.length > 0) return campaigns.map((c) => c.toJSON());
+  }
+  return initialCampaignSeeds.filter((c) => ['LIVE', 'PAUSED'].includes(c.status));
 }
 
 /**
@@ -44,12 +58,14 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
 
 /**
  * GET /api/partner/campaigns
- * Retrieves LIVE campaigns configured with partner-specific tracking URLs.
+ * Retrieves LIVE and PAUSED campaigns.
+ * - LIVE campaigns: Can submit NEW leads
+ * - PAUSED campaigns: Can only update existing PENDING leads
  */
 export const getPartnerCampaigns = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const partner = req.user;
-    const campaigns = await getLiveCampaigns();
+    const campaigns = await getAvailableCampaigns();
 
     const host = req.get('host') || 'localhost:3000';
     const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
@@ -68,6 +84,10 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
         ...camp,
         trackingUrl,
         whatsappShareUrl,
+        isLive: camp.status === 'LIVE',
+        isPaused: camp.status === 'PAUSED',
+        canSubmitNew: camp.status === 'LIVE',
+        canUpdateExisting: ['LIVE', 'PAUSED'].includes(camp.status),
       };
     });
 
@@ -83,8 +103,11 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
 /**
  * POST /api/partner/leads
- * Partner submits a new lead against a LIVE campaign.
+ * Partner submits a new lead against a LIVE campaign ONLY.
+ * For PAUSED campaigns, partners can only update existing leads via /api/partner/leads/:leadId
+ *
  * CRITICAL:
+ * - Campaign must be LIVE for new lead submission
  * - Partner cannot set status (forced to PENDING)
  * - Payout snapshot is preserved from the campaign definition
  * - Duplicate submissions of the same accountId by the same partner are rejected
@@ -121,7 +144,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       return;
     }
 
-    // Lookup campaign
+    // Lookup campaign - ONLY LIVE campaigns allowed for new submissions
     const liveCampaigns = await getLiveCampaigns();
     const campaign = liveCampaigns.find(
       (c) => c._id?.toString() === campaignId || c.slug === campaignId || c.name === campaignId
@@ -130,7 +153,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
     if (!campaign) {
       res.status(404).json({
         success: false,
-        message: 'The selected campaign is not currently LIVE or available for lead submission.',
+        message: 'The selected campaign is not currently LIVE or available for new lead submission. If the campaign is paused, you can only update existing leads on that campaign.',
       });
       return;
     }
@@ -199,6 +222,78 @@ export const getPartnerLeads = async (req: Request, res: Response, next: NextFun
       page: pageNum,
       totalPages: Math.ceil(total / limitNum) || 1,
       data: leads,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/partner/leads/:leadId
+ * Partner can update/report the status of an EXISTING lead (PENDING or VERIFIED only).
+ * Works for BOTH LIVE and PAUSED campaigns.
+ * Allowed transitions:
+ * - PENDING → VERIFIED (partner confirms/verifies the lead details)
+ * - VERIFIED → No further partner updates (admin only from here)
+ */
+export const updateLead = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const partnerId = req.user.partnerId;
+    const { leadId } = req.params;
+    const { updatedNotes, manualStatusUpdate } = req.body;
+
+    if (!leadId || typeof leadId !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Lead ID is required.',
+      });
+      return;
+    }
+
+    // Get lead (no campaign status check - works for LIVE and PAUSED)
+    const lead = await Lead.findOne({
+      _id: leadId,
+      partnerId, // Ensure partner owns this lead
+    }).exec();
+
+    if (!lead) {
+      res.status(404).json({
+        success: false,
+        message: 'Lead not found or you do not have permission to update it.',
+      });
+      return;
+    }
+
+    // Only allow updates to PENDING or VERIFIED leads
+    if (!['PENDING', 'VERIFIED'].includes(lead.status)) {
+      res.status(400).json({
+        success: false,
+        message: `Lead status is ${lead.status}. Only PENDING or VERIFIED leads can be updated by partners.`,
+      });
+      return;
+    }
+
+    // Update notes if provided
+    if (updatedNotes && typeof updatedNotes === 'string') {
+      lead.submittedData = {
+        ...lead.submittedData,
+        notes: updatedNotes.trim(),
+        lastUpdatedAt: new Date().toISOString(),
+      };
+    }
+
+    // Allow manual status report transition: PENDING → VERIFIED
+    if (manualStatusUpdate === 'VERIFIED' && lead.status === 'PENDING') {
+      lead.status = 'VERIFIED';
+      lead.verifiedAt = new Date();
+    }
+
+    await lead.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Lead updated successfully. Changes will be reviewed by Admin.',
+      data: lead,
     });
   } catch (error) {
     next(error);

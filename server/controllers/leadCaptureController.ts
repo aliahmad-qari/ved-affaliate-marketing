@@ -150,7 +150,6 @@ ${error ? `
       onfocus="this.style.borderColor='#d4af37';this.style.boxShadow='0 0 0 2px #d4af370a'"
       onblur="this.style.borderColor='#2b3c52';this.style.boxShadow='none'"
       required>
-    <span style="display:block;margin-top:8px;font-size:10px;color:#7f90a8">Enter your Indian mobile number. +91 is also accepted.</span>
   </div>
 
   <div style="margin:24px 0;padding:14px;background:linear-gradient(135deg,#0f1f35,#0a1525);border:1.5px solid #223249;border-radius:10px">
