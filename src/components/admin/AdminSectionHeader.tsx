@@ -18,8 +18,15 @@ export const AdminSectionHeader: React.FC<{ section: string }> = ({ section }) =
   const details = sections[section as keyof typeof sections];
   if (!details) return null;
   const Icon = details.icon;
-  return <header className="mb-5 flex items-center gap-3">
-    <span className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3 text-sky-300"><Icon className="h-6 w-6" /></span>
-    <div><h2 className="text-2xl font-bold text-white">{details.title}</h2><p className="mt-1 text-xs leading-5 text-slate-400">{details.description}</p></div>
-  </header>;
+  return (
+    <header className="mb-6 flex items-center gap-4 pb-4 border-b border-[#1C273C]">
+      <div className="rounded-xl border border-[#D4AF37]/40 bg-gradient-to-br from-[#D4AF37]/15 to-[#D4AF37]/5 p-3 text-[#D4AF37] shadow-lg shadow-[#D4AF37]/10">
+        <Icon className="h-6 w-6" />
+      </div>
+      <div>
+        <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC]">{details.title}</h2>
+        <p className="mt-1 text-xs sm:text-sm leading-5 text-[#AAB3C2]">{details.description}</p>
+      </div>
+    </header>
+  );
 };

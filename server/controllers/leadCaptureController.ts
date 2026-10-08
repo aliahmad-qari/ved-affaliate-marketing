@@ -71,13 +71,26 @@ function renderPage(res: Response, content: string, status = 200) {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Start your application | VED Affiliate</title>
 <style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;background:radial-gradient(ellipse at 10% 15%,#132e49 0,transparent 50%),radial-gradient(ellipse at 95% 90%,#202014 0,transparent 40%),#070d18;color:#f3f6fb;font-family:Arial,sans-serif;padding:40px 24px;line-height:1.5}
-.shell{width:100%;max-width:950px;min-width:0}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}.brand{display:flex;align-items:center;gap:12px;font-size:12px;letter-spacing:1.8px;font-weight:700}.brandmark{display:grid;place-items:center;width:43px;height:43px;border:1px solid #d4af37;border-radius:50%;color:#d4af37;font-size:12px;letter-spacing:0;background:#d4af370a}.brand small{display:block;margin-top:4px;font-size:9px;font-weight:400;color:#8f9db2;letter-spacing:2px}.toplabel{font-size:10px;letter-spacing:1.2px;color:#99abc2}
-main{display:grid;grid-template-columns:.85fr 1.15fr;border:1px solid #26364d;border-radius:22px;overflow:hidden;background:#101c2e;box-shadow:0 28px 80px #0005;overflow-wrap:anywhere}.intro{padding:42px 32px;background:linear-gradient(155deg,#193951,#102236 65%,#0c1a2b);border-right:1px solid #26364d;display:flex;flex-direction:column}.intro .eyebrow{color:#6ce0da}.intro h2{font-size:30px;line-height:1.25;font-weight:700;letter-spacing:-.7px;margin:16px 0}.intro p{font-size:13px;color:#9fb1c8;line-height:1.8}.steps{list-style:none;padding:0;margin:28px 0}.steps li{display:flex;gap:12px;margin-bottom:23px;align-items:flex-start}.steps .number{display:grid;place-items:center;flex-shrink:0;width:29px;height:29px;border:1px solid #3a516b;border-radius:50%;font-size:11px;color:#87a2c1}.steps li:first-child .number{color:#07101c;background:#d4af37;border-color:#d4af37}.steps strong{display:block;font-size:12px;color:#e3ecf5}.steps small{display:block;margin-top:3px;font-size:10px;color:#8ea4bf}.intro-note{margin-top:auto;padding-top:20px;border-top:1px solid #304259;font-size:10px;color:#8fa6bd;line-height:1.8}
-.content{padding:40px 38px}.eyebrow{font-size:9px;letter-spacing:2px;font-weight:700;color:#d4af37}h1{font-size:27px;line-height:1.25;letter-spacing:-.5px;margin:10px 0 12px}p{color:#9facbf;font-size:12px;line-height:1.75;margin:10px 0}.campaign-summary{display:flex;align-items:center;gap:12px;margin:22px 0;padding:14px;border:1px solid #2b3d54;border-radius:10px;background:#0a1525}.campaign-summary .initial{display:grid;place-items:center;flex-shrink:0;width:38px;height:38px;border-radius:9px;background:#d4af3712;color:#d4af37;font-size:13px;font-weight:700}.campaign-summary strong{display:block;font-size:12px;color:#e9edf4}.campaign-summary small{display:block;margin-top:3px;font-size:10px;color:#91a1b8}
-label{display:block;margin:18px 0 8px;font-size:11px;font-weight:600;color:#c3cede}input[type=text],input[type=tel]{display:block;width:100%;padding:13px 14px;background:#091424;border:1px solid #2b3c52;border-radius:9px;color:#fff;font-size:16px;transition:border-color .2s}input::placeholder{color:#52647c;font-size:13px}input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #d4af37;outline-offset:3px}.help{display:block;margin-top:6px;font-size:10px;color:#7f90a8}
-.consent{display:flex;gap:10px;align-items:flex-start;line-height:1.7;color:#97a8be;font-size:10px;font-weight:400;margin-top:20px;padding:12px;background:#0c1727;border:1px solid #223249;border-radius:9px}.consent input{margin-top:3px;flex-shrink:0;width:15px;height:15px;accent-color:#d4af37}button{width:100%;border:1px solid #e2c66a;border-radius:9px;background:linear-gradient(110deg,#d4af37,#e9c85a);color:#07101c;font-size:13px;font-weight:700;padding:14px;margin-top:18px;cursor:pointer;box-shadow:0 6px 18px #d4af3714}button:hover{filter:brightness(1.06)}.error{color:#fecaca;background:#451a1a;border:1px solid #7f3030;padding:12px;border-radius:8px}a{color:#d4af37;display:inline-block;padding:12px 0}.footer-note{font-size:10px;text-align:center;color:#7e90a9;margin-top:16px}.page-footer{display:flex;justify-content:space-between;gap:10px;margin-top:20px;font-size:9px;color:#647b96}
-@media(max-width:680px){body{padding:24px 16px;place-items:start center}.topbar{margin-bottom:20px}.toplabel{display:none}main{grid-template-columns:1fr;border-radius:16px}.intro{padding:23px 25px;border-right:0;border-bottom:1px solid #26364d}.intro h2{font-size:23px;margin:9px 0}.intro p{margin:6px 0;font-size:11px}.steps{display:flex;justify-content:space-between;gap:8px;margin:16px 0 0}.steps li{margin:0;display:block;flex:1}.steps .number{margin-bottom:7px;width:24px;height:24px}.steps strong{font-size:9px}.steps small,.intro-note{display:none}.content{padding:27px 25px}h1{font-size:24px}.page-footer{font-size:8px}}@media(max-width:360px){.content,.intro{padding:22px 18px}.brand{font-size:10px}.brandmark{width:36px;height:36px}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;background:radial-gradient(ellipse at 10% 15%,#132e49 0,transparent 50%),radial-gradient(ellipse at 95% 90%,#202014 0,transparent 40%),#070d18;color:#f3f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;padding:40px 24px;line-height:1.5;font-weight:500}
+.shell{width:100%;max-width:950px;min-width:0}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}.brand{display:flex;align-items:center;gap:12px;font-size:12px;letter-spacing:1.8px;font-weight:700}.brandmark{display:grid;place-items:center;width:43px;height:43px;border:1.5px solid #d4af37;border-radius:50%;color:#d4af37;font-size:12px;letter-spacing:0;background:linear-gradient(135deg,#d4af370a,#d4af37080);box-shadow:0 0 12px #d4af370a}.brand small{display:block;margin-top:4px;font-size:9px;font-weight:400;color:#8f9db2;letter-spacing:2px}.toplabel{font-size:10px;letter-spacing:1.2px;color:#99abc2}
+main{display:grid;grid-template-columns:.85fr 1.15fr;border:1px solid #26364d;border-radius:22px;overflow:hidden;background:#101c2e;box-shadow:0 28px 80px #0005;overflow-wrap:anywhere}.intro{padding:42px 32px;background:linear-gradient(155deg,#193951,#102236 65%,#0c1a2b);border-right:1px solid #26364d;display:flex;flex-direction:column}.intro .eyebrow{color:#6ce0da}.intro h2{font-size:30px;line-height:1.25;font-weight:700;letter-spacing:-.7px;margin:16px 0}.intro p{font-size:13px;color:#9fb1c8;line-height:1.8}.steps{list-style:none;padding:0;margin:28px 0}.steps li{display:flex;gap:12px;margin-bottom:23px;align-items:flex-start}.steps .number{display:grid;place-items:center;flex-shrink:0;width:29px;height:29px;border:1px solid #3a516b;border-radius:50%;font-size:11px;color:#87a2c1;background:linear-gradient(135deg,transparent,#1a3a5008)}.steps li:first-child .number{color:#07101c;background:linear-gradient(135deg,#d4af37,#e9c85a);border-color:#d4af37}.steps strong{display:block;font-size:12px;color:#e3ecf5}.steps small{display:block;margin-top:3px;font-size:10px;color:#8ea4bf}.intro-note{margin-top:auto;padding-top:20px;border-top:1px solid #304259;font-size:10px;color:#8fa6bd;line-height:1.8}
+.content{padding:40px 38px}.eyebrow{font-size:9px;letter-spacing:2px;font-weight:700;color:#d4af37;display:inline-block;padding:6px 12px;background:#d4af370d;border-radius:6px}
+.form-header{margin-bottom:28px}h1{font-size:28px;line-height:1.2;letter-spacing:-.6px;margin:12px 0 8px;font-weight:700;color:#e9eef6}p{color:#9facbf;font-size:12px;line-height:1.75;margin:10px 0}.campaign-card{display:flex;align-items:center;justify-content:space-between;margin:28px 0;padding:16px;border:1px solid #2b3d54;border-radius:12px;background:linear-gradient(135deg,#0f1f35,#0a1525);box-shadow:0 4px 12px #0005}.campaign-header{display:flex;align-items:center;gap:14px}.campaign-header .initial{display:grid;place-items:center;flex-shrink:0;width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#d4af3720,#d4af3715);color:#d4af37;font-size:15px;font-weight:700;border:1px solid #d4af37;box-shadow:0 0 8px #d4af370a}.campaign-info strong{display:block;font-size:13px;color:#e9edf4;font-weight:600}.campaign-info small{display:block;margin-top:2px;font-size:11px;color:#91a1b8;font-weight:400}.campaign-badge{font-size:10px;font-weight:600;color:#d4af37;background:#d4af370a;border:1px solid #d4af3720;padding:6px 12px;border-radius:8px}
+.error-container{display:flex;gap:12px;margin:20px 0;padding:14px;border:1px solid #c84b4b;border-radius:10px;background:linear-gradient(135deg,#5a1a1a,#3d0f0f);box-shadow:0 2px 8px #0005}.error-icon{font-size:18px;flex-shrink:0}.error-content strong{display:block;font-size:12px;color:#ffa0a0;margin-bottom:4px}.error-content p{color:#ff9999;font-size:11px;margin:0}
+.form-container{margin:28px 0}.form-section{margin-bottom:24px}.form-label{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#c3cede;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}.label-required{color:#fca5a5;font-weight:700}.form-field-group{position:relative;display:flex;align-items:center}.form-input{flex:1;padding:13px 14px 13px 38px;background:#091424;border:1.5px solid #2b3c52;border-radius:10px;color:#fff;font-size:16px;transition:all .2s;font-weight:500}
+.input-icon{position:absolute;left:12px;font-size:16px;pointer-events:none;opacity:.6}
+.form-input::placeholder{color:#52647c;font-size:14px}
+.form-input:focus-visible{border-color:#d4af37;box-shadow:0 0 0 2px #d4af370a;outline:none}
+.help-text{display:block;margin-top:8px;font-size:10px;color:#7f90a8;font-weight:400}
+.consent-section{margin:26px 0 24px}.consent-checkbox{display:flex;gap:12px;align-items:flex-start;line-height:1.6;color:#97a8be;font-size:11px;font-weight:400;padding:14px;background:linear-gradient(135deg,#0f1f35,#0a1525);border:1.5px solid #223249;border-radius:10px;cursor:pointer;transition:all .2s}.consent-checkbox:hover{border-color:#3a5070;background:linear-gradient(135deg,#141f35,#0f1529)}.consent-checkbox input{display:none}.checkbox-custom{flex-shrink:0;width:18px;height:18px;border:1.5px solid #3a5070;border-radius:6px;background:#091424;transition:all .2s;display:grid;place-items:center}.consent-checkbox input:checked+.checkbox-custom{background:linear-gradient(135deg,#d4af37,#e9c85a);border-color:#d4af37}.consent-checkbox input:checked+.checkbox-custom::after{content:'✓';color:#07101c;font-size:11px;font-weight:700}.consent-text{flex:1}
+.submit-button{width:100%;border:1px solid #d4af37;border-radius:10px;background:linear-gradient(110deg,#d4af37,#e9c85a);color:#07101c;font-size:13px;font-weight:700;padding:15px;margin-top:8px;cursor:pointer;box-shadow:0 8px 24px #d4af371c;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.submit-button:hover{filter:brightness(1.08);box-shadow:0 12px 32px #d4af372c}
+.submit-button:active{transform:scale(.98)}
+.button-text{flex:1}
+.button-arrow{font-weight:700;font-size:14px}
+.security-footer{margin-top:28px;padding-top:20px;border-top:1px solid #1e2e45}.security-note{display:flex;align-items:center;gap:8px;font-size:11px;color:#6ce0da;margin-bottom:10px;font-weight:600}.security-icon{font-size:14px}.footer-note{font-size:10px;text-align:center;color:#7e90a9;margin:12px 0 0;line-height:1.6}
+a{color:#d4af37;display:inline-block;padding:12px 0}.page-footer{display:flex;justify-content:space-between;gap:10px;margin-top:20px;font-size:9px;color:#647b96;font-weight:500}
+@media(max-width:680px){body{padding:24px 16px;place-items:start center}.topbar{margin-bottom:20px}.toplabel{display:none}main{grid-template-columns:1fr;border-radius:16px}.intro{padding:23px 25px;border-right:0;border-bottom:1px solid #26364d}.intro h2{font-size:23px;margin:9px 0}.intro p{margin:6px 0;font-size:11px}.steps{display:flex;justify-content:space-between;gap:8px;margin:16px 0 0}.steps li{margin:0;display:block;flex:1}.steps .number{margin-bottom:7px;width:24px;height:24px;font-size:9px}.steps strong{font-size:9px}.steps small,.intro-note{display:none}.content{padding:27px 25px}h1{font-size:24px;margin:8px 0 6px}.form-header{margin-bottom:20px}.campaign-card{margin:20px 0;padding:12px}.campaign-header{gap:10px}.campaign-header .initial{width:36px;height:36px;font-size:13px}.campaign-info strong{font-size:12px}.campaign-info small{font-size:10px}.campaign-badge{font-size:9px;padding:5px 10px}.form-section{margin-bottom:18px}.submit-button{padding:13px;font-size:12px}.security-footer{margin-top:20px;padding-top:15px}.page-footer{font-size:8px}}@media(max-width:360px){.content,.intro{padding:22px 18px}.brand{font-size:10px}.brandmark{width:36px;height:36px;font-size:10px}}
 </style></head><body><div class="shell"><header class="topbar"><div class="brand"><span class="brandmark">VED</span><div>VED <span style="color:#d4af37">AFFILIATE</span><small>PVT. LIMITED</small></div></div><span class="toplabel">YOUR NEXT OPPORTUNITY STARTS HERE</span></header><main><aside class="intro"><span class="eyebrow">A SIMPLE FIRST STEP</span><h2>Your opportunity.<br>Your next move.</h2><p>Start your enquiry with VED Affiliate and continue to the campaign provider when you are ready.</p><ol class="steps"><li><span class="number">1</span><div><strong>Share your details</strong><small>Your name and contact number</small></div></li><li><span class="number">2</span><div><strong>Continue to provider</strong><small>Follow the campaign application link</small></div></li><li><span class="number">3</span><div><strong>Complete application</strong><small>Follow the provider's instructions</small></div></li></ol><div class="intro-note">Your enquiry is recorded when you submit this form. Application progress is reviewed separately by the VED admin team.</div></aside><section class="content">
 ${content}</section></main><footer class="page-footer"><span>VED AFFILIATE PVT. LIMITED</span><span>Campaign enquiries &amp; partner opportunities</span></footer></div></body></html>`);
 }
@@ -92,17 +105,109 @@ ${retryLink ? `<a href="${escapeHtml(retryLink)}">Reopen the form</a>` : '<p>Ple
 }
 
 function renderForm(res: Response, campaign: any, token: string, error = '', name = '', mobile = '', status = 200, consent = false) {
-  renderPage(res, `<span class="eyebrow">APPLICATION ENQUIRY</span><h1>Start your application</h1>
-<p>Share your details below to continue to ${escapeHtml(campaign.companyName)}.</p>
-<div class="campaign-summary"><span class="initial">${escapeHtml(campaign.name.substring(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(campaign.name)}</strong><small>${escapeHtml(campaign.companyName)}</small></div></div>
-${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
-<form method="post" action="/api/public/campaigns/${encodeURIComponent(campaign.slug)}/go">
-<input type="hidden" name="captureToken" value="${escapeHtml(token)}">
-<label for="customer-name">Full name</label><input id="customer-name" name="clientName" type="text" autocomplete="name" minlength="2" maxlength="120" placeholder="Enter your full name" value="${escapeHtml(name)}" required>
-<label for="customer-mobile">Contact number</label><input id="customer-mobile" name="clientMobile" type="tel" inputmode="tel" autocomplete="tel" aria-describedby="mobile-help" maxlength="20" placeholder="10-digit mobile number" value="${escapeHtml(mobile)}" required><span id="mobile-help" class="help">Enter your Indian mobile number. +91 is also accepted.</span>
-<label class="consent"><input type="checkbox" name="consent" value="yes" ${consent ? 'checked' : ''} required><span>I agree that VED Affiliate may save my name and contact number and contact me about this application.</span></label>
-<button type="submit">Submit &amp; continue</button>
-</form><p class="footer-note">Your enquiry will be recorded before you continue.<br>Application completion will be verified separately.</p>`, status);
+  renderPage(res, `
+<div class="form-header">
+  <span class="eyebrow">📋 APPLICATION ENQUIRY</span>
+  <h1>Complete Your Profile</h1>
+  <p>Just two quick details to get started with ${escapeHtml(campaign.companyName)}</p>
+</div>
+
+<div class="campaign-card">
+  <div class="campaign-header">
+    <span class="initial">${escapeHtml(campaign.name.substring(0, 2).toUpperCase())}</span>
+    <div class="campaign-info">
+      <strong>${escapeHtml(campaign.name)}</strong>
+      <small>${escapeHtml(campaign.companyName)}</small>
+    </div>
+  </div>
+  <div class="campaign-badge">Verified Partner Opportunity</div>
+</div>
+
+${error ? `
+<div class="error-container" role="alert">
+  <span class="error-icon">⚠️</span>
+  <div class="error-content">
+    <strong>Please fix this:</strong>
+    <p>${escapeHtml(error)}</p>
+  </div>
+</div>
+` : ''}
+
+<form method="post" action="/api/public/campaigns/${encodeURIComponent(campaign.slug)}/go" class="form-container">
+  <input type="hidden" name="captureToken" value="${escapeHtml(token)}">
+  
+  <div class="form-section">
+    <label for="customer-name" class="form-label">
+      <span class="label-text">Full Name</span>
+      <span class="label-required">*</span>
+    </label>
+    <div class="form-field-group">
+      <input 
+        id="customer-name" 
+        name="clientName" 
+        type="text" 
+        autocomplete="name" 
+        minlength="2" 
+        maxlength="120" 
+        placeholder="Enter your full name" 
+        value="${escapeHtml(name)}" 
+        class="form-input"
+        required>
+      <span class="input-icon">👤</span>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <label for="customer-mobile" class="form-label">
+      <span class="label-text">Contact Number</span>
+      <span class="label-required">*</span>
+    </label>
+    <div class="form-field-group">
+      <input 
+        id="customer-mobile" 
+        name="clientMobile" 
+        type="tel" 
+        inputmode="tel" 
+        autocomplete="tel" 
+        aria-describedby="mobile-help" 
+        maxlength="20" 
+        placeholder="10-digit mobile number" 
+        value="${escapeHtml(mobile)}" 
+        class="form-input"
+        required>
+      <span class="input-icon">📱</span>
+    </div>
+    <span id="mobile-help" class="help-text">Enter your Indian mobile number. +91 is also accepted.</span>
+  </div>
+
+  <div class="consent-section">
+    <label class="consent-checkbox">
+      <input 
+        type="checkbox" 
+        name="consent" 
+        value="yes" 
+        ${consent ? 'checked' : ''} 
+        required
+        class="checkbox-input">
+      <span class="checkbox-custom"></span>
+      <span class="consent-text">I agree that VED Affiliate may save my name and contact number and contact me about this application.</span>
+    </label>
+  </div>
+
+  <button type="submit" class="submit-button">
+    <span class="button-text">Submit &amp; Continue</span>
+    <span class="button-arrow">→</span>
+  </button>
+</form>
+
+<div class="security-footer">
+  <div class="security-note">
+    <span class="security-icon">🔒</span>
+    <span>Your data is encrypted and secure</span>
+  </div>
+  <p class="footer-note">Your enquiry is recorded before you continue. Application completion will be verified separately.</p>
+</div>
+`, status);
 }
 
 export const showLeadCaptureForm = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
