@@ -318,14 +318,14 @@ export const listAdminReferrals = async (req: Request, res: Response, next: Next
   try {
     const { page, limit, skip } = pageOptions(req);
     const referredPartners = await Partner.find({ referredBy: { $exists: true, $nin: ['', null] } })
-      .select('partnerId fullName email referralCode referredBy createdAt accountStatus')
+      .select('partnerId fullName email mobile referralCode referredBy createdAt accountStatus')
       .sort({ createdAt: -1 })
       .lean()
       .exec();
     const referrerIds = [...new Set(referredPartners.map((partner: any) => partner.referredBy))];
     const referredIds = referredPartners.map((partner: any) => partner.partnerId);
     const [referrers, qualificationRows, rewards] = await Promise.all([
-      Partner.find({ partnerId: { $in: referrerIds } }).select('partnerId fullName email').lean().exec(),
+      Partner.find({ partnerId: { $in: referrerIds } }).select('partnerId fullName email mobile').lean().exec(),
       Lead.aggregate([
         { $match: { partnerId: { $in: referredIds }, status: { $in: ['APPROVED', 'PAID'] } } },
         { $group: { _id: '$partnerId', qualifiedLeads: { $sum: 1 } } },
@@ -348,12 +348,14 @@ export const listAdminReferrals = async (req: Request, res: Response, next: Next
         referredPartnerId: referred.partnerId,
         referredName: referred.fullName,
         referredEmail: referred.email,
+        referredMobile: referred.mobile,
         referralCode: referred.referralCode,
         joinedAt: referred.createdAt,
         accountStatus: referred.accountStatus,
         referrerPartnerId: referred.referredBy,
         referrerName: referrer?.fullName || 'Referrer unavailable',
         referrerEmail: referrer?.email || '',
+        referrerMobile: referrer?.mobile || '',
         qualifiedLeads,
         qualificationStatus: qualifiedLeads > 0 ? 'QUALIFIED' : 'PENDING',
         rewardAmount: reward?.amount ?? (qualifiedLeads > 0 ? 50 : 0),

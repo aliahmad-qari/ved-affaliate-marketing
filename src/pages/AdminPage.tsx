@@ -210,78 +210,79 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
     if (tab === 'referrals') return (
       <div className="space-y-4">
         {records.length === 0 ? (
-          <div className="border border-[#263650] bg-[#0D1424] rounded-lg p-6 text-center text-sm text-[#AAB3C2]">
-            <Users className="w-8 h-8 text-[#AAB3C2]/40 mx-auto mb-2" />
+          <div className="border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 rounded-xl p-6 text-center text-sm text-slate-400 backdrop-blur-sm">
+            <Users className="w-8 h-8 text-slate-500/60 mx-auto mb-2" />
             <p>No referred partners found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-[#263650] bg-[#0D1424] rounded-lg shadow-lg">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#070B14] border-b border-[#263650] text-[#AAB3C2] font-semibold uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Referred Partner</th>
-                  <th className="py-3 px-4">Contact Number</th>
-                  <th className="py-3 px-4">Referred By</th>
-                  <th className="py-3 px-4">Joined Date</th>
-                  <th className="py-3 px-4">Referral Code</th>
-                  <th className="py-3 px-4">Qualified Leads</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Reward</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#263650]/60">
-                {records.map((item) => (
-                  <tr key={item.referredPartnerId} className="hover:bg-[#111A2D]/40 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="min-w-max">
-                        <p className="font-semibold text-[#F8FAFC]">{item.referredName}</p>
-                        <p className="text-[#AAB3C2] text-[10px] mt-0.5">{item.referredPartnerId}</p>
-                        <p className="text-[#8F9DB2] text-[10px]">{item.referredEmail}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[#D4AF37]">
-                      {/* Mobile number would go here if available */}
-                      <span className="text-[#AAB3C2]">On file</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="min-w-max">
-                        <p className="font-semibold text-[#F8FAFC]">{item.referrerName}</p>
-                        <p className="text-[#AAB3C2] text-[10px] mt-0.5">{item.referrerPartnerId}</p>
-                        <p className="text-[#8F9DB2] text-[10px]">{item.referrerEmail}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap text-[#AAB3C2]">
-                      {item.joinedAt ? new Date(item.joinedAt).toLocaleDateString('en-IN') : '—'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono font-bold text-[#D4AF37]">{item.referralCode}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-semibold text-[#F8FAFC]">{item.qualifiedLeads}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          item.qualificationStatus === 'QUALIFIED'
-                            ? 'bg-emerald-950/60 border border-emerald-700 text-emerald-300'
-                            : 'bg-amber-950/60 border border-amber-700 text-amber-300'
-                        }`}
-                      >
-                        {item.qualificationStatus}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="font-mono font-bold">
-                        <p className={item.rewardStatus === 'AVAILABLE' || item.rewardStatus === 'PROCESSED' ? 'text-emerald-400' : 'text-[#AAB3C2]'}>
-                          ₹{item.rewardAmount}
-                        </p>
-                        <p className="text-[10px] text-[#8F9DB2] mt-0.5">{item.rewardStatus}</p>
-                      </div>
-                    </td>
+          <div className="overflow-hidden rounded-xl border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 backdrop-blur-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gradient-to-r from-[#0B1325]/80 to-[#070B14]/80 border-b border-[#D4AF37]/20 text-[#D4AF37] font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-4 px-4">Referred Partner</th>
+                    <th className="py-4 px-4">Contact Number</th>
+                    <th className="py-4 px-4">Referred By</th>
+                    <th className="py-4 px-4">Joined Date</th>
+                    <th className="py-4 px-4">Referral Code</th>
+                    <th className="py-4 px-4">Qualified Leads</th>
+                    <th className="py-4 px-4">Status</th>
+                    <th className="py-4 px-4 text-right">Reward</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#D4AF37]/10">
+                  {records.map((item) => (
+                    <tr key={item.referredPartnerId} className="hover:bg-[#D4AF37]/5 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="min-w-max">
+                          <p className="font-bold text-white">{item.referredName}</p>
+                          <p className="text-slate-400 text-[10px] mt-0.5">{item.referredPartnerId}</p>
+                          <p className="text-slate-500 text-[10px]">{item.referredEmail}</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="font-mono font-bold text-[#D4AF37]">{item.referredMobile || '—'}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="min-w-max">
+                          <p className="font-bold text-white">{item.referrerName}</p>
+                          <p className="text-slate-400 text-[10px] mt-0.5">{item.referrerPartnerId}</p>
+                          <p className="text-slate-500 text-[10px]">{item.referrerEmail}</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 whitespace-nowrap text-slate-300">
+                        {item.joinedAt ? new Date(item.joinedAt).toLocaleDateString('en-IN') : '—'}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="font-mono font-bold text-[#D4AF37]">{item.referralCode}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="font-bold text-white">{item.qualifiedLeads}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                            item.qualificationStatus === 'QUALIFIED'
+                              ? 'border-emerald-700/50 bg-emerald-500/10 text-emerald-300'
+                              : 'border-amber-700/50 bg-amber-500/10 text-amber-300'
+                          }`}
+                        >
+                          {item.qualificationStatus}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="font-mono font-bold">
+                          <p className={item.rewardStatus === 'AVAILABLE' || item.rewardStatus === 'PROCESSED' ? 'text-emerald-400' : 'text-slate-400'}>
+                            ₹{item.rewardAmount}
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">{item.rewardStatus}</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
