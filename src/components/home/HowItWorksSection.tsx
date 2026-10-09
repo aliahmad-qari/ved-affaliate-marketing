@@ -51,10 +51,10 @@ export const HowItWorksSection: React.FC = () => {
           <div className="text-xs uppercase tracking-wider text-[#D4AF37] font-semibold mb-1">
             Simple 6 Steps
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC]">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#F8FAFC]">
             How It Works
           </h2>
-          <p className="text-xs sm:text-sm text-[#AAB3C2] mt-1">
+          <p className="text-sm sm:text-base text-[#AAB3C2] mt-1">
             From registration to verified bank withdrawal.
           </p>
         </div>
@@ -74,15 +74,15 @@ export const HowItWorksSection: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono font-bold text-[#D4AF37]">
+                    <span className="text-sm font-mono font-bold text-[#D4AF37]">
                       {step.num}
                     </span>
                     <Icon className="w-4 h-4 text-[#D4AF37]" />
                   </div>
-                  <h3 className="text-xs sm:text-sm font-bold text-[#F8FAFC] mb-1">
+                  <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC] mb-1">
                     {step.title}
                   </h3>
-                  <p className="text-[11px] text-[#AAB3C2] leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#AAB3C2] leading-relaxed">
                     {step.desc}
                   </p>
                 </div>
@@ -92,7 +92,7 @@ export const HowItWorksSection: React.FC = () => {
         </div>
 
         {/* Rule Notice */}
-        <div className="mt-8 bg-[#0B101D] border border-amber-900/50 rounded-xl p-3.5 sm:p-4 flex items-center gap-3 text-xs text-[#AAB3C2]">
+        <div className="mt-8 bg-[#0B101D] border border-amber-900/50 rounded-xl p-3.5 sm:p-4 flex items-center gap-3 text-sm text-[#AAB3C2]">
           <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
             <strong className="text-[#F8FAFC]">Verification Policy: </strong>

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchCampaigns } from '../services/api.ts';
 import { HeroSection } from '../components/home/HeroSection.tsx';
 import { StatsSection } from '../components/home/StatsSection.tsx';
 import { FeaturedCampaignsSection } from '../components/home/FeaturedCampaignsSection.tsx';
@@ -21,6 +22,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSelectCampaign,
   onNavigate,
 }) => {
+  const [featuredCampaigns, setFeaturedCampaigns] = useState<Campaign[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+  useEffect(() => {
+    let active = true;
+    fetchCampaigns({ status: 'LIVE', featured: true }, { allowFallback: false })
+      .then(result => { if (active) setFeaturedCampaigns(result.data); })
+      .catch(() => { if (active) setFeaturedCampaigns([]); })
+      .finally(() => { if (active) setLoadingFeatured(false); });
+    return () => { active = false; };
+  }, []);
   return (
     <div className="space-y-0">
       <HeroSection onNavigate={onNavigate} />
@@ -28,7 +39,8 @@ export const HomePage: React.FC<HomePageProps> = ({
       <StatsSection />
 
       <FeaturedCampaignsSection
-        campaigns={campaigns}
+        campaigns={featuredCampaigns}
+        isLoading={loadingFeatured}
         onSelectCampaign={onSelectCampaign}
         onNavigate={onNavigate}
       />

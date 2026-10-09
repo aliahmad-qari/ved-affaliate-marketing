@@ -4,6 +4,7 @@ export interface LeadItem {
   _id?: string;
   leadId: string;
   partnerId: string;
+  referringPartnerName?: string | null;
   campaignId: string;
   campaignName: string;
   campaignType?: string;

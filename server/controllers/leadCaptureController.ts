@@ -10,6 +10,7 @@ import { Notification } from '../models/Notification.ts';
 import { getDbStatus } from '../config/db.ts';
 import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
+import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
   slug: string;
@@ -44,6 +45,7 @@ async function resolveTracking(slug: string, ref: string, pid: string) {
 }
 
 function destination(target: URL, campaign: any, partner: any, clickId: string) {
+  if (preserveVendorTrackingUrl(target)) return campaign.baseTrackingUrl;
   if (['wa.me', 'www.whatsapp.com', 'api.whatsapp.com'].includes(target.hostname.toLowerCase())) {
     const message = target.searchParams.get('text') || '';
     target.searchParams.set('text', `${message}${message ? '\n\n' : ''}VED reference: ${clickId}`);

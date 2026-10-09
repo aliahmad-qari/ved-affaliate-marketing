@@ -15,6 +15,7 @@ import { VendorWebhookEvent } from '../server/models/VendorWebhookEvent.ts';
 import { WalletTransaction } from '../server/models/WalletTransaction.ts';
 import { AppSetting } from '../server/models/AppSetting.ts';
 import { signToken } from '../server/utils/jwt.ts';
+import { redirectToCampaignTracking } from '../server/controllers/campaignController.ts';
 
 // Exercise real HTTP routes with isolated database doubles; no live database or vendor calls.
 test('customer capture, redirect, admin progress and existing tracking compatibility', async (t) => {
@@ -52,9 +53,15 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   }) as any);
   t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && campaign.status === 'LIVE' ? campaign : null));
   t.mock.method(Campaign, 'findById', () => chain(campaign));
-  t.mock.method(Campaign, 'find', () => chain([{ ...campaign, toJSON: () => ({ ...campaign }) }]));
-  t.mock.method(Partner, 'findOne', (query: any) => chain(matches(partner, query) ? partner : null));
+  t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
+  t.mock.method(Partner, 'findOne', (query: any) => {
+    const found = matches(partner, query) ? partner : null;
+    const result = chain(found);
+    result.select = (fields: string) => chain(found ? Object.fromEntries(fields.split(' ').filter(field => field in found).map(field => [field, (found as any)[field]])) : null);
+    return result;
+  });
   t.mock.method(Partner, 'findById', (id: string) => chain(id === 'partner-1' ? { ...partner, _id: id } : null));
+  t.mock.method(Partner, 'find', () => chain([{ partnerId: partner.partnerId, fullName: 'Actual Submitting Partner' }]));
   t.mock.method(Lead, 'findOne', (query: any) => chain(() => leads.find((lead) => matches(lead, query)) || null));
   t.mock.method(Lead, 'findById', (id: string) => chain(() => leads.find((lead) => lead._id === id) || null));
   t.mock.method(Lead, 'find', (query: any) => chain(() => leads.filter((lead) => matches(lead, query))));
@@ -72,7 +79,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     leads.push({ ...data, _id: String(data._id), save: async () => {}, toJSON() { return { ...this }; } });
     return this;
   });
-  t.mock.method(TrackingClick, 'create', async (rows: any[]) => { clicks.push(...rows); return rows; });
+  t.mock.method(TrackingClick, 'create', async (rows: any) => { clicks.push(...(Array.isArray(rows) ? rows : [rows])); return rows; });
   t.mock.method(TrackingClick, 'findOne', (query: any) => chain(clicks.find((click) => click.clickId === query.clickId)));
   t.mock.method(Notification, 'create', async (rows: any[]) => { notices.push(...rows); return rows; });
   t.mock.method(Notification, 'find', (query: any) => chain(() => notices.filter((notice) => matches(notice, query))));
@@ -100,8 +107,8 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const response = await fetch(`${base}${link}`);
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.ok(html.includes('Sample &lt;Campaign&gt;'));
-    assert.ok(html.includes('Broker &amp; Co'));
+    assert.ok(html.includes('Complete Your Application'));
+    assert.ok(html.includes('action="/api/public/campaigns/sample/go"'));
     assert.ok(html.includes('name="clientName"') && html.includes('name="clientMobile"'));
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal(response.headers.get('referrer-policy'), 'same-origin', 'Native forms must preserve their same-origin Origin header');
@@ -185,7 +192,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(failed.headers.get('location'), null, 'Never redirect when storage fails');
     const failureHtml = await failed.text();
     assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="+91 98765 43210"'), 'Failed saves retain entered details on the form');
-    assert.ok(failureHtml.includes('name="consent" value="yes" checked'));
+    assert.match(failureHtml, /name="consent"\s+value="yes"\s+checked\b/, 'Retry must preserve consent despite HTML formatting');
     assert.equal(failed.headers.get('referrer-policy'), 'same-origin', 'Retry forms must preserve the native POST origin too');
     assert.equal(leads.length, 1);
     failSave = false;
@@ -222,6 +229,24 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(manualLead.status, 'PENDING');
     assert.equal(manualLead.submittedData.source, undefined);
     assert.equal((await manualSubmit()).status, 409);
+    // A campaign paused after a partner loads the form must reject a fresh API
+    // submission, including when the database has no remaining LIVE rows.
+    for (const status of ['PAUSED', 'DRAFT', 'ENDED']) {
+      campaign.status = status;
+      const blocked = await manualSubmit();
+      assert.equal(blocked.status, 404);
+      assert.ok((await blocked.json()).message.includes('not currently LIVE'));
+      assert.equal(leads.length, 3, 'Non-live submissions must not create records');
+      if (status === 'PAUSED') {
+        const updateExisting = await fetch(`${base}/api/partner/leads/${manualLead._id}`, {
+          method: 'PATCH', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updatedNotes: 'Existing paused-campaign enquiry updated' }),
+        });
+        assert.equal(updateExisting.status, 200, 'An owned existing pending lead can still be updated for a paused campaign');
+        assert.equal((await updateExisting.json()).data.status, 'PENDING');
+      }
+    }
+    campaign.status = 'LIVE';
     assert.equal((await patch(`/leads/${manualLead._id}/process`, { processStatus: 'NOT_SUBMITTED' })).status, 404);
     assert.equal((await patch(`/leads/${manualLead._id}/review`, { status: 'APPROVED' })).status, 200);
 
@@ -256,6 +281,48 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const notifications = await notificationsResponse.json();
     assert.equal(notifications.data.filter((notice: any) => notice.title === 'Customer started an application').length, 2);
     assert.ok(notifications.unreadCount >= 2);
+    // Regression: preserve mStock's vendor referral identity in both flows,
+    // while still recording the internal VED partner/click and enquiry.
+    campaign.baseTrackingUrl = 'https://ekyc.mstock.com/Register-with-us?refsrc=19&Refcode=REF2087275&utm_campaign=RnE_CL_LS&deep_link_sub6=REF2087275&utm_medium=Referral%20Lead&source_caller=api_v2&route_to=AccountOpening&deep_link_sub3=Referral%20Lead&shortlink=al59dsog&c=RnE_CL_LS&Campaign=RnE_CL_LS&pid=REF2087275&deep_link_sub2=Client_Referral&utm_source=Client_Referral&af_xp=custom&deep_link_sub4=RnE_CL_LS&af_force_deeplink=false&ref=REF2087275';
+    const beforeClicks = clicks.length;
+    const beforeLeads = leads.length;
+    const mstockToken = await getForm();
+    const mstockSubmit = await post(mstockToken);
+    assert.equal(mstockSubmit.status, 303);
+    assert.equal(mstockSubmit.headers.get('location'), campaign.baseTrackingUrl);
+    assert.equal(clicks.length, beforeClicks + 1);
+    assert.equal(leads.length, beforeLeads + 1);
+    assert.equal(clicks.at(-1).partnerId, partner.partnerId);
+    assert.equal(clicks.at(-1).clickId, leads.at(-1).vendorClickId);
+    assert.equal(leads.at(-1).partnerId, partner.partnerId);
+    assert.equal((await post(mstockToken)).headers.get('location'), campaign.baseTrackingUrl);
+    assert.equal(leads.length, beforeLeads + 1, 'mStock retry must not duplicate the enquiry');
+    let directLocation = '', directStatus = 0;
+    await redirectToCampaignTracking(
+      { params: { slug: 'sample' }, query: { ref: partner.referralCode, pid: partner.partnerId } } as any,
+      { redirect: (status: number, location: string) => { directStatus = status; directLocation = location; } } as any,
+      (error: any) => { throw error; },
+    );
+    assert.equal(directStatus, 302);
+    assert.equal(directLocation, campaign.baseTrackingUrl);
+    assert.equal(clicks.length, beforeClicks + 2);
+    assert.equal(clicks.at(-1).partnerId, partner.partnerId);
+    assert.notEqual(clicks.at(-1).clickId, clicks.at(-2).clickId, 'Different visits must have unique stored click IDs');
+    // Non-mStock campaigns retain their existing tracking behavior. The mock
+    // respects MongoDB projection so a missing referralCode selection fails.
+    campaign.baseTrackingUrl = 'https://vendor.example/apply?offer=original';
+    await redirectToCampaignTracking(
+      { params: { slug: 'sample' }, query: { ref: partner.referralCode, pid: partner.partnerId } } as any,
+      { redirect: (status: number, location: string) => { directStatus = status; directLocation = location; } } as any,
+      (error: any) => { throw error; },
+    );
+    const directTarget = new URL(directLocation);
+    assert.equal(directStatus, 302);
+    assert.equal(directTarget.searchParams.get('ref'), partner.referralCode);
+    assert.equal(directTarget.searchParams.get('pid'), partner.partnerId);
+    assert.equal(directTarget.searchParams.get('clickid'), clicks.at(-1).clickId);
+    assert.equal(directTarget.searchParams.get('offer'), 'original');
+    assert.ok(!directLocation.includes('undefined'));
     campaign.status = 'PAUSED';
     assert.equal((await fetch(`${base}${link}`)).status, 404);
     campaign.status = 'LIVE';

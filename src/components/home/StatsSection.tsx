@@ -53,17 +53,17 @@ export const StatsSection: React.FC = () => {
                 className="bg-[#101A31] border border-[#1E2C48] hover:border-[#D4AF37]/50 rounded-xl p-4 sm:p-5 transition-colors group"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[#AAB3C2] font-semibold">
+                  <span className="text-sm text-[#AAB3C2] font-semibold">
                     {stat.label}
                   </span>
                   <Icon className="w-4 h-4 text-[#D4AF37]" />
                 </div>
                 
-                <div className="text-2xl sm:text-3xl font-extrabold font-mono tabular-nums text-[#F8FAFC] tracking-tight mb-1">
+                <div className="text-3xl sm:text-4xl font-extrabold font-mono tabular-nums text-[#F8FAFC] tracking-tight mb-1">
                   {stat.value}
                 </div>
 
-                <div className="text-[11px] text-[#AAB3C2]">
+                <div className="text-xs text-[#AAB3C2]">
                   {stat.detail}
                 </div>
               </div>

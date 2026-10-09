@@ -31,6 +31,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [liveCampaigns, setLiveCampaigns] = useState<PartnerCampaignItem[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientMobile, setClientMobile] = useState('');
@@ -61,13 +62,24 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   }, [selectedStatus]);
 
   useEffect(() => {
-    if (isSubmitModalOpen && liveCampaigns.length === 0) {
-      fetchPartnerCampaigns().then((campaigns) => {
+    if (!isSubmitModalOpen) return;
+    let active = true;
+    const refresh = async () => {
+      setCampaignsLoading(true);
+      try {
+        const campaigns = (await fetchPartnerCampaigns()).filter(campaign => campaign.status === 'LIVE');
+        if (!active) return;
         setLiveCampaigns(campaigns);
-        if (campaigns.length > 0) setSelectedCampaignId(campaigns[0].slug || campaigns[0]._id || '');
-      }).catch(() => setSubmitError('Unable to load live campaigns.'));
-    }
-  }, [isSubmitModalOpen, liveCampaigns.length]);
+        setSelectedCampaignId(current => current || campaigns[0]?.slug || campaigns[0]?._id || '');
+      } catch {
+        if (active) { setLiveCampaigns([]); setSubmitError('Unable to verify live campaigns. Please try again.'); }
+      } finally { if (active) setCampaignsLoading(false); }
+    };
+    void refresh();
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [isSubmitModalOpen]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +103,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   };
 
   const selectedCampaign = liveCampaigns.find((campaign) => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId);
+  const campaignUnavailable = !selectedCampaign || selectedCampaign.status !== 'LIVE';
+  const campaignWarning = 'The selected campaign is not currently LIVE or available for new lead submission. Existing leads may still be updated where permitted.';
 
   const handleSubmitLead = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -101,6 +115,12 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     }
     try {
       setIsSubmitting(true);
+      const campaigns = (await fetchPartnerCampaigns()).filter(campaign => campaign.status === 'LIVE');
+      setLiveCampaigns(campaigns);
+      if (!campaigns.some(campaign => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId)) {
+        setSubmitError(campaignWarning);
+        return;
+      }
       await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: clientMobile.trim(), accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined });
       setSubmitSuccess('Lead submitted for Admin verification.');
       window.setTimeout(() => {
@@ -122,10 +142,10 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-6 shadow-xl">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#F8FAFC]">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC]">
             Lead Management & Submissions
           </h1>
-          <p className="text-xs text-[#AAB3C2] mt-0.5">
+          <p className="text-sm text-[#AAB3C2] mt-0.5">
             Review submitted leads. Vendor-reported conversions also appear here automatically when campaign callbacks are connected.
           </p>
         </div>
@@ -135,7 +155,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
         </Button>
       </div>
 
-      <div className="border border-[#263650] bg-[#0D1424] p-3 text-xs text-[#AAB3C2]">
+      <div className="border border-[#263650] bg-[#0D1424] p-3 text-sm text-[#AAB3C2]">
         Automatic provider updates are additive. When a vendor callback is configured, those conversions will appear alongside manually submitted leads.
       </div>
 
@@ -227,16 +247,16 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                 <tbody className="divide-y divide-[#1C273C]/60 text-[#F8FAFC]">
                   {leads.map((lead) => (
                     <tr key={lead.leadId} className="hover:bg-[#111A2D]/40 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#D4AF37]">
+                  <td className="py-3.5 px-4 font-mono font-bold text-[#D4AF37]">
                         {lead.leadId}
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-[#F8FAFC]">{lead.campaignName}</div>
-                        <div className="text-[11px] text-[#AAB3C2]">{lead.action}</div>
+                        <div className="text-sm text-[#AAB3C2]">{lead.action}</div>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-medium text-[#F8FAFC]">{lead.clientName || 'Not provided by provider'}</div>
-                        <div className="font-mono text-[11px] text-[#AAB3C2]">{lead.clientMobile || 'Not provided by provider'}</div>
+                        <div className="font-mono text-xs text-[#AAB3C2]">{lead.clientMobile || 'Not provided by provider'}</div>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-xs text-[#AAB3C2]">
                         {lead.accountId}
@@ -281,13 +301,13 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                       {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
                         <form onSubmit={handleSubmitLead} className="space-y-3">
                           {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
-                          <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
+                          <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
                           <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
                           <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
                           <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
                           <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
-                          {selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
-                          <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || liveCampaigns.length === 0}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
+                          {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "No LIVE campaign selected. Choose an available campaign to submit a new lead."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking live campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
+                          <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || campaignsLoading || campaignUnavailable}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
                         </form>
                       )}
                     </section>
@@ -357,13 +377,13 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
               <form onSubmit={handleSubmitLead} className="space-y-3">
                 {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
-                <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
+                <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
-                {selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
-                <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || liveCampaigns.length === 0}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
+                {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "No LIVE campaign selected. Choose an available campaign to submit a new lead."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking live campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
+                <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || campaignsLoading || campaignUnavailable}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
               </form>
             )}
           </section>

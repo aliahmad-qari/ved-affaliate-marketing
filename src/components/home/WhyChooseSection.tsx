@@ -4,33 +4,33 @@ import { Layers, LineChart, LayoutDashboard, Shield, IndianRupee, Gift } from 'l
 export const WhyChooseSection: React.FC = () => {
   const benefits = [
     {
-      title: 'Top Brokerages',
-      desc: 'Angel One, Upstox, Choice, Nirmal Bang, 5Paisa & Mutual Funds.',
+      title: 'Top Brokerage Network',
+      desc: 'Access campaigns from leading brokers, fintech platforms and mutual fund partners.',
       icon: Layers,
     },
     {
-      title: 'Transparent Tracking',
-      desc: 'Real-time Pending, Approved, and Paid status reporting.',
+      title: 'Real-Time Tracking',
+      desc: 'Track leads, approvals and payouts from the dashboard.',
       icon: LineChart,
     },
     {
       title: 'Partner Dashboard',
-      desc: 'Dedicated mobile-first portal to manage leads and payouts.',
+      desc: 'Manage campaigns, leads, earnings and withdrawals seamlessly.',
       icon: LayoutDashboard,
     },
     {
-      title: 'Manual KYC Security',
-      desc: 'Manual PAN & Bank verification for partner fraud prevention.',
+      title: 'Verified Partner KYC',
+      desc: 'Secure PAN and bank verification for safer partner payments.',
       icon: Shield,
     },
     {
-      title: 'Min ₹200 Withdrawal',
-      desc: 'Direct payment to your Indian Bank Account or UPI ID.',
+      title: 'Easy Withdrawals',
+      desc: 'Request eligible earnings through bank transfer or UPI.',
       icon: IndianRupee,
     },
     {
-      title: '₹50 Referral Bonus',
-      desc: '₹50 referral bonus, subject to eligibility and campaign terms.',
+      title: '₹50 Referral Reward',
+      desc: 'Earn an additional ₹50 for eligible partner referrals, subject to the approved first-task rule.',
       icon: Gift,
     },
   ];
@@ -40,33 +40,35 @@ export const WhyChooseSection: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="text-center max-w-xl mx-auto mb-10">
+        <div className="text-center max-w-xl mx-auto mb-7">
           <div className="text-xs uppercase tracking-wider text-[#D4AF37] font-semibold mb-1">
             Partner Advantages
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC]">
-            Why Partner with VED
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#F8FAFC]">
+            Why Partner with <span className="text-[#D4AF37]">VED</span>
           </h2>
+          <p className="mt-2 text-xs sm:text-sm leading-5 text-[#AAB3C2]">More Opportunities • Better Tools • Bigger Earnings</p>
         </div>
 
         {/* Benefits Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {benefits.map((benefit, idx) => {
             const Icon = benefit.icon;
             return (
               <div
                 key={idx}
-                className="bg-[#121C34] border border-[#1F2E4F] hover:border-[#D4AF37]/50 rounded-xl p-5 transition-colors group"
+                className="flex min-w-0 items-start gap-3 bg-gradient-to-br from-[#101D32] to-[#080F1D] border border-[#D4AF37]/30 rounded-xl p-4 sm:p-5 shadow-lg shadow-black/10 group"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#182544] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-11 h-11 shrink-0 rounded-lg bg-[#D4AF37]/5 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
                   <Icon className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-bold text-[#F8FAFC] mb-1">
+                <div className="min-w-0 border-l border-[#D4AF37]/15 pl-3"><h3 className="text-base font-bold text-[#F8FAFC] mb-1">
                   {benefit.title}
                 </h3>
-                <p className="text-xs text-[#AAB3C2] leading-relaxed">
+                <p className="text-sm text-[#AAB3C2] leading-relaxed">
                   {benefit.desc}
                 </p>
+                </div>
               </div>
             );
           })}

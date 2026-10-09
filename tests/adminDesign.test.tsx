@@ -30,9 +30,9 @@ test('withdrawals render responsive layouts, filters and status-appropriate acti
   assert.ok(pending.includes('Search withdrawals') && pending.includes('Payment method') && pending.includes('Requested from') && pending.includes('Requested until'));
   assert.ok(pending.includes('₹550.00') && pending.includes('sample@bank'));
   assert.ok(pending.includes('Approve</button>') && pending.includes('Reject</button>') && pending.includes('View</button>'));
-  assert.ok(!pending.includes('Mark paid</button>'));
-  assert.ok(render('APPROVED').includes('Mark paid</button>'));
-  assert.ok(!render('PAID').includes('Approve</button>') && !render('PAID').includes('Mark paid</button>'));
+  assert.ok(!pending.includes('💳 Paid</button>'));
+  assert.ok(render('APPROVED').includes('💳 Paid</button>'));
+  assert.ok(!render('PAID').includes('Approve</button>') && !render('PAID').includes('💳 Paid</button>'));
 });
 
 test('withdrawal filters, pagination and existing payout transitions work through the API', async (t) => {

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Campaign } from '../models/Campaign.ts';
 import { Lead } from '../models/Lead.ts';
-import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { LeadStore } from '../services/leadStore.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
@@ -16,9 +15,9 @@ async function getLiveCampaigns(): Promise<any[]> {
       .select('-baseTrackingUrl -__v')
       .sort({ sortOrder: 1, isFeatured: -1 })
       .exec();
-    if (campaigns.length > 0) return campaigns.map((c) => c.toJSON());
+    return campaigns.map((c) => c.toJSON());
   }
-  return initialCampaignSeeds.filter((c) => c.status === 'LIVE');
+  throw Object.assign(new Error('Campaign availability cannot be verified. Please try again.'), { status: 503 });
 }
 
 // Helper to get ALL available campaigns (LIVE + PAUSED) - for updating existing leads
@@ -29,9 +28,9 @@ async function getAvailableCampaigns(): Promise<any[]> {
       .select('-baseTrackingUrl -__v')
       .sort({ sortOrder: 1, isFeatured: -1 })
       .exec();
-    if (campaigns.length > 0) return campaigns.map((c) => c.toJSON());
+    return campaigns.map((c) => c.toJSON());
   }
-  return initialCampaignSeeds.filter((c) => ['LIVE', 'PAUSED'].includes(c.status));
+  throw Object.assign(new Error('Campaign availability cannot be verified. Please try again.'), { status: 503 });
 }
 
 /**

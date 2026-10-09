@@ -75,7 +75,11 @@ export const listAdminLeads = async (req: Request, res: Response, next: NextFunc
       Lead.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
       Lead.countDocuments(query),
     ]);
-    res.json({ success: true, data, total, page, totalPages: Math.ceil(total / limit) || 1 });
+    const partnerIds = [...new Set(data.map(lead => lead.partnerId))];
+    const partners = partnerIds.length ? await Partner.find({ partnerId: { $in: partnerIds } })
+      .select('partnerId fullName -_id').lean().exec() : [];
+    const partnerNames = new Map(partners.map(partner => [partner.partnerId, partner.fullName]));
+    res.json({ success: true, data: data.map(lead => ({ ...lead, referringPartnerName: partnerNames.get(lead.partnerId) || null })), total, page, totalPages: Math.ceil(total / limit) || 1 });
   } catch (error) { next(error); }
 };
 

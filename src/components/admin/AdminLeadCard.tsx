@@ -34,16 +34,18 @@ export const AdminLeadCard: React.FC<AdminLeadCardProps> = ({ item, busy, onActi
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm font-bold text-[#F8FAFC]">{item.leadId}</h3>
+              <h3 className="min-w-0 text-sm font-bold text-[#F8FAFC] [overflow-wrap:anywhere]">{item.clientName || 'Customer name unavailable'}</h3>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${config.border} ${config.bg} ${config.color}`}>
                 <StatusIcon className="w-3 h-3" />
                 {item.status}
               </span>
             </div>
             <p className="text-xs font-semibold text-[#D4AF37] mb-1">{item.campaignName}</p>
-            <div className="space-y-1 text-xs text-[#AAB3C2]">
-              <p><span className="text-[#8F9DB2]">Partner:</span> {item.partnerId}</p>
-              <p><span className="text-[#8F9DB2]">Customer:</span> {item.clientName} · {item.clientMobile}</p>
+            <div className="space-y-1 text-xs text-[#AAB3C2] [overflow-wrap:anywhere]">
+              <p><span className="text-[#8F9DB2]">Customer Name:</span> {item.clientName || 'Unavailable'}</p>
+              <p><span className="text-[#8F9DB2]">Customer Mobile Number:</span> {item.clientMobile || 'Unavailable'}</p>
+              <p><span className="text-[#8F9DB2]">Referred By (Partner Name):</span> {item.referringPartnerName || 'Partner name unavailable'} <span className="text-[#8F9DB2]">({item.partnerId})</span></p>
+              <p><span className="text-[#8F9DB2]">Lead ID:</span> {item.leadId}</p>
               <p><span className="text-[#8F9DB2]">Account ID:</span> {item.accountId}</p>
             </div>
           </div>

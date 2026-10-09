@@ -30,10 +30,10 @@ const render = (changes: Partial<LeadItem> = {}, busy = false) => renderToStatic
 
 test('admin enquiry card renders the right progress and review controls', () => {
   const inProcess = render();
-  assert.ok(inProcess.includes('Customer enquiry') && inProcess.includes('In Process'));
+  assert.ok(inProcess.includes('Customer Enquiry') && inProcess.includes('In Process'));
   assert.ok(inProcess.includes('>Verify</button>') && inProcess.includes('>Approve</button>') && inProcess.includes('>Reject</button>'));
   assert.ok(inProcess.includes('Customer &lt;Name&gt;') && inProcess.includes('Sample &lt;Campaign&gt;'));
-  assert.ok(inProcess.includes('break-all'), 'Long generated reference IDs must wrap on mobile');
+  assert.ok(inProcess.includes('Account ID:') && inProcess.includes(baseLead.accountId), 'Generated reference IDs remain visible in the approved card layout');
   assert.ok(inProcess.includes('min-w-0'));
   const notSubmitted = render({ submittedData: { source: 'CUSTOMER_FORM', processStatus: 'NOT_SUBMITTED' } });
   assert.ok(notSubmitted.includes('value="NOT_SUBMITTED" selected=""'));
@@ -43,15 +43,15 @@ test('admin enquiry card renders the right progress and review controls', () => 
   assert.ok(rejected.includes('REJECTED') && rejected.includes('Not eligible'));
   assert.ok(!rejected.includes('<select') && !rejected.includes('>Approve</button>'));
   const approved = render({ status: 'APPROVED' });
-  assert.ok(approved.includes('>Mark paid</button>') && !approved.includes('<select'));
+  assert.ok(approved.includes('>Mark Paid</button>') && !approved.includes('<select'));
   const paid = render({ status: 'PAID' });
-  assert.ok(!paid.includes('>Mark paid</button>'));
+  assert.ok(!paid.includes('>Mark Paid</button>'));
   const busy = render({}, true);
   assert.equal((busy.match(/disabled=""/g) || []).length, 5, 'Disable progress and review actions while saving');
 });
 
 test('manual lead cards retain their existing controls without enquiry progress fields', () => {
   const manual = render({ submittedData: { notes: 'Manual submission' }, accountId: 'ACCOUNT-123' });
-  assert.ok(!manual.includes('Application progress') && !manual.includes('Customer enquiry'));
-  assert.ok(manual.includes('>Verify</button>') && manual.includes('>Approve</button>') && manual.includes('>Reject</button>') && manual.includes('>Adjust payout</button>'));
+  assert.ok(!manual.includes('Application progress') && !manual.includes('Customer Enquiry'));
+  assert.ok(manual.includes('>Verify</button>') && manual.includes('>Approve</button>') && manual.includes('>Reject</button>') && manual.includes('>Adjust Payout</button>'));
 });

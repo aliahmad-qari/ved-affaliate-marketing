@@ -1,0 +1,32 @@
+.ved-activity-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgb(212 175 55 / 22%);
+  background: linear-gradient(90deg, #111b2b, #080e19 70%);
+  color: #dce2ed;
+  font-size: 11px;
+}
+.ved-activity-label { display: flex; flex-shrink: 0; align-items: center; gap: 7px; padding-right: 12px; border-right: 1px solid rgb(212 175 55 / 25%); color: #d4af37; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.ved-activity-window { min-width: 0; flex: 1; overflow: hidden; mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent); }
+.ved-activity-track { display: flex; width: max-content; animation: ved-activity-scroll 38s linear infinite; }
+.ved-activity-group { display: flex; flex-shrink: 0; align-items: center; gap: 32px; padding-right: 32px; }
+.ved-activity-item { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; font-weight: 500; }
+.ved-activity-dot { width: 4px; height: 4px; flex-shrink: 0; border-radius: 50%; background: #d4af37; box-shadow: 0 0 8px rgb(212 175 55 / 35%); }
+.ved-activity-control { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid rgb(212 175 55 / 20%); border-radius: 6px; color: #d4af37; }
+.ved-activity-control:hover { background: rgb(212 175 55 / 8%); }
+.ved-activity-control:focus-visible { outline: 2px solid #d4af37; outline-offset: 2px; }
+.ved-activity-track.is-paused, .ved-activity-strip:hover .ved-activity-track, .ved-activity-strip:focus-within .ved-activity-track { animation-play-state: paused; }
+@keyframes ved-activity-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (min-width: 768px) { .ved-activity-strip { padding: 0 24px; font-size: 12px; min-height: 40px; } }
+@media (max-width: 374px) { .ved-activity-strip { padding: 0 12px; gap: 8px; } .ved-activity-label { font-size: 9px; padding-right: 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .ved-activity-track { animation: none; width: auto; }
+  .ved-activity-group { flex-wrap: wrap; gap: 8px 20px; padding: 8px 0; }
+  .ved-activity-group + .ved-activity-group, .ved-activity-control { display: none; }
+  .ved-activity-item { white-space: normal; }
+  .ved-activity-window { mask-image: none; }
+}

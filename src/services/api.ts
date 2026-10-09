@@ -30,7 +30,7 @@ const safeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<
   return fetchFn(input, init);
 };
 
-export async function fetchCampaigns(filters: CampaignFilterOptions = {}): Promise<ApiResponse<Campaign[]>> {
+export async function fetchCampaigns(filters: CampaignFilterOptions = {}, options: { allowFallback?: boolean } = {}): Promise<ApiResponse<Campaign[]>> {
   try {
     const params = new URLSearchParams();
     if (filters.category && filters.category !== 'all') {
@@ -55,13 +55,15 @@ export async function fetchCampaigns(filters: CampaignFilterOptions = {}): Promi
 
     if (response.ok) {
       const data = await response.json();
-      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data && data.success && Array.isArray(data.data)) {
         return data;
       }
     }
   } catch (err) {
     console.warn('[VED API] Network fetch failed, using fallback campaigns:', err);
   }
+
+  if (options.allowFallback === false) throw new Error('Live campaigns are temporarily unavailable.');
 
   // Resilient fallback filtering
   const filtered = fallbackCampaigns.filter((c) => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar.tsx';
+import { PartnerActivityStrip } from './components/layout/PartnerActivityStrip.tsx';
 import { Footer } from './components/layout/Footer.tsx';
 import { MobileBottomNav } from './components/layout/MobileBottomNav.tsx';
 import { WhatsAppButton } from './components/ui/WhatsAppButton.tsx';
@@ -186,6 +187,7 @@ function MainApp() {
     <div className="min-h-screen flex flex-col bg-[#070B14] text-[#F8FAFC]">
       {/* Top Navigation */}
       {!isAdminRoute && <Navbar currentTab={currentRoute} onNavigate={navigateTo} />}
+      {!isAdminRoute && <PartnerActivityStrip />}
 
       {/* Main Page Content */}
       <main className="flex-1 pb-16 md:pb-0">

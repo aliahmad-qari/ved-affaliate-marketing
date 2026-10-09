@@ -35,7 +35,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
 
             {/* Concise Value Proposition */}
             <p className="text-sm sm:text-base text-[#AAB3C2] leading-relaxed max-w-xl">
-              VED AFFILIATE connects partners with leading Indian Demat, Trading, and Mutual Fund campaigns. Submit eligible leads and withdraw earnings directly.
+              VED AFFILIATE connects partners with leading financial campaigns across Demat, Trading, Mutual Funds, Loans & More. Submit eligible leads and earn on verified conversions.
             </p>
 
             {/* 4 Bullet Points */}

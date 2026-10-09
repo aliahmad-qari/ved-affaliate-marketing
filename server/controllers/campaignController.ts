@@ -5,6 +5,7 @@ import { Partner } from '../models/Partner.ts';
 import { TrackingClick } from '../models/TrackingClick.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
+import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
 
 // Helper to sanitize public campaign output
 const sanitizeCampaign = (campaign: any) => {
@@ -47,6 +48,11 @@ export const getPublicCampaigns = async (req: Request, res: Response, next: Next
 
     let campaigns: any[] = [];
 
+    if (!isConnected && featured === 'true') {
+      res.status(503).json({ success: false, message: 'Live campaigns are temporarily unavailable.' });
+      return;
+    }
+
     if (isConnected) {
       const query: Record<string, any> = {};
 
@@ -77,10 +83,6 @@ export const getPublicCampaigns = async (req: Request, res: Response, next: Next
         .select('-baseTrackingUrl -__v')
         .sort({ isFeatured: -1, sortOrder: 1, createdAt: -1 });
 
-      // If DB connected but empty, fall back to seeds
-      if (campaigns.length === 0 && !search && !category) {
-        campaigns = initialCampaignSeeds.map(sanitizeCampaign);
-      }
     } else {
       // Offline fallback store
       campaigns = initialCampaignSeeds
@@ -185,7 +187,7 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         referralCode: ref.toUpperCase(),
         partnerId: pid.toUpperCase(),
         accountStatus: 'ACTIVE',
-      }).select('partnerId').lean().exec();
+      }).select('partnerId referralCode').lean().exec();
       if (!partner) {
         res.status(400).json({ success: false, message: 'Partner attribution is invalid or inactive.' });
         return;
@@ -202,14 +204,19 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });
       const isWhatsApp = ['wa.me', 'www.whatsapp.com', 'api.whatsapp.com'].includes(target.hostname.toLowerCase());
-      if (isWhatsApp) {
+      if (preserveVendorTrackingUrl(target)) {
+        res.redirect(302, campaign.baseTrackingUrl);
+        return;
+      } else if (isWhatsApp) {
         const message = target.searchParams.get('text') || '';
         target.searchParams.set('text', `${message}${message ? '\n\n' : ''}VED reference: ${clickId}`);
         for (const key of [...target.searchParams.keys()]) {
           if (key.toLowerCase().startsWith('utm_')) target.searchParams.delete(key);
         }
       } else {
-        target.searchParams.set('ref', partner.referralCode);
+        if (typeof partner.referralCode === 'string' && partner.referralCode.trim()) {
+          target.searchParams.set('ref', partner.referralCode);
+        }
         target.searchParams.set('pid', partner.partnerId);
         target.searchParams.set('partner_id', partner.partnerId);
         target.searchParams.set('campaign_id', String(campaign._id));
