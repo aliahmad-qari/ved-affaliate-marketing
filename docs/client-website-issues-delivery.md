@@ -2,6 +2,8 @@
 
 Reference: VED_Affiliate_Website_Issues_Report (1).pdf. All seven pages and all five embedded screenshots were read/inspected. The separately pasted implementation brief was followed. The actual repository frontend is React/Vite, not Next.js; its architecture is preserved.
 
+Client clarification supersedes PDF issue 4: manual partner reports are accepted for both LIVE and PAUSED campaigns, while DRAFT and ENDED remain blocked. This does not enable paused vendor redirects or change automatic attribution. Reports remain PENDING until the existing admin review workflow approves them.
+
 ## Issue status and changes
 
 | PDF issue | Local implementation |
@@ -9,7 +11,7 @@ Reference: VED_Affiliate_Website_Issues_Report (1).pdf. All seven pages and all 
 | 1 — Partner Advantages | Compact horizontal icon/text cards with navy gradients, gold borders, six approved benefits, the approved supporting line and gold VED heading. The referral description explicitly retains the eligible first-task condition. No new KYC or vendor automation is implied. |
 | 2 — Featured Campaigns | LIVE NOW and View all navigation to the existing campaigns route. Home fetches featured LIVE campaigns from the backend without using sample fallback cards. Component also filters status and featured flag. Empty/loading states, existing real payout/card details and status badge retained. Zero payout displays ₹0. |
 | 3 — Hero description | Exact approved description in the hero, description metadata and Open Graph description. HTML metadata encodes the ampersand as &amp;; its decoded text matches the approved sentence. Hero heading and CTAs unchanged. |
-| 4 — Non-live new submissions | Dropdown only shows LIVE campaigns. Availability refreshes on opening, focus and every 30 seconds; it is checked again before submitting. Missing/non-live selection shows a warning and disables submit. Backend rejects PAUSED/DRAFT/ENDED with 404, and unavailable database verification with 503. Empty authoritative database results no longer resurrect seed campaigns. Existing lead-update rules are unchanged. |
+| 4 — Manual report submission (clarified) | Dropdown accepts LIVE and PAUSED campaigns and labels their status. Availability refreshes on opening, focus and every 30 seconds; it is checked again before submitting. Missing/DRAFT/ENDED selections are blocked. Backend accepts LIVE/PAUSED reports, rejects DRAFT/ENDED with 404 and unavailable database verification with 503. Authoritative empty results do not resurrect seed campaigns. Reports start PENDING; existing lead-update and financial rules are unchanged. |
 | 5 — Admin lead details | Customer name is prominent, mobile has its own label, and Referred By (Partner Name) comes from the actual lead.partnerId relationship. One batched partner query per page selects only partnerId/fullName. Missing data has explicit fallbacks. Existing actions, statuses, payout controls and filters retained. |
 
 ## Exact files changed for these five fixes
@@ -37,7 +39,7 @@ Earlier uncommitted m.Stock changes, their tests and docs were already present b
 - GET /api/admin/leads: adds optional referringPartnerName to each authorized admin result; null if missing. No per-lead database query. Authentication/role middleware remains unchanged. No public customer endpoint was introduced.
 - GET /api/public/campaigns?status=LIVE&featured=true: authoritative empty results stay empty; unavailable DB returns 503 for this verified featured request rather than seeds.
 - GET /api/partner/campaigns: authoritative LIVE/PAUSED results remain available, including an empty result; unavailable DB fails closed with 503 instead of fake selectable campaigns.
-- POST /api/partner/leads: existing LIVE-only validation is preserved and made safe against empty/offline seed fallbacks. Direct non-live requests are rejected before any record creation.
+- POST /api/partner/leads: latest client rule accepts LIVE/PAUSED manual reports and rejects DRAFT/ENDED requests before record creation. Empty/offline seed fallbacks remain disabled. The campaign payout snapshot and PENDING/admin-review workflow are unchanged.
 - PATCH /api/partner/leads/:leadId: existing ownership/status update rules are unchanged, including approved handling of existing PAUSED-campaign leads.
 
 ## Validation

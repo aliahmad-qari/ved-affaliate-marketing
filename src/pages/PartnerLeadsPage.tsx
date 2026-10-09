@@ -64,16 +64,18 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   useEffect(() => {
     if (!isSubmitModalOpen) return;
     let active = true;
+    let refreshVersion = 0;
     const refresh = async () => {
+      const version = ++refreshVersion;
       setCampaignsLoading(true);
       try {
-        const campaigns = (await fetchPartnerCampaigns()).filter(campaign => campaign.status === 'LIVE');
-        if (!active) return;
+        const campaigns = (await fetchPartnerCampaigns()).filter(campaign => ['LIVE', 'PAUSED'].includes(campaign.status));
+        if (!active || version !== refreshVersion) return;
         setLiveCampaigns(campaigns);
         setSelectedCampaignId(current => current || campaigns[0]?.slug || campaigns[0]?._id || '');
       } catch {
-        if (active) { setLiveCampaigns([]); setSubmitError('Unable to verify live campaigns. Please try again.'); }
-      } finally { if (active) setCampaignsLoading(false); }
+        if (active && version === refreshVersion) { setLiveCampaigns([]); setSubmitError('Unable to verify available campaigns. Please try again.'); }
+      } finally { if (active && version === refreshVersion) setCampaignsLoading(false); }
     };
     void refresh();
     const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 30000);
@@ -103,8 +105,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   };
 
   const selectedCampaign = liveCampaigns.find((campaign) => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId);
-  const campaignUnavailable = !selectedCampaign || selectedCampaign.status !== 'LIVE';
-  const campaignWarning = 'The selected campaign is not currently LIVE or available for new lead submission. Existing leads may still be updated where permitted.';
+  const campaignUnavailable = !selectedCampaign || !['LIVE', 'PAUSED'].includes(selectedCampaign.status);
+  const campaignWarning = 'Reports can only be submitted for LIVE or PAUSED campaigns. This campaign is unavailable for report submission.';
 
   const handleSubmitLead = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -115,7 +117,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     }
     try {
       setIsSubmitting(true);
-      const campaigns = (await fetchPartnerCampaigns()).filter(campaign => campaign.status === 'LIVE');
+      const campaigns = (await fetchPartnerCampaigns()).filter(campaign => ['LIVE', 'PAUSED'].includes(campaign.status));
       setLiveCampaigns(campaigns);
       if (!campaigns.some(campaign => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId)) {
         setSubmitError(campaignWarning);
@@ -291,28 +293,6 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                   ))}
                 </tbody>
 
-                {isSubmitModalOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" role="presentation" onClick={closeSubmitModal}>
-                    <section role="dialog" aria-modal="true" aria-labelledby="submit-lead-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}>
-                      <div className="mb-4 flex items-center justify-between border-b border-[#263650] pb-3">
-                        <h2 id="submit-lead-title" className="text-lg font-bold text-white">Submit Partner Lead</h2>
-                        <button type="button" onClick={closeSubmitModal} aria-label="Close lead form" className="text-[#AAB3C2] hover:text-white"><X className="h-5 w-5" /></button>
-                      </div>
-                      {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
-                        <form onSubmit={handleSubmitLead} className="space-y-3">
-                          {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
-                          <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
-                          <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
-                          <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
-                          <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
-                          <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
-                          {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "No LIVE campaign selected. Choose an available campaign to submit a new lead."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking live campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
-                          <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || campaignsLoading || campaignUnavailable}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
-                        </form>
-                      )}
-                    </section>
-                  </div>
-                )}
               </table>
             </div>
 
@@ -377,12 +357,12 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
               <form onSubmit={handleSubmitLead} className="space-y-3">
                 {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
-                <label className="block text-xs text-[#AAB3C2]">Live campaign<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · ₹{campaign.payout}</option>)}</select></label>
+                <label className="block text-xs text-[#AAB3C2]">Campaign (LIVE / PAUSED)<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · {campaign.status} · ₹{campaign.payout}</option>)}</select></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
-                {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "No LIVE campaign selected. Choose an available campaign to submit a new lead."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking live campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
+                {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "Choose a LIVE or PAUSED campaign to submit your report."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking report campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}
                 <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" size="sm" onClick={closeSubmitModal}>Cancel</Button><Button type="submit" variant="primary" disabled={isSubmitting || campaignsLoading || campaignUnavailable}>{isSubmitting ? 'Submitting…' : 'Submit for Verification'}</Button></div>
               </form>
             )}

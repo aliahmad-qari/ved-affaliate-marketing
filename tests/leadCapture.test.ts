@@ -229,22 +229,13 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(manualLead.status, 'PENDING');
     assert.equal(manualLead.submittedData.source, undefined);
     assert.equal((await manualSubmit()).status, 409);
-    // A campaign paused after a partner loads the form must reject a fresh API
-    // submission, including when the database has no remaining LIVE rows.
-    for (const status of ['PAUSED', 'DRAFT', 'ENDED']) {
+    // DRAFT and ENDED reports remain blocked even without any available rows.
+    for (const status of ['DRAFT', 'ENDED']) {
       campaign.status = status;
       const blocked = await manualSubmit();
       assert.equal(blocked.status, 404);
-      assert.ok((await blocked.json()).message.includes('not currently LIVE'));
+      assert.ok((await blocked.json()).message.includes('only be submitted for LIVE or PAUSED'));
       assert.equal(leads.length, 3, 'Non-live submissions must not create records');
-      if (status === 'PAUSED') {
-        const updateExisting = await fetch(`${base}/api/partner/leads/${manualLead._id}`, {
-          method: 'PATCH', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ updatedNotes: 'Existing paused-campaign enquiry updated' }),
-        });
-        assert.equal(updateExisting.status, 200, 'An owned existing pending lead can still be updated for a paused campaign');
-        assert.equal((await updateExisting.json()).data.status, 'PENDING');
-      }
     }
     campaign.status = 'LIVE';
     assert.equal((await patch(`/leads/${manualLead._id}/process`, { processStatus: 'NOT_SUBMITTED' })).status, 404);
@@ -324,6 +315,25 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(directTarget.searchParams.get('offer'), 'original');
     assert.ok(!directLocation.includes('undefined'));
     campaign.status = 'PAUSED';
+    const priorReports = leads.length, priorEarnings = ledger.length, priorClicks = clicks.length;
+    const pausedReport = await fetch(`${base}/api/partner/leads`, {
+      method: 'POST', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...manualBody, accountId: 'PAUSED-APPLICATION-456' }),
+    });
+    assert.equal(pausedReport.status, 201, 'Manual reports remain accepted after a LIVE campaign becomes PAUSED');
+    const report = (await pausedReport.json()).data;
+    assert.equal(report.status, 'PENDING');
+    assert.equal(report.payoutSnapshot, campaign.payout);
+    assert.equal(leads.length, priorReports + 1);
+    assert.equal(ledger.length, priorEarnings, 'A pending report must not credit earnings');
+    assert.equal(clicks.length, priorClicks, 'Manual reporting must not alter click attribution');
+    const existingUpdate = await fetch(`${base}/api/partner/leads/${report._id}`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updatedNotes: 'Updated paused report' }),
+    });
+    assert.equal(existingUpdate.status, 200);
+    const reportCampaigns = await partnerGet('/campaigns');
+    assert.equal((await reportCampaigns.json()).data[0].canSubmitNew, true);
     assert.equal((await fetch(`${base}${link}`)).status, 404);
     campaign.status = 'LIVE';
     assert.equal((await fetch(`${base}/api/public/campaigns/sample/go?ref=bad&pid=wrong`)).status, 400);

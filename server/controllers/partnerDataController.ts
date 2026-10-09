@@ -7,11 +7,11 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 
-// Helper to get LIVE campaigns only (for new lead submissions)
-async function getLiveCampaigns(): Promise<any[]> {
+// Manual reports are accepted for LIVE and PAUSED campaigns.
+async function getReportCampaigns(): Promise<any[]> {
   const { isConnected } = getDbStatus();
   if (isConnected) {
-    const campaigns = await Campaign.find({ status: 'LIVE' })
+    const campaigns = await Campaign.find({ status: { $in: ['LIVE', 'PAUSED'] } })
       .select('-baseTrackingUrl -__v')
       .sort({ sortOrder: 1, isFeatured: -1 })
       .exec();
@@ -58,8 +58,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
 /**
  * GET /api/partner/campaigns
  * Retrieves LIVE and PAUSED campaigns.
- * - LIVE campaigns: Can submit NEW leads
- * - PAUSED campaigns: Can only update existing PENDING leads
+ * - LIVE and PAUSED campaigns: Can submit manual reports and update eligible existing leads
  */
 export const getPartnerCampaigns = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -85,7 +84,7 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
         whatsappShareUrl,
         isLive: camp.status === 'LIVE',
         isPaused: camp.status === 'PAUSED',
-        canSubmitNew: camp.status === 'LIVE',
+        canSubmitNew: ['LIVE', 'PAUSED'].includes(camp.status),
         canUpdateExisting: ['LIVE', 'PAUSED'].includes(camp.status),
       };
     });
@@ -102,11 +101,10 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
 /**
  * POST /api/partner/leads
- * Partner submits a new lead against a LIVE campaign ONLY.
- * For PAUSED campaigns, partners can only update existing leads via /api/partner/leads/:leadId
+ * Partner submits a manual lead/report against a LIVE or PAUSED campaign.
  *
  * CRITICAL:
- * - Campaign must be LIVE for new lead submission
+ * - Campaign must be LIVE or PAUSED for manual report submission
  * - Partner cannot set status (forced to PENDING)
  * - Payout snapshot is preserved from the campaign definition
  * - Duplicate submissions of the same accountId by the same partner are rejected
@@ -143,8 +141,8 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       return;
     }
 
-    // Lookup campaign - ONLY LIVE campaigns allowed for new submissions
-    const liveCampaigns = await getLiveCampaigns();
+    // Check the current status server-side, including forms opened before a status change.
+    const liveCampaigns = await getReportCampaigns();
     const campaign = liveCampaigns.find(
       (c) => c._id?.toString() === campaignId || c.slug === campaignId || c.name === campaignId
     );
@@ -152,7 +150,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
     if (!campaign) {
       res.status(404).json({
         success: false,
-        message: 'The selected campaign is not currently LIVE or available for new lead submission. If the campaign is paused, you can only update existing leads on that campaign.',
+        message: 'Reports can only be submitted for LIVE or PAUSED campaigns. This campaign is unavailable for report submission.',
       });
       return;
     }
