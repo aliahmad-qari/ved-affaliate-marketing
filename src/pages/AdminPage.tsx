@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { adminApi } from '../services/adminApi.ts';
 import { Button } from '../components/ui/Button.tsx';
+import { AdminPartnerLeadLedger } from '../components/admin/AdminPartnerLeadLedger.tsx';
 import { AdminLeadCard } from '../components/admin/AdminLeadCard.tsx';
 import { AdminOverview } from '../components/admin/AdminOverview.tsx';
 import { AdminNotificationHistory } from '../components/admin/AdminNotificationHistory.tsx';
@@ -33,9 +34,12 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [withdrawalFilters, setWithdrawalFilters] = useState({ ...defaultWithdrawalFilters });
-  const selectTab = (next: AdminTab) => { if (next === tab) return; setSearch(''); setStatus('ALL'); setData(null); setTab(next); };
+  const selectTab = (next: AdminTab) => { if (next === tab) return; setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); setLedgerPartner(null); setData(null); setTab(next); };
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
+  const [leadCampaign, setLeadCampaign] = useState('ALL');
+  const [leadCampaigns, setLeadCampaigns] = useState<any[]>([]);
+  const [ledgerPartner, setLedgerPartner] = useState<any>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [kycDetails, setKycDetails] = useState<any>(null);
@@ -49,7 +53,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const activeTab = useRef(tab);
   activeTab.current = tab;
 
-  const load = async (target = tab) => {
+  const load = async (target = tab, reset = false) => {
     const requestId = ++loadRequestId.current;
     setLoading(true);
     setError('');
@@ -64,8 +68,9 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         query.set('page', String(withdrawalFilters.page));
         query.set('limit', '20');
       } else {
-        if (search.trim()) query.set('search', search.trim());
-        if (status !== 'ALL') query.set('status', status);
+        if (!reset && search.trim()) query.set('search', search.trim());
+        if (!reset && status !== 'ALL') query.set('status', status);
+        if (!reset && target === 'leads' && leadCampaign !== 'ALL') query.set('campaignId', leadCampaign);
       }
       const suffix = query.size ? `?${query}` : '';
       const paths: Record<AdminTab, string> = {
@@ -94,7 +99,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   useEffect(() => {
     if (admin) void load(tab);
     return () => { loadRequestId.current++; };
-  }, [admin, tab, withdrawalFilters]);
+  }, [admin, tab, withdrawalFilters, leadCampaign]);
 
   useEffect(() => {
     if (!admin || tab !== 'leads') return;
@@ -102,7 +107,14 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       if (!document.hidden && !busy) void load('leads');
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [admin, tab, search, status, busy]);
+  }, [admin, tab, search, status, leadCampaign, busy]);
+
+  useEffect(() => {
+    if (!admin || (tab !== 'leads' && tab !== 'partners')) return;
+    let active = true;
+    adminApi.get('/admin/lead-campaigns').then(result => { if (active) setLeadCampaigns(result.data || []); }).catch(err => { if (active) setError(err.message); });
+    return () => { active = false; };
+  }, [admin, tab]);
 
   const run = async (operation: () => Promise<any>, reload = true) => {
     setBusy(true);
@@ -206,7 +218,8 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       </form>
       <div className="space-y-3">{records.map((item) => <section key={item._id} className="flex flex-col gap-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-4 sm:flex-row sm:items-center sm:justify-between rounded-xl hover:border-[#D4AF37]/40 transition-colors backdrop-blur-sm"><div className="flex-1"><h3 className="font-bold text-white">{item.name} <span className={`text-xs px-2 py-1 rounded ml-2 font-semibold ${item.status === 'LIVE' ? 'bg-emerald-500/20 border border-emerald-700 text-emerald-300' : item.status === 'DRAFT' ? 'bg-slate-500/20 border border-slate-700 text-slate-300' : 'bg-amber-500/20 border border-amber-700 text-amber-300'}`}>{item.status}</span></h3><p className="text-xs text-slate-400 mt-1">{item.companyName} · <span className="font-mono text-[#D4AF37]">₹{item.payout ?? 0}</span> · <code className="text-slate-500">{item.slug}</code></p></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => { setEditingCampaignId(item._id); setCampaign({ ...emptyCampaign, ...item, payout: String(item.payout ?? 0), startDate: item.startDate ? new Date(item.startDate).toISOString().slice(0, 10) : '', endDate: item.endDate ? new Date(item.endDate).toISOString().slice(0, 10) : '', rulesText: (item.rules || []).join('\n'), termsEligibility: item.terms?.eligibility || '', termsValidation: item.terms?.validationRejection || '', termsTimeline: item.terms?.payoutTimeline || '', termsFraud: item.terms?.duplicateFraudRules || '', sortOrder: String(item.sortOrder ?? 0) }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>✏️ Edit</Button><label className="cursor-pointer rounded border border-[#D4AF37]/30 bg-[#D4AF37]/5 hover:bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#D4AF37] transition-colors">📤 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void run(() => adminApi.upload(`/admin/campaigns/${item._id}/logo`, file)); }} /></label><Button variant="outline" size="sm" onClick={() => void run(() => adminApi.delete(`/admin/campaigns/${item._id}`))}>🗑️ Archive</Button></div></section>)}</div>
     </div>;
-    if (tab === 'partners') return <div className="space-y-3">{records.map((item) => <section key={item._id} className="flex flex-col gap-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-4 md:flex-row md:items-center md:justify-between rounded-xl hover:border-[#D4AF37]/40 transition-colors backdrop-blur-sm"><div className="flex-1 min-w-0"><h3 className="font-bold text-white">{item.fullName} <span className="text-xs font-mono text-[#D4AF37]">#{item.partnerId}</span></h3><p className="text-xs text-slate-400 mt-1">📧 {item.email} · 📱 {item.mobile}</p><p className="text-xs text-slate-400 mt-2">🪪 KYC <span className={`font-semibold ${item.kycStatus === 'VERIFIED' ? 'text-emerald-400' : 'text-amber-400'}`}>{item.kycStatus}</span> · 🔐 {item.accountStatus}</p><p className="text-xs text-slate-500 mt-2">📊 Leads {item.performance?.totalLeads || 0} · ✅ Approved {item.performance?.approvedLeads || 0} · ⏳ Pending {item.performance?.pendingLeads || 0} · 💰 Earned <span className="font-mono text-[#D4AF37]">₹{item.performance?.earnings || 0}</span></p><p className="text-xs text-slate-500">🏦 PAN {item.maskedPan || '—'} · Account {item.bankDetails?.maskedAccountNumber || '—'}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void run(async () => { const result = await adminApi.get(`/admin/partners/${item._id}/kyc`); setKycDetails(result.data); }, false)}>👁️ View KYC</Button><select className={selectClass} value={item.kycStatus} onChange={(event) => { const value = event.target.value; const rejectionReason = value === 'REJECTED' ? window.prompt('KYC rejection reason') || '' : ''; if (value !== 'REJECTED' || rejectionReason) void run(() => adminApi.patch(`/admin/partners/${item._id}`, { kycStatus: value, kycRejectionReason: rejectionReason })); }}>{['PENDING','VERIFIED','REJECTED'].map((value) => <option key={value}>{value}</option>)}</select><select className={selectClass} value={item.accountStatus} onChange={(event) => void run(() => adminApi.patch(`/admin/partners/${item._id}`, { accountStatus: event.target.value }))}>{['ACTIVE','INACTIVE','SUSPENDED','PENDING'].map((value) => <option key={value}>{value}</option>)}</select></div></section>)}</div>;
+    if (tab === 'partners' && ledgerPartner) return <AdminPartnerLeadLedger partner={ledgerPartner} campaigns={leadCampaigns} onBack={() => { setLedgerPartner(null); void load('partners'); }} />;
+    if (tab === 'partners') return <div className="space-y-3">{records.map((item) => <section key={item._id} className="flex flex-col gap-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-4 md:flex-row md:items-center md:justify-between rounded-xl hover:border-[#D4AF37]/40 transition-colors backdrop-blur-sm"><div className="flex-1 min-w-0"><h3 className="font-bold text-white">{item.fullName} <span className="text-xs font-mono text-[#D4AF37]">#{item.partnerId}</span></h3><p className="text-xs text-slate-400 mt-1">📧 {item.email} · 📱 {item.mobile}</p><p className="text-xs text-slate-400 mt-2">🪪 KYC <span className={`font-semibold ${item.kycStatus === 'VERIFIED' ? 'text-emerald-400' : 'text-amber-400'}`}>{item.kycStatus}</span> · 🔐 {item.accountStatus}</p><p className="text-xs text-slate-500 mt-2">📊 Leads {item.performance?.totalLeads || 0} · ✅ Approved {item.performance?.approvedLeads || 0} · ⏳ Pending {item.performance?.pendingLeads || 0} · 💰 Earned <span className="font-mono text-[#D4AF37]">₹{item.performance?.earnings || 0}</span></p><p className="text-xs text-slate-500">🏦 PAN {item.maskedPan || '—'} · Account {item.bankDetails?.maskedAccountNumber || '—'}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => setLedgerPartner(item)}>View Lead Ledger</Button><Button variant="outline" size="sm" onClick={() => void run(async () => { const result = await adminApi.get(`/admin/partners/${item._id}/kyc`); setKycDetails(result.data); }, false)}>👁️ View KYC</Button><select className={selectClass} value={item.kycStatus} onChange={(event) => { const value = event.target.value; const rejectionReason = value === 'REJECTED' ? window.prompt('KYC rejection reason') || '' : ''; if (value !== 'REJECTED' || rejectionReason) void run(() => adminApi.patch(`/admin/partners/${item._id}`, { kycStatus: value, kycRejectionReason: rejectionReason })); }}>{['PENDING','VERIFIED','REJECTED'].map((value) => <option key={value}>{value}</option>)}</select><select className={selectClass} value={item.accountStatus} onChange={(event) => void run(() => adminApi.patch(`/admin/partners/${item._id}`, { accountStatus: event.target.value }))}>{['ACTIVE','INACTIVE','SUSPENDED','PENDING'].map((value) => <option key={value}>{value}</option>)}</select></div></section>)}</div>;
     if (tab === 'referrals') return (
       <div className="space-y-4">
         {records.length === 0 ? (
@@ -336,9 +349,9 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       })}</nav>
       <AdminSectionHeader section={tab} />
       {error && <p role="alert" className="mb-4 border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
-      {['partners','referrals','leads','support'].includes(tab) && <div className="admin-filters mb-4 flex flex-col gap-2 sm:flex-row"><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} /><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={() => void load()}>Apply</Button></div>}
+      {['partners','referrals','leads','support'].includes(tab) && !ledgerPartner && <div className={tab === 'leads' ? 'admin-filters mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]' : 'admin-filters mb-4 flex flex-col gap-2 sm:flex-row'}><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} />{tab === 'leads' && <select className={`${inputClass} min-w-0`} aria-label="Filter leads by campaign" value={leadCampaign} onChange={event => { setData(null); setLeadCampaign(event.target.value); }}><option value="ALL">All Campaigns</option>{leadCampaigns.map(item => <option key={item._id} value={item._id}>{item.name} · {item.status}</option>)}</select>}<select className={tab === 'leads' ? `${inputClass} min-w-0` : selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={() => void load()}>Apply</Button>{tab === 'leads' && <Button variant="outline" onClick={() => { setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); void load('leads', true); }}>Reset</Button>}</div>}
       {loading && !data && tab !== 'overview' ? <div role="status" className="rounded-xl border border-[#203755] bg-[#0d192b] px-6 py-14 text-center text-sm text-slate-400">Loading records…</div> : <div className={tab === 'overview' || tab === 'withdrawals' ? undefined : 'admin-content'}>{content()}</div>}
-      {kycDetails && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="presentation" onClick={() => setKycDetails(null)}><section role="dialog" aria-modal="true" aria-labelledby="kyc-title" className="admin-kyc w-full max-w-lg space-y-3 border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><h2 id="kyc-title" className="text-lg font-bold">KYC details · {kycDetails.partnerId}</h2><button className="text-sm text-[#D4AF37]" onClick={() => setKycDetails(null)}>Close</button></div><p>{kycDetails.fullName} · {kycDetails.kycStatus}</p><p className="text-sm text-[#AAB3C2]">PAN: <span className="font-mono text-white">{kycDetails.pan}</span></p><div className="space-y-1 border-t border-[#263650] pt-3 text-sm text-[#AAB3C2]"><p>Account holder: {kycDetails.bankDetails?.accountHolderName}</p><p>Account number: <span className="font-mono text-white">{kycDetails.bankDetails?.accountNumber}</span></p><p>IFSC: {kycDetails.bankDetails?.ifscCode}</p><p>Bank: {kycDetails.bankDetails?.bankName}</p></div></section></div>}
+      {kycDetails && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="presentation" onClick={() => setKycDetails(null)}><section role="dialog" aria-modal="true" aria-labelledby="kyc-title" className="admin-kyc w-full max-w-lg space-y-3 border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><h2 id="kyc-title" className="text-lg font-bold">KYC details · {kycDetails.partnerId}</h2><button className="text-sm text-[#D4AF37]" onClick={() => setKycDetails(null)}>Close</button></div><p>{kycDetails.fullName} · {kycDetails.kycStatus}</p><p className="text-sm text-[#AAB3C2]">PAN: <span className="font-mono text-white">{kycDetails.pan}</span></p><div className="space-y-1 border-t border-[#263650] pt-3 text-sm text-[#AAB3C2]"><p>Account holder: {kycDetails.bankDetails?.accountHolderName}</p><p>Account number: <span className="font-mono text-white">{kycDetails.bankDetails?.accountNumber}</span></p><p>IFSC: {kycDetails.bankDetails?.ifscCode}</p><p>Bank: {kycDetails.bankDetails?.bankName}</p><p>UPI: {kycDetails.upiId || 'Not submitted'}</p></div></section></div>}
     </div>
   );
 };

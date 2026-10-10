@@ -367,6 +367,11 @@ export const requestWithdrawal = async (req: Request, res: Response, next: NextF
     const partner = req.user;
     const { amount, paymentMethod } = req.body;
 
+    if (partner.kycStatus !== 'VERIFIED') {
+      res.status(403).json({ success: false, code: 'KYC_REQUIRED', message: 'Complete KYC in Profile and wait for admin verification before requesting a withdrawal.' });
+      return;
+    }
+
     const cleanAmount = Number(amount);
     const setting: any = getDbStatus().isConnected ? await AppSetting.findOne({ key: 'business' }).lean().exec() : null;
     const minimumWithdrawalAmount = Number(setting?.minimumWithdrawalAmount ?? 200);
@@ -387,6 +392,10 @@ export const requestWithdrawal = async (req: Request, res: Response, next: NextF
     }
 
     let payoutDest = partner.upiId;
+    if (paymentMethod === 'UPI' && !payoutDest) {
+      res.status(400).json({ success: false, message: 'A saved payout UPI ID is required.' });
+      return;
+    }
     if (paymentMethod === 'BANK_TRANSFER') {
       const bankDetails = partner.bankDetails;
       if (!bankDetails?.accountNumber) {

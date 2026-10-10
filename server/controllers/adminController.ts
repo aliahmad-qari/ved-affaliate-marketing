@@ -11,6 +11,7 @@ import { AuditLog } from '../models/AuditLog.ts';
 import { Lead } from '../models/Lead.ts';
 import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { notifyPartners, writeAudit } from '../services/adminServices.ts';
+import { validateKyc } from '../utils/kyc.ts';
 
 const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
 const termFields = ['eligibility', 'validationRejection', 'payoutTimeline', 'duplicateFraudRules'] as const;
@@ -209,7 +210,7 @@ export const getAdminPartnerKyc = async (req: Request, res: Response, next: Next
       return;
     }
     await writeAudit(req, 'PARTNER_KYC_VIEWED', 'Partner', String(partner._id));
-    res.json({ success: true, data: { partnerId: partner.partnerId, fullName: partner.fullName, pan: partner.pan, bankDetails: partner.bankDetails, kycStatus: partner.kycStatus } });
+    res.json({ success: true, data: { partnerId: partner.partnerId, fullName: partner.fullName, pan: partner.pan, bankDetails: partner.bankDetails, upiId: partner.upiId, kycStatus: partner.kycStatus } });
   } catch (error) { next(error); }
 };
 
@@ -243,7 +244,17 @@ export const updateAdminPartner = async (req: Request, res: Response, next: Next
       res.status(404).json({ success: false, message: 'Partner not found.' });
       return;
     }
-    const partner: any = await Partner.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).exec();
+    if (update.kycStatus === 'VERIFIED' && Object.keys(validateKyc(before)).length) {
+      res.status(400).json({ success: false, message: 'The partner must submit complete, valid PAN, bank and UPI details before KYC can be verified.' });
+      return;
+    }
+    const partner: any = update.kycStatus === 'VERIFIED'
+      ? await Partner.findOneAndUpdate({ _id: req.params.id, updatedAt: before.updatedAt }, { $set: update }, { new: true, runValidators: true }).exec()
+      : await Partner.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).exec();
+    if (!partner) {
+      res.status(409).json({ success: false, message: 'KYC details changed during review. Reload and review the latest details.' });
+      return;
+    }
     if (before.accountStatus !== partner.accountStatus && partner.accountStatus === 'SUSPENDED') {
       await Partner.updateOne({ _id: partner._id }, { $set: { sessionsInvalidatedAt: new Date() } }).exec();
     }

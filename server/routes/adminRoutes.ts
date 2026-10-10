@@ -22,6 +22,7 @@ import { listWithdrawals, updateWithdrawal } from '../controllers/adminWithdrawa
 import { sendAdminNotification, listAdminAnnouncements, saveAdminAnnouncement, listAdminNotifications } from '../controllers/adminCommunicationController.ts';
 import { exportAdminCampaignWorkbook, exportAdminReport } from '../controllers/adminReportController.ts';
 import { updateEnquiryProcess } from '../controllers/adminEnquiryController.ts';
+import { getLeadCampaignOptions, getPartnerLeadLedger, getAdminLeadDetail } from '../controllers/adminPartnerLedgerController.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -42,8 +43,11 @@ router.post('/campaigns/:id/logo', logoUpload.single('logo'), uploadCampaignLogo
 router.get('/partners', listAdminPartners);
 router.get('/referrals', listAdminReferrals);
 router.get('/partners/:id/kyc', getAdminPartnerKyc);
+router.get('/partners/:id/leads', getPartnerLeadLedger);
 router.patch('/partners/:id', updateAdminPartner);
 router.get('/leads', listAdminLeads);
+router.get('/lead-campaigns', getLeadCampaignOptions);
+router.get('/leads/:id', getAdminLeadDetail);
 router.patch('/leads/:id/process', updateEnquiryProcess);
 router.patch('/leads/:id/review', reviewAdminLead);
 router.patch('/leads/:id/payout', adjustAdminLeadPayout);

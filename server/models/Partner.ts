@@ -85,17 +85,14 @@ const PartnerSchema: Schema = new Schema(
     },
     pan: {
       type: String,
-      required: [true, 'PAN is required'],
       uppercase: true,
       trim: true,
     },
     bankDetails: {
       type: BankDetailsSchema,
-      required: [true, 'Bank details are required'],
     },
     upiId: {
       type: String,
-      required: [true, 'UPI ID is required'],
       lowercase: true,
       trim: true,
     },

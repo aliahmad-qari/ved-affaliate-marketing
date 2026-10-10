@@ -160,7 +160,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               variant="primary"
               size="md"
               onClick={handleOpenWithdrawModal}
-              disabled={available < minimumWithdrawal}
+              disabled={available < minimumWithdrawal || partner?.kycStatus !== 'VERIFIED'}
               className="flex-1 md:flex-initial"
             >
               <ArrowDownLeft className="w-4 h-4 mr-2" />
@@ -177,6 +177,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
           </div>
         </div>
 
+        {partner?.kycStatus !== 'VERIFIED' && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-800/50 bg-amber-950/20 p-3"><p className="text-xs text-amber-200">KYC is {partner?.kycStatus || 'PENDING'}. Complete KYC and obtain admin verification before requesting a payout.</p><Button size="sm" variant="outline" onClick={() => onNavigate('profile')}>Complete KYC in Profile</Button></div>}
         {/* Balance Metric Highlights */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 mt-6 pt-6 border-t border-[#1C273C]">
           <div className="col-span-2 sm:col-span-1 bg-[#111A2D] border border-[#D4AF37]/50 rounded-xl p-4">

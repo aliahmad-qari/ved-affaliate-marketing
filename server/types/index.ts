@@ -63,9 +63,9 @@ export interface IPartner {
   email: string;
   city: string;
   state: string;
-  pan: string;
-  bankDetails: BankDetails;
-  upiId: string;
+  pan?: string;
+  bankDetails?: BankDetails;
+  upiId?: string;
   passwordHash: string;
   role: UserRole;
   accountStatus: AccountStatus;

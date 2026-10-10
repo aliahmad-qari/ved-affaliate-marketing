@@ -1,16 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { validateKyc, normalizeKyc } from '../utils/kyc.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
 import { AdminUser } from '../models/AdminUser.ts';
 import { signToken, verifyToken, getAuthCookieOptions, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
 import {
   generatePartnerId,
   generateReferralCode,
-  isValidPan,
   isValidMobile,
-  isValidUpi,
-  isValidIfsc,
 } from '../utils/partnerIdGenerator.ts';
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -53,31 +51,6 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       errors.state = 'State is required.';
     }
 
-    if (!pan || !isValidPan(pan)) {
-      errors.pan = 'Enter a valid 10-character Indian PAN (e.g. ABCDE1234F).';
-    }
-
-    if (!bankDetails || typeof bankDetails !== 'object') {
-      errors.bankDetails = 'Bank details are required.';
-    } else {
-      if (!bankDetails.accountHolderName || bankDetails.accountHolderName.trim().length < 3) {
-        errors.accountHolderName = 'Bank account holder name is required.';
-      }
-      if (!bankDetails.accountNumber || bankDetails.accountNumber.trim().length < 6) {
-        errors.accountNumber = 'Enter a valid bank account number.';
-      }
-      if (!bankDetails.ifscCode || !isValidIfsc(bankDetails.ifscCode)) {
-        errors.ifscCode = 'Enter a valid 11-character IFSC code (e.g. HDFC0001234).';
-      }
-      if (!bankDetails.bankName || bankDetails.bankName.trim().length < 2) {
-        errors.bankName = 'Bank name is required.';
-      }
-    }
-
-    if (!upiId || !isValidUpi(upiId)) {
-      errors.upiId = 'Enter a valid UPI ID (e.g. partner@okhdfcbank or 9876543210@upi).';
-    }
-
     if (!password || password.length < 8) {
       errors.password = 'Password must be at least 8 characters long.';
     } else if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
@@ -95,6 +68,16 @@ export const register = async (req: Request, res: Response, next: NextFunction):
         errors,
       });
       return;
+    }
+
+    // Legacy clients may still include complete KYC; new signup does not require it.
+    const includesKyc = pan !== undefined || bankDetails !== undefined || upiId !== undefined;
+    if (includesKyc) {
+      const kycErrors = validateKyc({ pan, bankDetails, upiId });
+      if (Object.keys(kycErrors).length) {
+        res.status(400).json({ success: false, message: 'Please correct the KYC details.', errors: kycErrors });
+        return;
+      }
     }
 
     // Check for duplicate email or mobile
@@ -147,14 +130,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       email: email.trim().toLowerCase(),
       city: city.trim(),
       state: state.trim(),
-      pan: pan.trim().toUpperCase(),
-      bankDetails: {
-        accountHolderName: bankDetails.accountHolderName.trim(),
-        accountNumber: bankDetails.accountNumber.trim(),
-        ifscCode: bankDetails.ifscCode.trim().toUpperCase(),
-        bankName: bankDetails.bankName.trim(),
-      },
-      upiId: upiId.trim().toLowerCase(),
+      ...(includesKyc ? normalizeKyc({ pan, bankDetails, upiId }) : {}),
       passwordHash,
       role: 'PARTNER',
       accountStatus: 'ACTIVE',

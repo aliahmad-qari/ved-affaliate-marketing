@@ -192,8 +192,23 @@ export const PartnerStore = {
     return sanitizeMemoryPartner(safeCopy);
   },
 
+  async submitKyc(id: string, details: Pick<IPartner, 'pan' | 'bankDetails' | 'upiId'>): Promise<any | null> {
+    const updates = { ...details, kycStatus: 'PENDING' as const, kycRejectionReason: '' };
+    if (isMongooseReady()) {
+      // Atomic status guard: an admin verification wins over a stale partner form.
+      return Partner.findOneAndUpdate({ _id: id, kycStatus: { $ne: 'VERIFIED' } }, { $set: updates }, { new: true, runValidators: true }).exec();
+    }
+    for (const partner of memoryPartners.values()) {
+      if ((partner as any)._id === id && partner.kycStatus !== 'VERIFIED') return this.updateById(id, updates);
+    }
+    return null;
+  },
+
   async updateById(id: string, updates: Partial<IPartner>): Promise<any | null> {
     if (isMongooseReady()) {
+      if (updates.bankDetails || updates.upiId) {
+        return Partner.findOneAndUpdate({ _id: id, kycStatus: { $ne: 'VERIFIED' } }, { $set: updates }, { new: true, runValidators: true }).exec();
+      }
       return Partner.findByIdAndUpdate(
         id,
         { $set: updates },
@@ -204,6 +219,7 @@ export const PartnerStore = {
     // Memory fallback
     for (const [emailKey, partner] of memoryPartners.entries()) {
       if ((partner as any)._id === id || partner.partnerId === id) {
+        if ((updates.bankDetails || updates.upiId) && partner.kycStatus === 'VERIFIED') return null;
         const updated = {
           ...partner,
           ...updates,

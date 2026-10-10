@@ -29,14 +29,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
     email: '',
     city: '',
     state: '',
-    pan: '',
-    bankDetails: {
-      accountHolderName: '',
-      accountNumber: '',
-      ifscCode: '',
-      bankName: '',
-    },
-    upiId: '',
     password: '',
     confirmPassword: '',
     referralCodeInput: '',
@@ -88,30 +80,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
       errors.state = 'State is required.';
     }
 
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.pan.trim().toUpperCase())) {
-      errors.pan = 'Valid 10-digit Indian PAN required (e.g. ABCDE1234F).';
-    }
-
-    if (!formData.bankDetails.accountHolderName.trim()) {
-      errors.accountHolderName = 'Account Holder Name is required.';
-    }
-
-    if (!formData.bankDetails.accountNumber.trim() || formData.bankDetails.accountNumber.trim().length < 6) {
-      errors.accountNumber = 'Valid account number required.';
-    }
-
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.bankDetails.ifscCode.trim().toUpperCase())) {
-      errors.ifscCode = 'Valid 11-character IFSC required (e.g. HDFC0001234).';
-    }
-
-    if (!formData.bankDetails.bankName.trim()) {
-      errors.bankName = 'Bank Name is required.';
-    }
-
-    if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(formData.upiId.trim())) {
-      errors.upiId = 'Valid UPI ID required (e.g. name@bank).';
-    }
-
     if (formData.password.length < 8 || !/(?=.*[a-zA-Z])(?=.*[0-9])/.test(formData.password)) {
       errors.password = 'Must be 8+ characters and contain letters and numbers.';
     }
@@ -140,14 +108,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
         email: formData.email,
         city: formData.city,
         state: formData.state,
-        pan: formData.pan.toUpperCase(),
-        bankDetails: {
-          accountHolderName: formData.bankDetails.accountHolderName,
-          accountNumber: formData.bankDetails.accountNumber,
-          ifscCode: formData.bankDetails.ifscCode.toUpperCase(),
-          bankName: formData.bankDetails.bankName,
-        },
-        upiId: formData.upiId.toLowerCase(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
         referralCodeInput: formData.referralCodeInput || undefined,
@@ -181,7 +141,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
           Join VED AFFILIATE
         </h1>
         <p className="text-xs sm:text-sm text-[#AAB3C2] mt-1 max-w-md mx-auto">
-          Create your verified partner account to promote financial campaigns and receive verified bank payouts.
+          Create your partner account, then complete KYC in Profile to receive verified payouts.
         </p>
       </div>
 
@@ -297,160 +257,12 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Section 2: KYC & PAN */}
-          <div className="pt-2 border-t border-[#1C273C]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider">
-                <Shield className="w-4 h-4" />
-                <span>2. Manual PAN & Identity</span>
-              </div>
-              <span className="text-[11px] text-amber-400 font-medium bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">
-                Manual Admin Review
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Permanent Account Number (PAN) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={10}
-                  value={formData.pan}
-                  onChange={(e) => setFormData({ ...formData, pan: e.target.value.toUpperCase() })}
-                  placeholder="e.g. ABCDE1234F"
-                  className={`w-full bg-[#070B14] border ${
-                    fieldErrors.pan ? 'border-rose-500' : 'border-[#1C273C]'
-                  } focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono uppercase`}
-                />
-                {fieldErrors.pan && <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.pan}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Primary UPI ID (for payouts) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.upiId}
-                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value.toLowerCase() })}
-                  placeholder="e.g. partner@okhdfcbank"
-                  className={`w-full bg-[#070B14] border ${
-                    fieldErrors.upiId ? 'border-rose-500' : 'border-[#1C273C]'
-                  } focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono`}
-                />
-                {fieldErrors.upiId && <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.upiId}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Bank Account */}
-          <div className="pt-2 border-t border-[#1C273C]">
-            <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider mb-3">
-              <Building className="w-4 h-4" />
-              <span>3. Bank Account (for Direct Wire)</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Account Holder Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.bankDetails.accountHolderName}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value },
-                    })
-                  }
-                  placeholder="Name as registered with bank"
-                  className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                />
-                {fieldErrors.accountHolderName && (
-                  <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.accountHolderName}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Account Number *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.bankDetails.accountNumber}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') },
-                    })
-                  }
-                  placeholder="Enter Bank Account Number"
-                  className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
-                />
-                {fieldErrors.accountNumber && (
-                  <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.accountNumber}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Bank IFSC Code *
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={11}
-                  value={formData.bankDetails.ifscCode}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() },
-                    })
-                  }
-                  placeholder="e.g. HDFC0001234"
-                  className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono uppercase"
-                />
-                {fieldErrors.ifscCode && (
-                  <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.ifscCode}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                  Bank Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.bankDetails.bankName}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      bankDetails: { ...formData.bankDetails, bankName: e.target.value },
-                    })
-                  }
-                  placeholder="e.g. HDFC Bank Ltd"
-                  className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                />
-                {fieldErrors.bankName && (
-                  <p className="text-[11px] text-rose-400 mt-1">{fieldErrors.bankName}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Security & Password */}
+          <p className="rounded-lg border border-[#1C273C] bg-[#070B14] p-3 text-xs text-[#AAB3C2]">Complete PAN, bank and payout KYC from your Profile after registration. Admin verification is required before withdrawals.</p>
+          {/* Security & Password */}
           <div className="pt-2 border-t border-[#1C273C]">
             <div className="flex items-center gap-2 text-[#D4AF37] text-xs font-bold uppercase tracking-wider mb-3">
               <Lock className="w-4 h-4" />
-              <span>4. Portal Security</span>
+              <span>2. Portal Security</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

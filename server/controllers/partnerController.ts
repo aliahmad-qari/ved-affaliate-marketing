@@ -2,6 +2,23 @@ import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidUpi, isValidIfsc } from '../utils/partnerIdGenerator.ts';
+import { validateKyc, normalizeKyc } from '../utils/kyc.ts';
+
+export const submitKyc = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const errors = validateKyc(req.body);
+    if (Object.keys(errors).length) {
+      res.status(400).json({ success: false, message: 'Please correct the KYC details.', errors });
+      return;
+    }
+    const partner = await PartnerStore.submitKyc(String(req.user._id || req.user.id), normalizeKyc(req.body));
+    if (!partner) {
+      res.status(409).json({ success: false, message: 'Verified KYC cannot be changed. Please contact Support.' });
+      return;
+    }
+    res.json({ success: true, message: 'KYC submitted for admin review.', data: partner });
+  } catch (error) { next(error); }
+};
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   // req.user is populated by requireAuth
@@ -74,6 +91,10 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
     }
 
     if (body.upiId !== undefined) {
+      if (req.user.kycStatus === 'VERIFIED') {
+        res.status(409).json({ success: false, message: 'To change verified payout details, please contact Support.' });
+        return;
+      }
       if (!isValidUpi(body.upiId)) {
         res.status(400).json({
           success: false,
@@ -118,7 +139,15 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       };
     }
 
+    if (updates.bankDetails || updates.upiId) {
+      updates.kycStatus = 'PENDING';
+      updates.kycRejectionReason = '';
+    }
     const updatedPartner = await PartnerStore.updateById(partnerId, updates);
+    if (!updatedPartner) {
+      res.status(409).json({ success: false, message: 'Profile changed during review. Reload your profile and try again.' });
+      return;
+    }
 
     res.status(200).json({
       success: true,

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
 import { Request, Response, NextFunction } from 'express';
 import { Lead } from '../models/Lead.ts';
 import { Partner } from '../models/Partner.ts';
@@ -6,7 +7,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { Notification } from '../models/Notification.ts';
 import { generateTransactionId } from '../utils/idGenerator.ts';
-import { escapeRegex, availableBalanceCents } from '../services/adminServices.ts';
+import { availableBalanceCents } from '../services/adminServices.ts';
 
 const listOptions = (req: Request) => {
   const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
@@ -57,20 +58,7 @@ export const getAdminDashboard = async (_req: Request, res: Response, next: Next
 export const listAdminLeads = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { page, limit, skip } = listOptions(req);
-    const query: Record<string, any> = {};
-    if (typeof req.query.status === 'string' && req.query.status !== 'ALL') {
-      const status = req.query.status.toUpperCase();
-      if (['IN_PROCESS', 'NOT_SUBMITTED'].includes(status)) {
-        query['submittedData.source'] = 'CUSTOMER_FORM';
-        query['submittedData.processStatus'] = status;
-        query.status = { $in: ['PENDING', 'VERIFIED'] };
-      } else query.status = status;
-    }
-    if (typeof req.query.partnerId === 'string') query.partnerId = req.query.partnerId.toUpperCase();
-    if (typeof req.query.search === 'string' && req.query.search.trim()) {
-      const pattern = new RegExp(escapeRegex(req.query.search.trim().slice(0, 80)), 'i');
-      query.$or = [{ leadId: pattern }, { clientName: pattern }, { clientMobile: pattern }, { accountId: pattern }, { campaignName: pattern }];
-    }
+    const query = await buildAdminLeadQuery(req.query);
     const [data, total] = await Promise.all([
       Lead.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
       Lead.countDocuments(query),

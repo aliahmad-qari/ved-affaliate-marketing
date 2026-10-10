@@ -21,8 +21,8 @@ export interface Partner {
   state: string;
   pan?: string;
   maskedPan?: string;
-  bankDetails: BankDetails;
-  upiId: string;
+  bankDetails?: BankDetails;
+  upiId?: string;
   role: UserRole;
   accountStatus: AccountStatus;
   kycStatus: KycStatus;
@@ -39,14 +39,14 @@ export interface RegisterInput {
   email: string;
   city: string;
   state: string;
-  pan: string;
-  bankDetails: {
+  pan?: string;
+  bankDetails?: {
     accountHolderName: string;
     accountNumber: string;
     ifscCode: string;
     bankName: string;
   };
-  upiId: string;
+  upiId?: string;
   password: string;
   confirmPassword: string;
   referralCodeInput?: string;
@@ -74,4 +74,10 @@ export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+}
+
+export interface KycInput {
+  pan: string;
+  upiId: string;
+  bankDetails: { accountHolderName: string; accountNumber: string; ifscCode: string; bankName: string };
 }

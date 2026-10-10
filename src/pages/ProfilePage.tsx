@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
 import { VedLogo } from '../components/ui/VedLogo.tsx';
+import { PartnerKycForm } from '../components/profile/PartnerKycForm.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 import { maskPan, maskAccountNumber } from '../lib/masking.ts';
 
@@ -25,9 +26,9 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
-  const { partner, logout, updateProfile, changePassword } = useAuth();
+  const { partner, logout, updateProfile, changePassword, refreshProfile } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'security' | 'kyc'>('overview');
   const [copiedPartnerId, setCopiedPartnerId] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
 
@@ -36,13 +37,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     fullName: partner?.fullName || '',
     city: partner?.city || '',
     state: partner?.state || '',
-    upiId: partner?.upiId || '',
-    bankDetails: {
-      accountHolderName: partner?.bankDetails?.accountHolderName || '',
-      accountNumber: '',
-      ifscCode: partner?.bankDetails?.ifscCode || '',
-      bankName: partner?.bankDetails?.bankName || '',
-    },
   });
 
   const [editLoading, setEditLoading] = useState(false);
@@ -107,13 +101,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         fullName: editForm.fullName,
         city: editForm.city,
         state: editForm.state,
-        upiId: editForm.upiId,
       };
-
-      // Only include bank details if user entered a new account number or if KYC is pending
-      if (editForm.bankDetails.accountNumber.trim()) {
-        payload.bankDetails = editForm.bankDetails;
-      }
 
       await updateProfile(payload);
       setEditSuccess('Partner profile updated successfully.');
@@ -295,6 +283,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         </button>
       </div>
 
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Button variant={activeTab === 'kyc' ? 'primary' : 'outline'} size="sm" onClick={() => setActiveTab('kyc')}>Complete KYC</Button>
+        <span className="text-xs text-[#AAB3C2]">KYC: {partner.kycStatus} · Verification required for withdrawals</span>
+      </div>
+      {activeTab === 'kyc' && <PartnerKycForm partner={partner} onSaved={async () => { await refreshProfile(); }} />}
       {/* Tab 1: Account Overview */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -350,11 +343,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             <div className="space-y-2 pt-1 text-xs">
               <div className="flex justify-between py-1.5 border-b border-[#1C273C]">
                 <span className="text-[#AAB3C2]">Primary UPI ID</span>
-                <span className="font-mono font-bold text-[#F8FAFC]">{partner.upiId}</span>
+                <span className="font-mono font-bold text-[#F8FAFC]">{partner.upiId || 'Not submitted'}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[#1C273C]">
                 <span className="text-[#AAB3C2]">Account Holder</span>
-                <span className="font-medium text-[#F8FAFC]">{partner.bankDetails?.accountHolderName || partner.fullName}</span>
+                <span className="font-medium text-[#F8FAFC]">{partner.bankDetails?.accountHolderName || 'Not submitted'}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[#1C273C]">
                 <span className="text-[#AAB3C2]">Bank Account No.</span>
@@ -362,7 +355,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-[#AAB3C2]">Bank & IFSC</span>
-                <span className="font-mono text-[#F8FAFC]">{partner.bankDetails?.bankName} ({partner.bankDetails?.ifscCode})</span>
+                <span className="font-mono text-[#F8FAFC]">{partner.bankDetails ? `${partner.bankDetails.bankName} (${partner.bankDetails.ifscCode})` : 'Not submitted'}</span>
               </div>
             </div>
 
@@ -403,16 +396,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[#AAB3C2] mb-1">Primary UPI ID *</label>
-              <input
-                type="text"
-                required
-                value={editForm.upiId}
-                onChange={(e) => setEditForm({ ...editForm, upiId: e.target.value })}
-                className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono"
-              />
-            </div>
+
 
             <div>
               <label className="block text-xs font-medium text-[#AAB3C2] mb-1">City *</label>

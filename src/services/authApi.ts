@@ -1,5 +1,6 @@
 import {
   Partner,
+  KycInput,
   RegisterInput,
   LoginInput,
   UpdateProfileInput,
@@ -108,6 +109,13 @@ export async function updatePartnerProfile(input: UpdateProfileInput): Promise<P
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function submitPartnerKyc(input: KycInput): Promise<Partner> {
+  const res = await authFetch('/api/partner/kyc', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
   return res.data;
 }

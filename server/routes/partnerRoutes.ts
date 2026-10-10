@@ -3,6 +3,7 @@ import {
   getProfile,
   updateProfile,
   changePassword,
+  submitKyc,
 } from '../controllers/partnerController.ts';
 import {
   getDashboard,
@@ -38,6 +39,7 @@ router.use('/notifications', notificationRoutes);
 // Milestone 2: Profile & Security Endpoints
 router.get('/profile', getProfile);
 router.patch('/profile', updateProfile);
+router.post('/kyc', submitKyc);
 router.patch('/password', changePassword);
 
 export default router;
