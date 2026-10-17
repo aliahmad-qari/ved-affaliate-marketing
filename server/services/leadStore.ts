@@ -5,6 +5,7 @@ import { ILead, IWalletTransaction, DashboardSummary, LeadStatus } from '../type
 import { isMongooseReady } from './partnerStore.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
+import { escapeRegex } from './adminServices.ts';
 
 // In-memory fallback stores
 const memoryLeads: ILead[] = [];
@@ -15,7 +16,13 @@ function sanitizeWalletTransaction(transaction: any): IWalletTransaction {
     ? transaction.toJSON()
     : JSON.parse(JSON.stringify(transaction));
   delete safe.payoutDestination;
+  delete (safe as any).adjustmentAdminEmail;
   return safe;
+}
+
+function walletHistory(transactions: any[]) {
+  const reversals = new Map(transactions.filter(tx => tx.type === 'ADJUSTMENT' && tx.direction === 'DEBIT' && String(tx.idempotencyKey || '').startsWith('LEAD_APPROVAL_REVERSAL:')).map(tx => [String(tx.referenceId), tx.transactionId]));
+  return transactions.map(sanitizeWalletTransaction).map(tx => tx.type === 'LEAD_EARNING' && reversals.has(String(tx.referenceId)) ? { ...tx, reversedBy: reversals.get(String(tx.referenceId)) } : tx);
 }
 
 export const LeadStore = {
@@ -105,20 +112,22 @@ export const LeadStore = {
       search?: string;
       limit?: number;
       skip?: number;
+      campaignIds?: string[];
     } = {}
   ): Promise<{ leads: ILead[]; total: number }> {
     const pId = partnerId.toUpperCase();
-    const { status, search, limit = 50, skip = 0 } = options;
+    const { status, search, limit = 50, skip = 0, campaignIds } = options;
 
     if (isMongooseReady()) {
       const query: Record<string, any> = { partnerId: pId };
+      if (campaignIds) query.campaignId = { $in: campaignIds };
 
       if (status && status !== 'ALL') {
         query.status = status.toUpperCase();
       }
 
       if (search && search.trim()) {
-        const s = search.trim();
+        const s = escapeRegex(search.trim().slice(0, 80));
         query.$or = [
           { leadId: { $regex: s, $options: 'i' } },
           { clientName: { $regex: s, $options: 'i' } },
@@ -143,13 +152,14 @@ export const LeadStore = {
 
     // Memory fallback
     let filtered = memoryLeads.filter((l) => l.partnerId === pId);
+    if (campaignIds) filtered = filtered.filter(lead => campaignIds.includes(lead.campaignId));
 
     if (status && status !== 'ALL') {
       filtered = filtered.filter((l) => l.status === status.toUpperCase());
     }
 
     if (search && search.trim()) {
-      const s = search.trim().toLowerCase();
+      const s = search.trim().slice(0, 80).toLowerCase();
       filtered = filtered.filter(
         (l) =>
           l.leadId.toLowerCase().includes(s) ||
@@ -313,12 +323,11 @@ export const LeadStore = {
       const docs = await WalletTransaction.find({ partnerId: pId })
         .sort({ createdAt: -1 })
         .exec();
-      return docs.map(sanitizeWalletTransaction);
+      return walletHistory(docs);
     }
 
     const list = memoryTransactions.filter((t) => t.partnerId === pId);
-    return list
-      .map(sanitizeWalletTransaction)
+    return walletHistory(list)
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 

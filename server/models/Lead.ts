@@ -81,6 +81,11 @@ const LeadSchema: Schema = new Schema(
       default: '',
       trim: true,
     },
+    rejectionReasonCode: { type: String, enum: ['NO_LEAD_FOUND', 'DUPLICATE_LEAD', 'OTHER'] },
+    approvalReversal: {
+      type: new Schema({ transactionId: String, amount: Number, reason: String, adminId: String, at: Date }, { _id: false }),
+      default: undefined,
+    },
     verifiedAt: {
       type: Date,
     },
@@ -117,5 +122,6 @@ const LeadSchema: Schema = new Schema(
 
 // Prevent duplicate submission of the same account/reference ID for the same campaign by the same partner
 LeadSchema.index({ partnerId: 1, campaignId: 1, accountId: 1 }, { unique: true });
+LeadSchema.index({ status: 1, rejectedAt: 1, createdAt: -1 });
 
 export const Lead = mongoose.models.Lead || mongoose.model<LeadDocument>('Lead', LeadSchema);

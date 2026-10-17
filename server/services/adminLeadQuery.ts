@@ -2,9 +2,12 @@ import mongoose from 'mongoose';
 import { Campaign } from '../models/Campaign.ts';
 import { escapeRegex } from './adminServices.ts';
 
-export async function buildAdminLeadQuery(input: Record<string, unknown>, partnerId?: string) {
+export async function buildAdminLeadQuery(input: Record<string, unknown>, partnerId?: string, options: { hideOldRejected?: boolean } = {}) {
   const query: Record<string, any> = {};
-  if (typeof input.status === 'string' && input.status !== 'ALL') {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  if (input.status === 'ARCHIVED') { query.status = 'REJECTED'; query.rejectedAt = { $lte: cutoff }; }
+  else if (options.hideOldRejected && (!input.status || input.status === 'ALL')) query.$nor = [{ status: 'REJECTED', rejectedAt: { $lte: cutoff } }];
+  if (typeof input.status === 'string' && input.status !== 'ALL' && input.status !== 'ARCHIVED') {
     const status = input.status.toUpperCase();
     if (['IN_PROCESS', 'NOT_SUBMITTED'].includes(status)) {
       query['submittedData.source'] = 'CUSTOMER_FORM'; query['submittedData.processStatus'] = status;

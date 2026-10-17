@@ -40,7 +40,7 @@ export const getAdminLeadDetail = async (req: Request, res: Response, next: Next
       Partner.findOne({ partnerId: lead.partnerId }).select('fullName').lean().exec(),
       AuditLog.find({ entityType: 'Lead', entityId: String(lead._id) }).select('action adminEmail createdAt before after').sort({ createdAt: 1, _id: 1 }).lean().exec(),
     ]);
-    const snapshot = (value: any) => Object.fromEntries(['status','payoutSnapshot','rejectionReason','processStatus'].filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
+    const snapshot = (value: any) => Object.fromEntries(['status','leadStatus','payoutSnapshot','rejectionReason','rejectionReasonCode','processStatus','adjustmentAmount','reason','transactionId','availableBalance'].filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
     res.json({ success: true, data: { ...lead, referringPartnerName: partner?.fullName || null }, history: audits.map(row => ({ _id: row._id, action: row.action, adminEmail: row.adminEmail, createdAt: row.createdAt, before: snapshot(row.before), after: snapshot(row.after) })) });
   } catch (error) { next(error); }
 };

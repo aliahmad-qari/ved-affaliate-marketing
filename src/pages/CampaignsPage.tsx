@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Building,
@@ -19,6 +19,7 @@ import { CampaignLogo } from '../components/ui/CampaignLogo.tsx';
 import { CampaignSkeletonCard } from '../components/ui/LoadingSkeleton.tsx';
 import { EmptyState } from '../components/ui/EmptyState.tsx';
 import { ErrorState } from '../components/ui/ErrorState.tsx';
+import { useSiteSettings } from '../context/SiteSettingsContext.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 
 interface CampaignsPageProps {
@@ -40,16 +41,14 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 }) => {
   const { isAuthenticated, partner } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const { campaignCategories } = useSiteSettings();
+  const initialCategory = () => typeof window === 'undefined' ? 'all' : new URLSearchParams(window.location.search).get('category') || 'all';
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
+  useEffect(() => { const update = () => setSelectedCategory(initialCategory()); window.addEventListener('popstate', update); return () => window.removeEventListener('popstate', update); }, []);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
-  const categories: { id: string; label: string }[] = [
-    { id: 'all', label: 'All Categories' },
-    { id: 'Demat & Trading', label: 'Demat & Trading' },
-    { id: 'Mutual Funds', label: 'Mutual Funds' },
-    { id: 'Banking & Credit', label: 'Banking & Credit' },
-  ];
+  const categories = [{ id: 'all', label: 'All Categories' }, ...[...new Set([...campaignCategories, ...campaigns.map(campaign => campaign.campaignType)])].map(value => ({ id: value, label: value }))];
 
   const statuses: { id: string; label: string }[] = [
     { id: 'all', label: 'All Status' },
@@ -120,7 +119,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
             Active Financial Campaigns
           </h1>
           <p className="text-sm sm:text-base text-[#AAB3C2] mt-3 leading-relaxed">
-            Browse active Indian broking, investment, and demat campaigns.
+            Browse financial campaigns across trading, investments, insurance, loans, banking and credit.
             {isAuthenticated
               ? ' Copy your partner tracking links. Vendor-reported conversions will appear in your Leads dashboard.'
               : ' Register as a partner to receive confidential tracking links and view vendor-reported conversions.'}

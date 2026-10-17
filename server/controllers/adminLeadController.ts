@@ -58,7 +58,7 @@ export const getAdminDashboard = async (_req: Request, res: Response, next: Next
 export const listAdminLeads = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { page, limit, skip } = listOptions(req);
-    const query = await buildAdminLeadQuery(req.query);
+    const query = await buildAdminLeadQuery(req.query, undefined, { hideOldRejected: true });
     const [data, total] = await Promise.all([
       Lead.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
       Lead.countDocuments(query),
@@ -73,12 +73,18 @@ export const listAdminLeads = async (req: Request, res: Response, next: NextFunc
 
 export const reviewAdminLead = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const target = req.body.status;
-  const rejectionReason = typeof req.body.rejectionReason === 'string' ? req.body.rejectionReason.trim().slice(0, 1000) : '';
+  let rejectionReason = typeof req.body.rejectionReason === 'string' ? req.body.rejectionReason.trim().slice(0, 1000) : '';
+  const codes: Record<string, string> = { NO_LEAD_FOUND: 'No Lead Found', DUPLICATE_LEAD: 'Duplicate Lead' };
+  const rejectionReasonCode = req.body.rejectionReasonCode || (rejectionReason === 'No Lead Found' ? 'NO_LEAD_FOUND' : rejectionReason === 'Duplicate Lead' ? 'DUPLICATE_LEAD' : 'OTHER');
+  if (target === 'REJECTED' && !['NO_LEAD_FOUND','DUPLICATE_LEAD','OTHER'].includes(rejectionReasonCode)) {
+    res.status(400).json({ success: false, message: 'Choose a valid rejection reason.' }); return;
+  }
+  if (target === 'REJECTED' && codes[rejectionReasonCode]) rejectionReason = codes[rejectionReasonCode];
   if (!['VERIFIED', 'APPROVED', 'REJECTED'].includes(target)) {
     res.status(400).json({ success: false, message: 'Status must be VERIFIED, APPROVED, or REJECTED.' });
     return;
   }
-  if (target === 'REJECTED' && !rejectionReason) {
+  if (target === 'REJECTED' && (!rejectionReason || (rejectionReasonCode === 'OTHER' && rejectionReason.length < 3))) {
     res.status(400).json({ success: false, message: 'A rejection reason is required.' });
     return;
   }
@@ -106,6 +112,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       if (target === 'REJECTED') {
         lead.rejectedAt = new Date();
         lead.rejectionReason = rejectionReason;
+        lead.rejectionReasonCode = rejectionReasonCode;
       }
       await lead.save({ session });
 
@@ -149,7 +156,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       await AuditLog.create([{
         adminId: String(req.user._id), adminEmail: req.user.email, action: `LEAD_${target}`,
         entityType: 'Lead', entityId: String(lead._id), before,
-        after: { status: target, payoutSnapshot: lead.payoutSnapshot, rejectionReason: lead.rejectionReason }, ipAddress: req.ip,
+        after: { status: target, payoutSnapshot: lead.payoutSnapshot, rejectionReason: lead.rejectionReason, rejectionReasonCode: lead.rejectionReasonCode }, ipAddress: req.ip,
       }], { session });
       updated = lead.toJSON();
     });
@@ -196,6 +203,7 @@ export const markAdminLeadPaid = async (req: Request, res: Response, next: NextF
       const lead: any = await Lead.findById(req.params.id).session(session).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
       if (lead.status !== 'APPROVED') throw Object.assign(new Error('Only an approved lead earning can be marked Paid.'), { status: 409 });
+      await Partner.updateOne({ partnerId: lead.partnerId }, { $inc: { walletRevision: 1 } }, { session });
       const earning: any = await WalletTransaction.findOne({ idempotencyKey: `LEAD_EARNING:${lead._id}` }).session(session).exec();
       if (!earning || earning.status !== 'AVAILABLE') throw Object.assign(new Error('Available earning ledger entry was not found.'), { status: 409 });
       const [partnerLeads, partnerTransactions] = await Promise.all([

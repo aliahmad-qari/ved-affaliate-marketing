@@ -3,10 +3,10 @@ import { Megaphone, Pause, Play } from 'lucide-react';
 import type { PublicStats } from '../../services/api.ts';
 import './activity-ticker.css';
 
-export const ActivityTicker: React.FC<{ stats: PublicStats | null }> = ({ stats }) => {
+export const ActivityTicker: React.FC<{ stats: PublicStats | null; announcement?: string }> = ({ stats, announcement }) => {
   const [paused, setPaused] = useState(false);
   const count = (value: number) => value.toLocaleString('en-IN');
-  const messages = stats ? [
+  const updates = stats ? [
     `${count(stats.activePartners)} active partners on VED Affiliate`,
     `₹${stats.totalPayouts.toLocaleString('en-IN', { maximumFractionDigits: 2 })} paid to partners`,
     `${count(stats.approvedLeads)} approved leads across the platform`,
@@ -17,6 +17,7 @@ export const ActivityTicker: React.FC<{ stats: PublicStats | null }> = ({ stats 
     'Track your leads and earnings in the Partner Dashboard',
     'Request eligible earnings through Bank or UPI',
   ];
+  const messages = announcement?.trim() ? [announcement.trim(), ...updates] : updates;
   return <aside aria-label="VED partner updates" className="ved-activity-strip">
     <div className="ved-activity-label"><Megaphone aria-hidden="true" className="h-3.5 w-3.5" /><span>VED UPDATES</span></div>
     <ul className="sr-only">{messages.map(message => <li key={message}>{message}</li>)}</ul>

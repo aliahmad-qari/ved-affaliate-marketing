@@ -108,7 +108,7 @@ export const getPublicCampaigns = async (req: Request, res: Response, next: Next
       count: campaigns.length,
       data: campaigns,
       meta: {
-        totalSupportedCampaigns: 12,
+        totalSupportedCampaigns: campaigns.length,
         clientNotice: 'Campaign payouts are configured in VED and conversion status may be confirmed by the provider callback or Admin review.',
       },
     });

@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onNavigate }) => {
         </nav>
 
         {/* Desktop Actions */}
-        <div className="hidden sm:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
               <Button
@@ -135,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onNavigate }) => {
               onClick={() => handleLinkClick('profile')}
             >
               <User className="w-3 h-3 mr-1" />
-              <span>{partner?.partnerId}</span>
+              <span className="min-[420px]:hidden">Profile</span><span className="hidden min-[420px]:inline">{partner?.partnerId}</span>
             </Button>
           ) : (
             <Button

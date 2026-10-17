@@ -31,6 +31,11 @@ const WalletTransactionSchema: Schema = new Schema(
       required: [true, 'Amount is required'],
       min: 0,
     },
+    direction: { type: String, enum: ['DEBIT', 'CREDIT'] },
+    relatedLeadId: { type: String },
+    balanceBefore: { type: Number },
+    balanceAfter: { type: Number },
+    adjustmentAdminEmail: { type: String, select: false },
     status: {
       type: String,
       enum: ['PENDING', 'AVAILABLE', 'PROCESSING', 'APPROVED', 'PROCESSED', 'PAID', 'REJECTED', 'CANCELLED'],
@@ -88,6 +93,7 @@ const WalletTransactionSchema: Schema = new Schema(
       transform: function (_doc, ret: Record<string, any>) {
         delete ret.__v;
         delete ret.payoutDestination;
+        delete ret.adjustmentAdminEmail;
         return ret;
       },
     },

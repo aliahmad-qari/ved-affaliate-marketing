@@ -130,7 +130,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
   const available = wallet?.availableBalance || 0;
   const pending = wallet?.pendingBalance || 0;
   const totalEarned = wallet?.totalEarned || 0;
-  const totalWithdrawn = wallet?.totalWithdrawn || 0;
+  const totalWithdrawn = wallet?.totalDisbursed ?? wallet?.totalWithdrawn ?? 0;
   const minimumWithdrawal = wallet?.minimumWithdrawal ?? 200;
   const transactions = wallet?.transactions || [];
 
@@ -151,7 +151,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               Wallet & Payouts
             </h1>
             <p className="text-xs text-[#AAB3C2] mt-1 max-w-lg">
-              Withdraw approved commission earnings directly to your verified Indian bank account or UPI handle.
+              Withdraw approved commission earnings directly to your verified UPI ID or bank account.
             </p>
           </div>
 
@@ -185,7 +185,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               Available Balance
             </span>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#F8FAFC] font-mono mt-1">
-              ₹{available.toLocaleString('en-IN')}
+              ₹{wallet ? available.toLocaleString('en-IN') : '—'}
             </div>
             <span className="text-[10px] text-[#AAB3C2] mt-1 block">
               {available >= minimumWithdrawal ? 'Ready for withdrawal' : `Requires min ₹${minimumWithdrawal} to withdraw`}
@@ -197,7 +197,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               Pending Clearance
             </span>
             <div className="text-xl sm:text-2xl font-extrabold text-[#F8FAFC] font-mono mt-1">
-              ₹{pending.toLocaleString('en-IN')}
+              ₹{wallet ? pending.toLocaleString('en-IN') : '—'}
             </div>
             <span className="text-[10px] text-[#AAB3C2] mt-1 block">
               In admin review
@@ -209,7 +209,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               Total Earned
             </span>
             <div className="text-xl sm:text-2xl font-extrabold text-[#F8FAFC] font-mono mt-1">
-              ₹{totalEarned.toLocaleString('en-IN')}
+              ₹{wallet ? totalEarned.toLocaleString('en-IN') : '—'}
             </div>
             <span className="text-[10px] text-[#AAB3C2] mt-1 block">
               Lifetime approved earnings
@@ -221,7 +221,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               Total Disbursed
             </span>
             <div className="text-xl sm:text-2xl font-extrabold text-[#F8FAFC] font-mono mt-1">
-              ₹{totalWithdrawn.toLocaleString('en-IN')}
+              ₹{wallet ? totalWithdrawn.toLocaleString('en-IN') : '—'}
             </div>
             <span className="text-[10px] text-[#AAB3C2] mt-1 block">
               Successfully paid out
@@ -280,7 +280,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
               </thead>
               <tbody className="divide-y divide-[#1C273C]/60 text-[#F8FAFC]">
                 {transactions.map((tx) => {
-                  const isDebit = tx.type === 'WITHDRAWAL';
+                  const isDebit = tx.type === 'WITHDRAWAL' || (tx.type === 'ADJUSTMENT' && tx.direction === 'DEBIT');
                   return (
                     <tr key={tx.transactionId} className="hover:bg-[#111A2D]/40 transition-colors">
                       <td className="py-3 px-3 text-[#AAB3C2] whitespace-nowrap">
@@ -312,7 +312,7 @@ export const PartnerWalletPage: React.FC<PartnerWalletPageProps> = ({ onNavigate
                               : 'bg-amber-950/60 border border-amber-700 text-amber-300'
                           }`}
                         >
-                          {tx.status}
+                          {tx.reversedBy ? 'REVERSED (HISTORY)' : tx.status}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold whitespace-nowrap">

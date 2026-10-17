@@ -26,7 +26,7 @@ const CampaignSchema: Schema = new Schema(
     campaignType: {
       type: String,
       required: [true, 'Campaign category is required'],
-      enum: ['Demat & Trading', 'Mutual Funds', 'Banking & Credit', 'Fintech & Wallets'],
+      maxlength: 60,
       default: 'Demat & Trading',
     },
     description: {

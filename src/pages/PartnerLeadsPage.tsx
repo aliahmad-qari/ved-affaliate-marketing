@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   PlusCircle,
   Search,
@@ -14,6 +14,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
+import { PartnerLeadReportControls } from '../components/partner/PartnerLeadReportControls.tsx';
 import { fetchPartnerLeads, fetchPartnerCampaigns, submitPartnerLead } from '../services/partnerApi.ts';
 import { LeadItem, PartnerCampaignItem, LeadStatus } from '../types/partner.ts';
 
@@ -29,6 +30,11 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   // Filters
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [reportCampaignId, setReportCampaignId] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const loadVersion = useRef(0);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [liveCampaigns, setLiveCampaigns] = useState<PartnerCampaignItem[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
@@ -42,24 +48,33 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const loadLeads = async () => {
+    const version = ++loadVersion.current;
     try {
       setIsLoading(true);
       setError(null);
       const res = await fetchPartnerLeads({
         status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
-        search: searchTerm.trim() ? searchTerm.trim() : undefined,
+        search: appliedSearch || undefined,
+        campaignId: reportCampaignId,
+        page,
+        limit: 50,
       });
-      setLeads(res.leads);
+      if (version === loadVersion.current) { setLeads(res.leads); setTotal(res.total); }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch leads.');
+      if (version === loadVersion.current) {
+        setLeads([]);
+        setTotal(0);
+        setError(err.message || 'Failed to fetch leads.');
+      }
     } finally {
-      setIsLoading(false);
+      if (version === loadVersion.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadLeads();
-  }, [selectedStatus]);
+    return () => { loadVersion.current++; };
+  }, [selectedStatus, reportCampaignId, appliedSearch, page]);
 
   useEffect(() => {
     if (!isSubmitModalOpen) return;
@@ -85,7 +100,9 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadLeads();
+    setPage(1);
+    if (appliedSearch === searchTerm.trim() && page === 1) void loadLeads();
+    else setAppliedSearch(searchTerm.trim());
   };
 
   const openSubmitModal = () => {
@@ -162,14 +179,15 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       </div>
 
       {/* Filter and Search Bar */}
+      <PartnerLeadReportControls campaignId={reportCampaignId} status={selectedStatus} search={appliedSearch} onCampaign={value => { setPage(1); setReportCampaignId(value); }} />
       <div className="bg-[#0B1325] border border-[#1C273C] rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         
         {/* Status Pill Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 pb-1 md:pb-0">
           {statusFilters.map((st) => (
             <button
               key={st}
-              onClick={() => setSelectedStatus(st)}
+              onClick={() => { setPage(1); setSelectedStatus(st); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 selectedStatus === st
                   ? 'bg-[#D4AF37] text-black shadow-md'
@@ -182,8 +200,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
         </div>
 
         {/* Search Input */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-          <div className="relative flex-1 md:w-64">
+        <form onSubmit={handleSearchSubmit} className="flex min-w-0 items-center gap-2">
+          <div className="relative min-w-0 flex-1 md:w-64">
             <input
               type="text"
               value={searchTerm}
@@ -214,6 +232,10 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
           <div className="py-16 text-center text-xs text-[#AAB3C2]">
             <Clock className="w-6 h-6 animate-spin mx-auto text-[#D4AF37] mb-2" />
             <span>Loading leads records...</span>
+          </div>
+        ) : error ? (
+          <div role="status" className="py-16 px-4 text-center text-sm text-[#AAB3C2]">
+            Lead records could not be loaded. Please retry using the button above.
           </div>
         ) : leads.length === 0 ? (
           <div className="text-center py-16 px-4">
@@ -346,6 +368,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
           </div>
         )}
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#AAB3C2]"><span>{total} matching leads · Page {page} of {Math.max(1, Math.ceil(total / 50))}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={isLoading || page <= 1} onClick={() => setPage(value => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={isLoading || page >= Math.ceil(total / 50)} onClick={() => setPage(value => value + 1)}>Next</Button></div></div>
 
       {isSubmitModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" role="presentation" onClick={closeSubmitModal}>

@@ -36,7 +36,7 @@ export const WhyChooseSection: React.FC = () => {
   ];
 
   return (
-    <section className="py-12 sm:py-16 bg-[#0D1527] border-b border-[#1C273C]">
+    <section className="py-12 sm:py-16 bg-[#06111e] border-b border-[#173247]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}

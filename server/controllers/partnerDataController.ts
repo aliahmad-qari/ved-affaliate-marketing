@@ -6,6 +6,7 @@ import { LeadStore } from '../services/leadStore.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
+import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -205,7 +206,9 @@ export const getPartnerLeads = async (req: Request, res: Response, next: NextFun
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
+    const campaignQuery = await buildAdminLeadQuery({ campaignId: req.query.campaignId }, partnerId);
     const { leads, total } = await LeadStore.findLeadsByPartner(partnerId, {
+      campaignIds: campaignQuery.campaignId?.$in,
       status: typeof status === 'string' ? status : undefined,
       search: typeof search === 'string' ? search : undefined,
       limit: limitNum,
@@ -349,6 +352,7 @@ export const getPartnerWallet = async (req: Request, res: Response, next: NextFu
         pendingBalance: summary.pendingEarnings,
         totalEarned: summary.totalEarnings,
         totalWithdrawn: summary.totalWithdrawn,
+        totalDisbursed: Math.round((summary.totalWithdrawn + summary.paidEarnings) * 100) / 100,
         minimumWithdrawal: Number(setting?.minimumWithdrawalAmount ?? 200),
         transactions,
       },

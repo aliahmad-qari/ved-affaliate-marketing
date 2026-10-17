@@ -63,12 +63,14 @@ export async function fetchPartnerLeads(params: {
   search?: string;
   page?: number;
   limit?: number;
+  campaignId?: string;
 } = {}): Promise<{ leads: LeadItem[]; total: number }> {
   const query = new URLSearchParams();
   if (params.status && params.status !== 'ALL') query.set('status', params.status);
   if (params.search) query.set('search', params.search);
   if (params.page) query.set('page', String(params.page));
   if (params.limit) query.set('limit', String(params.limit));
+  if (params.campaignId && params.campaignId !== 'ALL') query.set('campaignId', params.campaignId);
 
   const qs = query.toString();
   const res = await partnerFetch(`/api/partner/leads${qs ? `?${qs}` : ''}`);
@@ -92,6 +94,21 @@ export async function fetchPartnerEarnings(filter: string = 'all'): Promise<{
 export async function fetchPartnerWallet(): Promise<WalletData> {
   const res = await partnerFetch('/api/partner/wallet');
   return res.data;
+}
+
+export async function fetchPartnerReportCampaigns(): Promise<{ _id: string; name: string; status: string }[]> {
+  return (await partnerFetch('/api/partner/lead-campaigns')).data;
+}
+
+export async function downloadPartnerLeadReport(filters: { campaignId: string; status: string; search: string }): Promise<Blob> {
+  const query = new URLSearchParams();
+  for (const [key,value] of Object.entries(filters)) if (value.trim() && value !== 'ALL') query.set(key, value.trim());
+  const headers = new Headers({ Accept: 'text/csv' }); const token = getInMemoryToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const response = await fetch(`${API_BASE}/api/partner/reports/leads.csv?${query}`, { headers, credentials: 'include' });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.message || 'Unable to download your report.'); }
+  if (!response.headers.get('content-type')?.includes('text/csv')) throw new Error('Unexpected report response. Please sign in again and retry.');
+  return response.blob();
 }
 
 export async function requestPartnerWithdrawal(data: {

@@ -21,12 +21,14 @@ const chain = (value: any): any => {
 };
 const matches = (row: any, query: any): boolean => Object.entries(query).every(([key,value]: any) => {
   if (key === '$or') return value.some((part: any) => matches(row, part));
+  if (key === '$nor') return !value.some((part: any) => matches(row, part));
   const found = key.split('.').reduce((object: any, field: string) => object?.[field], row);
   if (value instanceof RegExp) return value.test(found || '');
   if (value instanceof Date) return new Date(found).getTime() === value.getTime();
   if (value && typeof value === 'object') {
     if ('$in' in value) return value.$in.includes(String(found));
     if ('$ne' in value) return found !== value.$ne;
+    if (('$gte' in value || '$lte' in value) && found == null) return false;
     if ('$gte' in value && new Date(found) < value.$gte) return false;
     if ('$lte' in value && new Date(found) > value.$lte) return false;
     if ('$gte' in value || '$lte' in value) return true;

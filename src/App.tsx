@@ -25,6 +25,7 @@ import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { fetchCampaigns } from './services/api.ts';
 import { Campaign } from './types/campaign.ts';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
+import { SiteSettingsProvider } from './context/SiteSettingsContext.tsx';
 import { campaignCaptureUrl, campaignSlugFromPath } from './lib/campaignTracking.ts';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -100,7 +101,7 @@ function MainApp() {
   }, [parseRouteFromLocation]);
 
   const navigateTo = (route: string) => {
-    setCurrentRoute(route);
+    setCurrentRoute(route.split('?')[0]);
     window.history.pushState({}, '', route === 'home' ? '/' : `/${route}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -190,7 +191,7 @@ function MainApp() {
       {!isAdminRoute && <PartnerActivityStrip />}
 
       {/* Main Page Content */}
-      <main className="flex-1 pb-16 md:pb-0">
+      <main className="flex-1 pb-24 md:pb-0">
         {currentRoute === 'home' && (
           <HomePage
             campaigns={campaigns}
@@ -321,7 +322,7 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <SiteSettingsProvider><MainApp /></SiteSettingsProvider>
     </AuthProvider>
   );
 }

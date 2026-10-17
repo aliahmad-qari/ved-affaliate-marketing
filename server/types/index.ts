@@ -1,10 +1,6 @@
 export type CampaignStatus = 'LIVE' | 'PAUSED' | 'DRAFT' | 'ENDED';
 
-export type CampaignCategory = 
-  | 'Demat & Trading' 
-  | 'Mutual Funds' 
-  | 'Banking & Credit' 
-  | 'Fintech & Wallets';
+export type CampaignCategory = string;
 
 export interface ICampaign {
   name: string;
@@ -108,6 +104,8 @@ export interface ILead {
   payoutSnapshot: number;
   currency: string;
   rejectionReason?: string;
+  rejectionReasonCode?: 'NO_LEAD_FOUND' | 'DUPLICATE_LEAD' | 'OTHER';
+  approvalReversal?: { transactionId: string; amount: number; reason: string; adminId: string; at: Date };
   verifiedAt?: Date;
   approvedAt?: Date;
   rejectedAt?: Date;
@@ -120,6 +118,11 @@ export type TransactionType = 'LEAD_EARNING' | 'REFERRAL_REWARD' | 'WITHDRAWAL' 
 export type TransactionStatus = 'PENDING' | 'AVAILABLE' | 'PROCESSING' | 'APPROVED' | 'PROCESSED' | 'PAID' | 'REJECTED' | 'CANCELLED';
 
 export interface IWalletTransaction {
+  direction?: 'DEBIT' | 'CREDIT';
+  reversedBy?: string;
+  relatedLeadId?: string;
+  balanceBefore?: number;
+  balanceAfter?: number;
   transactionId: string;
   partnerId: string;
   type: TransactionType;

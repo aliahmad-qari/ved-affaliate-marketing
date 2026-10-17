@@ -11,6 +11,7 @@ import { AuditLog } from '../models/AuditLog.ts';
 import { Lead } from '../models/Lead.ts';
 import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { notifyPartners, writeAudit } from '../services/adminServices.ts';
+import { campaignCategories, DEFAULT_TICKER_MESSAGE } from '../../shared/campaignCategories.ts';
 import { validateKyc } from '../utils/kyc.ts';
 
 const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
@@ -61,6 +62,12 @@ export const getAdminCampaigns = async (_req: Request, res: Response, next: Next
   } catch (error) { next(error); }
 };
 
+const validCategory = async (value: unknown) => {
+  if (typeof value !== 'string' || value.length > 60) return false;
+  const settings: any = await AppSetting.findOne({ key: 'business' }).select('campaignCategories').lean().exec();
+  return campaignCategories(settings?.campaignCategories).includes(value.trim());
+};
+
 export const createAdminCampaign = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const input = cleanCampaignInput(req.body);
@@ -79,6 +86,9 @@ export const createAdminCampaign = async (req: Request, res: Response, next: Nex
     if (input.baseTrackingUrl && !validHttpUrl(input.baseTrackingUrl)) {
       res.status(400).json({ success: false, message: 'Base tracking URL must be HTTP or HTTPS.' });
       return;
+    }
+    if (input.campaignType !== undefined && !(await validCategory(input.campaignType))) {
+      res.status(400).json({ success: false, message: 'Choose a configured campaign category from Settings.' }); return;
     }
     const campaign = await Campaign.create(input);
     await writeAudit(req, 'CAMPAIGN_CREATED', 'Campaign', String(campaign._id), undefined, { name: campaign.name, payout: campaign.payout });
@@ -113,6 +123,9 @@ export const updateAdminCampaign = async (req: Request, res: Response, next: Nex
     if (!before) {
       res.status(404).json({ success: false, message: 'Campaign not found.' });
       return;
+    }
+    if (updates.campaignType !== undefined && updates.campaignType !== before.campaignType && !(await validCategory(updates.campaignType))) {
+      res.status(400).json({ success: false, message: 'Choose a configured campaign category from Settings.' }); return;
     }
     const oldPayout = before.payout;
     const campaign: any = await Campaign.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true }).select('+baseTrackingUrl').exec();
@@ -266,22 +279,41 @@ export const updateAdminPartner = async (req: Request, res: Response, next: Next
 
 export const getBusinessSettings = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const settings = await AppSetting.findOneAndUpdate({ key: 'business' }, { $setOnInsert: { minimumWithdrawalAmount: 200 } }, { upsert: true, new: true, setDefaultsOnInsert: true }).lean().exec();
-    res.json({ success: true, data: settings });
+    const settings: any = await AppSetting.findOne({ key: 'business' }).lean().exec();
+    res.json({ success: true, data: { ...settings, minimumWithdrawalAmount: settings?.minimumWithdrawalAmount ?? 200, tickerMessage: settings?.tickerMessage ?? DEFAULT_TICKER_MESSAGE, campaignCategories: campaignCategories(settings?.campaignCategories) } });
   } catch (error) { next(error); }
 };
 
 export const updateBusinessSettings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const amount = Number(req.body.minimumWithdrawalAmount);
-    if (!Number.isFinite(amount) || amount < 1 || Math.round(amount * 100) !== amount * 100) {
-      res.status(400).json({ success: false, message: 'Minimum withdrawal must be at least ₹1 with no more than two decimals.' });
-      return;
+    const updates: Record<string, any> = {};
+    if (req.body.minimumWithdrawalAmount !== undefined) {
+      const amount = Number(req.body.minimumWithdrawalAmount);
+      if (!Number.isFinite(amount) || amount < 200 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
+        res.status(400).json({ success: false, message: 'Minimum withdrawal must be at least ₹200 with no more than two decimals.' }); return;
+      }
+      updates.minimumWithdrawalAmount = amount;
     }
+    if (req.body.tickerMessage !== undefined) {
+      if (typeof req.body.tickerMessage !== 'string' || req.body.tickerMessage.length > 500 || /[\u0000-\u001f]/.test(req.body.tickerMessage)) {
+        res.status(400).json({ success: false, message: 'Ticker message must be a single line, up to 500 characters.' }); return;
+      }
+      updates.tickerMessage = req.body.tickerMessage.trim();
+    }
+    if (req.body.campaignCategories !== undefined) {
+      const values = req.body.campaignCategories;
+      if (!Array.isArray(values) || values.length > 30 || values.some(value => typeof value !== 'string' || !value.trim() || value.trim().length > 60 || /[<>\u0000-\u001f]/.test(value))) {
+        res.status(400).json({ success: false, message: 'Provide up to 30 categories, each 1–60 characters.' }); return;
+      }
+      updates.campaignCategories = campaignCategories(values);
+      if (updates.campaignCategories.length > 30) { res.status(400).json({ success: false, message: 'A maximum of 30 categories is supported, including the six default categories.' }); return; }
+    }
+    if (!Object.keys(updates).length) { res.status(400).json({ success: false, message: 'No valid website settings supplied.' }); return; }
     const previous: any = await AppSetting.findOne({ key: 'business' }).lean().exec();
-    const settings = await AppSetting.findOneAndUpdate({ key: 'business' }, { $set: { minimumWithdrawalAmount: amount, updatedBy: String(req.user._id) } }, { upsert: true, new: true, runValidators: true }).lean().exec();
-    await writeAudit(req, 'BUSINESS_SETTINGS_UPDATED', 'AppSetting', 'business', { minimumWithdrawalAmount: previous?.minimumWithdrawalAmount || 200 }, { minimumWithdrawalAmount: amount });
-    res.json({ success: true, data: settings });
+    const settings: any = await AppSetting.findOneAndUpdate({ key: 'business' }, { $set: { ...updates, updatedBy: String(req.user._id) } }, { upsert: true, new: true, runValidators: true }).lean().exec();
+    const before = Object.fromEntries(Object.keys(updates).map(key => [key, previous?.[key] ?? null]));
+    await writeAudit(req, 'BUSINESS_SETTINGS_UPDATED', 'AppSetting', 'business', before, updates);
+    res.json({ success: true, data: { ...settings, tickerMessage: settings.tickerMessage ?? DEFAULT_TICKER_MESSAGE, campaignCategories: campaignCategories(settings.campaignCategories) } });
   } catch (error) { next(error); }
 };
 

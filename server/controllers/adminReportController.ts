@@ -10,7 +10,8 @@ type ReportType = 'partners' | 'campaigns' | 'leads' | 'earnings' | 'payouts' | 
 
 const csvValue = (value: unknown): string => {
   const original = value instanceof Date ? value.toISOString() : String(value ?? '');
-  const text = /^[=+\-@\t\r]/.test(original) ? `'${original}` : original;
+  const numeric = typeof value === 'number' && Number.isFinite(value);
+  const text = !numeric && /^[=+\-@\t\r]/.test(original) ? `'${original}` : original;
   return `"${text.replace(/"/g, '""')}"`;
 };
 
@@ -60,7 +61,8 @@ export const exportAdminReport = async (req: Request, res: Response, next: NextF
       if (hasDateFilter) query.createdAt = createdAt;
       if (status) query.status = status;
       if (typeof req.query.partnerId === 'string') query.partnerId = req.query.partnerId.toUpperCase();
-      rows = await WalletTransaction.find(query).select('transactionId partnerId type amount status referenceType referenceId description paymentMethod paymentReference createdAt updatedAt').sort({ createdAt: -1 }).lean().exec();
+      rows = await WalletTransaction.find(query).select(`transactionId partnerId type amount status referenceType referenceId description paymentMethod paymentReference createdAt updatedAt${type === 'earnings' ? ' direction relatedLeadId balanceBefore balanceAfter internalNote' : ''}`).sort({ createdAt: -1 }).lean().exec();
+      if (type === 'earnings') rows = rows.map((row: any) => ({ ...row, direction: row.direction || 'CREDIT', signedAmount: row.direction === 'DEBIT' ? -Number(row.amount) : Number(row.amount), relatedLeadId: row.relatedLeadId || '', balanceBefore: row.balanceBefore ?? '', balanceAfter: row.balanceAfter ?? '', adjustmentReason: row.type === 'ADJUSTMENT' ? row.internalNote || '' : '' }));
     } else {
       res.status(404).json({ success: false, message: 'Unknown report type.' });
       return;

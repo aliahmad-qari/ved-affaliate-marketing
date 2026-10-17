@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
+import { PartnerLeadReportControls } from '../components/partner/PartnerLeadReportControls.tsx';
 import { fetchPartnerDashboard } from '../services/partnerApi.ts';
 import { DashboardData } from '../types/partner.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -27,6 +28,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [reportCampaignId, setReportCampaignId] = useState('ALL');
 
   const loadData = async () => {
     try {
@@ -222,6 +224,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
+      <PartnerLeadReportControls campaignId={reportCampaignId} status="ALL" search="" onCampaign={setReportCampaignId} />
       {/* Quick Action Navigation Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         
@@ -236,7 +239,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             <ArrowUpRight className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-            Access 12+ active financial campaigns with your unique tracking links.
+            Access available financial campaigns with your unique tracking links.
           </p>
         </div>
 
@@ -251,7 +254,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             <ArrowUpRight className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-              Monitor vendor-reported conversions and their current status.
+              Monitor lead statuses and download campaign-wise reports.
           </p>
         </div>
 

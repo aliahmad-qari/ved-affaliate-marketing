@@ -23,6 +23,7 @@ import { sendAdminNotification, listAdminAnnouncements, saveAdminAnnouncement, l
 import { exportAdminCampaignWorkbook, exportAdminReport } from '../controllers/adminReportController.ts';
 import { updateEnquiryProcess } from '../controllers/adminEnquiryController.ts';
 import { getLeadCampaignOptions, getPartnerLeadLedger, getAdminLeadDetail } from '../controllers/adminPartnerLedgerController.ts';
+import { reverseLeadApproval, getPartnerBalanceAdjustments } from '../controllers/adminReversalController.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -44,12 +45,14 @@ router.get('/partners', listAdminPartners);
 router.get('/referrals', listAdminReferrals);
 router.get('/partners/:id/kyc', getAdminPartnerKyc);
 router.get('/partners/:id/leads', getPartnerLeadLedger);
+router.get('/partners/:id/balance-adjustments', getPartnerBalanceAdjustments);
 router.patch('/partners/:id', updateAdminPartner);
 router.get('/leads', listAdminLeads);
 router.get('/lead-campaigns', getLeadCampaignOptions);
 router.get('/leads/:id', getAdminLeadDetail);
 router.patch('/leads/:id/process', updateEnquiryProcess);
 router.patch('/leads/:id/review', reviewAdminLead);
+router.patch('/leads/:id/reverse-approval', reverseLeadApproval);
 router.patch('/leads/:id/payout', adjustAdminLeadPayout);
 router.patch('/leads/:id/paid', markAdminLeadPaid);
 router.get('/withdrawals', listWithdrawals);

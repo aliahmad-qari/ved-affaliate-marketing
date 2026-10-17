@@ -18,6 +18,7 @@ import {
 } from '../controllers/partnerDataController.ts';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.ts';
 import notificationRoutes from './notificationRoutes.ts';
+import { getPartnerReportCampaigns, downloadPartnerLeadReport } from '../controllers/partnerReportController.ts';
 
 const router = Router();
 
@@ -29,6 +30,8 @@ router.get('/dashboard', getDashboard);
 router.get('/campaigns', getPartnerCampaigns);
 router.post('/leads', submitLead);
 router.get('/leads', getPartnerLeads);
+router.get('/lead-campaigns', getPartnerReportCampaigns);
+router.get('/reports/leads.csv', downloadPartnerLeadReport);
 router.patch('/leads/:leadId', updateLead); // Update existing lead (works on LIVE and PAUSED campaigns)
 router.get('/earnings', getPartnerEarnings);
 router.get('/wallet', getPartnerWallet);

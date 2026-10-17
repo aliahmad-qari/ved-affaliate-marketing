@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../ui/Button.tsx';
 import { LeadItem } from '../../types/partner.ts';
 import { CheckCircle2, Clock, AlertCircle, DollarSign } from 'lucide-react';
+import { AdminLeadDecisionDialog } from './AdminLeadDecisionDialog.tsx';
 
 interface AdminLeadCardProps {
   item: LeadItem;
@@ -10,6 +11,7 @@ interface AdminLeadCardProps {
 }
 
 export const AdminLeadCard: React.FC<AdminLeadCardProps> = ({ item, busy, onAction }) => {
+  const [decision, setDecision] = useState<'reject' | 'reverse' | null>(null);
   const isEnquiry = item.submittedData?.source === 'CUSTOMER_FORM';
   const canReview = ['PENDING', 'VERIFIED'].includes(item.status);
   const notSubmitted = isEnquiry && item.submittedData?.processStatus === 'NOT_SUBMITTED';
@@ -134,10 +136,7 @@ export const AdminLeadCard: React.FC<AdminLeadCardProps> = ({ item, busy, onActi
                 disabled={busy} 
                 size="sm" 
                 variant="secondary"
-                onClick={() => {
-                  const rejectionReason = window.prompt('Rejection reason');
-                  if (rejectionReason) onAction(`${path}/review`, { status: 'REJECTED', rejectionReason });
-                }}
+                onClick={() => setDecision('reject')}
               >
                 Reject
               </Button>
@@ -156,9 +155,11 @@ export const AdminLeadCard: React.FC<AdminLeadCardProps> = ({ item, busy, onActi
                 Mark Paid
               </Button>
             )}
+            {item.status === 'APPROVED' && <Button size="sm" variant="outline" disabled={busy} onClick={() => setDecision('reverse')}>Reverse Approval</Button>}
           </div>
         </div>
       </div>
+      {decision && <AdminLeadDecisionDialog kind={decision} leadId={item.leadId} amount={item.payoutSnapshot} busy={busy} onCancel={() => setDecision(null)} onConfirm={body => { onAction(`${path}/${decision === 'reverse' ? 'reverse-approval' : 'review'}`, body); setDecision(null); }} />}
     </section>
   );
 };

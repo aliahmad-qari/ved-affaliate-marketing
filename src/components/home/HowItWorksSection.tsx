@@ -12,7 +12,7 @@ export const HowItWorksSection: React.FC = () => {
     {
       num: '02',
       title: 'Choose Campaign',
-      desc: 'Pick from active Demat & Mutual Fund apps.',
+      desc: 'Explore active campaigns across financial service categories.',
       icon: Compass,
     },
     {
@@ -43,7 +43,7 @@ export const HowItWorksSection: React.FC = () => {
   ];
 
   return (
-    <section className="py-12 sm:py-16 bg-[#04060C] border-b border-[#1C273C]">
+    <section className="py-12 sm:py-16 bg-[#030b14] border-b border-[#173247]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
@@ -66,7 +66,7 @@ export const HowItWorksSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className={`bg-[#0A0E18] border rounded-xl p-4 flex flex-col justify-between transition-colors ${
+                className={`bg-gradient-to-br from-[#0b2334] to-[#06111e] border rounded-xl p-4 flex flex-col justify-between transition-colors ${
                   step.highlight
                     ? 'border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.15)]'
                     : 'border-[#1C273C]'
@@ -77,7 +77,7 @@ export const HowItWorksSection: React.FC = () => {
                     <span className="text-sm font-mono font-bold text-[#D4AF37]">
                       {step.num}
                     </span>
-                    <Icon className="w-4 h-4 text-[#D4AF37]" />
+                    <span className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/10 p-2"><Icon aria-hidden="true" className="w-5 h-5 text-[#D4AF37]" strokeWidth={1.8} /></span>
                   </div>
                   <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC] mb-1">
                     {step.title}

@@ -84,6 +84,8 @@ export interface SubmitLeadInput {
 }
 
 export interface WalletTransactionItem {
+  direction?: 'DEBIT' | 'CREDIT';
+  reversedBy?: string;
   _id?: string;
   transactionId: string;
   partnerId: string;
@@ -99,6 +101,7 @@ export interface WalletTransactionItem {
 }
 
 export interface WalletData {
+  totalDisbursed?: number;
   availableBalance: number;
   pendingBalance: number;
   totalEarned: number;

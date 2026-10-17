@@ -1,10 +1,6 @@
 export type CampaignStatus = 'LIVE' | 'PAUSED' | 'DRAFT' | 'ENDED';
 
-export type CampaignCategory = 
-  | 'Demat & Trading' 
-  | 'Mutual Funds' 
-  | 'Banking & Credit' 
-  | 'Fintech & Wallets';
+export type CampaignCategory = string;
 
 export interface CampaignTerms {
   eligibility?: string;

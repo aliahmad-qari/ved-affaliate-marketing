@@ -3,6 +3,7 @@ import { ArrowLeft, Search, ListChecks } from 'lucide-react';
 import { adminApi } from '../../services/adminApi.ts';
 import { Button } from '../ui/Button.tsx';
 import { AdminLeadCard } from './AdminLeadCard.tsx';
+import { AdminPartnerAdjustments } from './AdminPartnerAdjustments.tsx';
 
 const initialFilters = { search: '', status: 'ALL', campaignId: 'ALL', startDate: '', endDate: '' };
 const statuses = ['ALL','PENDING','VERIFIED','APPROVED','REJECTED','PAID'];
@@ -48,6 +49,7 @@ export function AdminPartnerLeadLedger({ partner, campaigns, onBack }: { partner
   };
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 text-xl font-bold text-white"><ListChecks className="h-5 w-5 text-[#D4AF37]" />Partner Lead Ledger</h2><p className="mt-1 text-sm text-slate-400">{partner.fullName} · <span className="font-mono text-[#D4AF37]">{partner.partnerId}</span></p></div><Button size="sm" variant="outline" onClick={onBack} disabled={busy}><ArrowLeft className="mr-2 h-4 w-4" />Back to Partners</Button></div>
+    <AdminPartnerAdjustments partnerId={partner._id} revision={revision} />
     <p className="text-xs text-slate-400">Counts cover all leads for this partner. Statuses are counted separately; filtered results appear below.</p>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">{statuses.map(status => <div key={status} className="rounded-xl border border-[#263650] bg-[#0B1325] p-3"><p className="text-[10px] font-semibold uppercase text-slate-400">{status === 'ALL' ? 'Total leads' : status}</p><p className="mt-1 text-xl font-bold text-white">{response?.summary?.[status] ?? '—'}</p></div>)}</div>
     <form className="admin-filters grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={event => { event.preventDefault(); setPage(1); setFilters({ ...draft }); }}>

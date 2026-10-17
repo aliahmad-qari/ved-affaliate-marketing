@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { fetchPublicStats, type PublicStats } from '../../services/api.ts';
 import { ActivityTicker } from './ActivityTicker.tsx';
+import { useSiteSettings } from '../../context/SiteSettingsContext.tsx';
 
 export const PartnerActivityStrip: React.FC = () => {
+  const settings = useSiteSettings();
   const [stats, setStats] = useState<PublicStats | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -16,5 +18,5 @@ export const PartnerActivityStrip: React.FC = () => {
     const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 60000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
-  return <ActivityTicker stats={stats} />;
+  return <ActivityTicker stats={stats} announcement={settings.tickerMessage} />;
 };

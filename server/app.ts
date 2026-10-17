@@ -12,6 +12,7 @@ import vendorWebhookRoutes from './routes/vendorWebhookRoutes.ts';
 import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.ts';
 import { getDbStatus } from './config/db.ts';
 import { getPublicStats } from './controllers/publicStatsController.ts';
+import { publicSiteSettings } from './controllers/siteSettingsController.ts';
 
 const getAllowedOrigins = (): Set<string> => {
   const configuredOrigins = (process.env.FRONTEND_URL || '')
@@ -95,6 +96,7 @@ export const createApp = (): Express => {
 
   // Public Routes
   app.get('/api/public/stats', getPublicStats);
+  app.get('/api/public/site-settings', publicSiteSettings);
   app.use('/api/public/campaigns', campaignRoutes);
   app.use('/api/public/support', supportRoutes);
 

@@ -37,9 +37,11 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   };
   const matches = (doc: any, filter: any) => Object.entries(filter).every(([key, value]: any) => {
     if (key === '$or') return value.some((condition: any) => matches(doc, condition));
+    if (key === '$nor') return !value.some((condition: any) => matches(doc, condition));
     const found = key.split('.').reduce((obj: any, field: string) => obj?.[field], doc);
     if (value instanceof RegExp) return value.test(found || '');
     if (value && typeof value === 'object' && '$exists' in value) return (found !== undefined) === value.$exists;
+    if (value && typeof value === 'object' && '$lte' in value) return found != null && new Date(found) <= value.$lte;
     return value && typeof value === 'object' && '$in' in value ? value.$in.includes(found) : found === value;
   });
   t.mock.method(mongoose, 'startSession', async () => ({
@@ -62,6 +64,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   });
   t.mock.method(Partner, 'findById', (id: string) => chain(id === 'partner-1' ? { ...partner, _id: id } : null));
   t.mock.method(Partner, 'find', () => chain([{ partnerId: partner.partnerId, fullName: 'Actual Submitting Partner' }]));
+  t.mock.method(Partner, 'updateOne', () => chain({ matchedCount: 1 }));
   t.mock.method(Lead, 'findOne', (query: any) => chain(() => leads.find((lead) => matches(lead, query)) || null));
   t.mock.method(Lead, 'findById', (id: string) => chain(() => leads.find((lead) => lead._id === id) || null));
   t.mock.method(Lead, 'find', (query: any) => chain(() => leads.filter((lead) => matches(lead, query))));

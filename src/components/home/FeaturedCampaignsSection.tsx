@@ -21,7 +21,7 @@ export const FeaturedCampaignsSection: React.FC<FeaturedCampaignsSectionProps> =
   const featured = campaigns.filter(campaign => campaign.status === 'LIVE' && campaign.isFeatured).slice(0, 4);
 
   return (
-    <section className="py-12 sm:py-16 bg-[#070B14] border-b border-[#1C273C]">
+    <section className="py-12 sm:py-16 bg-[#030b14] border-b border-[#173247]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
@@ -52,7 +52,7 @@ export const FeaturedCampaignsSection: React.FC<FeaturedCampaignsSectionProps> =
           {!isLoading && featured.map((campaign) => (
             <div
               key={campaign.slug}
-              className="bg-[#0E1628] border border-[#1C273C] hover:border-[#D4AF37]/50 rounded-xl p-4 sm:p-6 transition-all flex flex-col justify-between group"
+              className="bg-gradient-to-br from-[#0b2334] to-[#06111e] border border-[#20506c] hover:border-[#D4AF37]/50 rounded-xl p-4 sm:p-6 transition-colors flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
