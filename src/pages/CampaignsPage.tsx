@@ -21,6 +21,8 @@ import { EmptyState } from '../components/ui/EmptyState.tsx';
 import { ErrorState } from '../components/ui/ErrorState.tsx';
 import { useSiteSettings } from '../context/SiteSettingsContext.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
+import { copyText } from '../lib/clipboard.ts';
+import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
 
 interface CampaignsPageProps {
   campaigns: Campaign[];
@@ -47,6 +49,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   useEffect(() => { const update = () => setSelectedCategory(initialCategory()); window.addEventListener('popstate', update); return () => window.removeEventListener('popstate', update); }, []);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [manualCopy, setManualCopy] = useState<string | null>(null);
 
   const categories = [{ id: 'all', label: 'All Categories' }, ...[...new Set([...campaignCategories, ...campaigns.map(campaign => campaign.campaignType)])].map(value => ({ id: value, label: value }))];
 
@@ -91,9 +94,11 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
     return `${origin}/campaigns/${slug}`;
   };
 
-  const handleCopyPartnerLink = (slug: string) => {
+  const handleCopyPartnerLink = async (slug: string) => {
     const link = getPartnerTrackingUrl(slug);
-    navigator.clipboard.writeText(link);
+    setCopiedSlug(null);
+    if (!await copyText(link)) { setManualCopy(link); return; }
+    setManualCopy(null);
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2000);
   };
@@ -109,6 +114,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   return (
     <div className="py-12 md:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+        {manualCopy !== null && <ManualCopyField text={manualCopy} onClose={() => setManualCopy(null)} />}
         
         {/* Page Header */}
         <div className="max-w-3xl">

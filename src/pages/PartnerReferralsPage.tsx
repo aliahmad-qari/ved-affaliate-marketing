@@ -14,6 +14,8 @@ import {
 import { Button } from '../components/ui/Button.tsx';
 import { fetchPartnerReferrals } from '../services/partnerApi.ts';
 import { ReferralsData } from '../types/partner.ts';
+import { copyText } from '../lib/clipboard.ts';
+import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
 
 interface PartnerReferralsPageProps {
   onNavigate: (tab: string) => void;
@@ -25,6 +27,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
   const [error, setError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [manualCopy, setManualCopy] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -43,16 +46,20 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
     loadData();
   }, []);
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (!data?.referralLink) return;
-    navigator.clipboard.writeText(data.referralLink);
+    setCopiedLink(false);
+    if (!await copyText(data.referralLink)) { setManualCopy(data.referralLink); return; }
+    setManualCopy(null);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     if (!data?.referralCode) return;
-    navigator.clipboard.writeText(data.referralCode);
+    setCopiedCode(false);
+    if (!await copyText(data.referralCode)) { setManualCopy(data.referralCode); return; }
+    setManualCopy(null);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
@@ -67,6 +74,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
 
   return (
     <div className="py-6 sm:py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      {manualCopy !== null && <ManualCopyField text={manualCopy} onClose={() => setManualCopy(null)} />}
       
       {/* Header & Program Banner */}
       <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-7 shadow-xl">

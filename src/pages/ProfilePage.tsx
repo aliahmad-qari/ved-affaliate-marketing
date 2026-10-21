@@ -20,6 +20,8 @@ import { VedLogo } from '../components/ui/VedLogo.tsx';
 import { PartnerKycForm } from '../components/profile/PartnerKycForm.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 import { maskPan, maskAccountNumber } from '../lib/masking.ts';
+import { copyText } from '../lib/clipboard.ts';
+import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
 
 interface ProfilePageProps {
   onNavigate: (tab: string) => void;
@@ -31,6 +33,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'security' | 'kyc'>('overview');
   const [copiedPartnerId, setCopiedPartnerId] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [manualCopy, setManualCopy] = useState<string | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -71,14 +74,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
   const referralUrl = `${window.location.origin}/register?ref=${partner.referralCode}`;
 
-  const handleCopyPartnerId = () => {
-    navigator.clipboard.writeText(partner.partnerId);
+  const handleCopyPartnerId = async () => {
+    setCopiedPartnerId(false);
+    if (!await copyText(partner.partnerId)) { setManualCopy(partner.partnerId); return; }
+    setManualCopy(null);
     setCopiedPartnerId(true);
     setTimeout(() => setCopiedPartnerId(false), 2000);
   };
 
-  const handleCopyReferral = () => {
-    navigator.clipboard.writeText(referralUrl);
+  const handleCopyReferral = async () => {
+    setCopiedReferral(false);
+    if (!await copyText(referralUrl)) { setManualCopy(referralUrl); return; }
+    setManualCopy(null);
     setCopiedReferral(true);
     setTimeout(() => setCopiedReferral(false), 2000);
   };
@@ -158,6 +165,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
   return (
     <div className="py-8 sm:py-12 max-w-5xl mx-auto px-4 sm:px-6">
+      {manualCopy !== null && <ManualCopyField text={manualCopy} onClose={() => setManualCopy(null)} />}
       
       {/* Header Profile Card */}
       <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-7 shadow-2xl mb-6 relative overflow-hidden">
