@@ -1,0 +1,19 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Deploy Script on Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 46.250.242.208
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/ved-affaliate-marketing
+            ./deploy.sh
