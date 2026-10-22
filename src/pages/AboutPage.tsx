@@ -44,7 +44,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             </p>
           </div>
 
-          <div className="bg-[#080D18] border border-[#1C273C] hover:border-[#D4AF37]/40 rounded-xl p-5 sm:p-6 transition-colors">
+          <div className="bg-[#080D19] border border-[#1C273C] hover:border-[#D4AF37]/40 rounded-xl p-5 sm:p-6 transition-colors">
             <Award className="w-8 h-8 text-[#D4AF37] mb-3" />
             <h3 className="text-base font-bold text-[#F8FAFC] mb-2">Manual Verification</h3>
             <p className="text-xs sm:text-sm text-[#AAB3C2] leading-relaxed">
