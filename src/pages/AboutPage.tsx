@@ -37,7 +37,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
         {/* 3 Pillar Cards with Contrast */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-[#0D1424] border border-[#1C273C] hover:border-[#D4AF37]/40 rounded-xl p-5 sm:p-6 transition-colors">
-            <Target className="w-8 h-8 text-[#D4AF37] mb-3" />
+            <Target className="w-8 h-8 text-[#D4AF39] mb-3" />
             <h3 className="text-base font-bold text-[#F8FAFC] mb-2">Our Mission</h3>
             <p className="text-xs sm:text-sm text-[#AAB3C2] leading-relaxed">
               Empower Indian publishers, influencers, and financial partners to earn structured commissions promoting verified brokerages and mutual fund schemes.
