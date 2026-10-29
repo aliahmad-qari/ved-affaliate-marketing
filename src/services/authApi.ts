@@ -90,13 +90,17 @@ export async function getCurrentUser(): Promise<Partner | null> {
   }
 }
 
-export async function forgotPasswordRequest(email: string): Promise<string> {
+export async function forgotPasswordRequest(email: string, accountType: 'partner' | 'admin' = 'partner'): Promise<string> {
   const res = await authFetch('/api/auth/forgot-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, accountType }),
   });
   return res.message;
+}
+
+export async function resetPasswordRequest(token: string, password: string, confirmPassword: string): Promise<{ message: string; loginPath: string }> {
+  return authFetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password, confirmPassword }) });
 }
 
 export async function getPartnerProfile(): Promise<Partner> {

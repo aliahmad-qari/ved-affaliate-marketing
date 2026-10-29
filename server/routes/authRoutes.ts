@@ -5,9 +5,8 @@ import {
   login,
   logout,
   getMe,
-  forgotPassword,
-  resetPassword,
 } from '../controllers/authController.ts';
+import { forgotPassword, resetPassword } from '../controllers/passwordRecoveryController.ts';
 import { requireAuth } from '../middleware/authMiddleware.ts';
 
 const router = Router();

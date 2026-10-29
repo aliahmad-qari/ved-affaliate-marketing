@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { fetchPartnerReportCampaigns, downloadPartnerLeadReport } from '../../services/partnerApi.ts';
 import { Button } from '../ui/Button.tsx';
+import { LeadDateFilters } from '../../../shared/leadDateFilters.ts';
 
-export function PartnerLeadReportControls({ campaignId, status, search, onCampaign }: { campaignId: string; status: string; search: string; onCampaign: (value: string) => void }) {
+export function PartnerLeadReportControls({ campaignId, status, search, dates, onCampaign }: { campaignId: string; status: string; search: string; dates?: LeadDateFilters; onCampaign: (value: string) => void }) {
   const [campaigns, setCampaigns] = useState<{ _id: string; name: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -16,7 +17,7 @@ export function PartnerLeadReportControls({ campaignId, status, search, onCampai
   const download = async () => {
     setBusy(true); setError('');
     try {
-      const blob = await downloadPartnerLeadReport({ campaignId, status, search });
+      const blob = await downloadPartnerLeadReport({ campaignId, status, search, ...dates });
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
       anchor.href = url; anchor.download = 'ved-my-campaign-leads.csv'; document.body.appendChild(anchor); anchor.click(); anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);

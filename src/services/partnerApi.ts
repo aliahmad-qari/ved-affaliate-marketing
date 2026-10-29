@@ -64,6 +64,10 @@ export async function fetchPartnerLeads(params: {
   page?: number;
   limit?: number;
   campaignId?: string;
+  startDate?: string;
+  endDate?: string;
+  month?: string;
+  year?: string;
 } = {}): Promise<{ leads: LeadItem[]; total: number }> {
   const query = new URLSearchParams();
   if (params.status && params.status !== 'ALL') query.set('status', params.status);
@@ -71,6 +75,7 @@ export async function fetchPartnerLeads(params: {
   if (params.page) query.set('page', String(params.page));
   if (params.limit) query.set('limit', String(params.limit));
   if (params.campaignId && params.campaignId !== 'ALL') query.set('campaignId', params.campaignId);
+  for (const key of ['startDate', 'endDate', 'month', 'year'] as const) if (params[key]) query.set(key, params[key]!);
 
   const qs = query.toString();
   const res = await partnerFetch(`/api/partner/leads${qs ? `?${qs}` : ''}`);
@@ -100,7 +105,7 @@ export async function fetchPartnerReportCampaigns(): Promise<{ _id: string; name
   return (await partnerFetch('/api/partner/lead-campaigns')).data;
 }
 
-export async function downloadPartnerLeadReport(filters: { campaignId: string; status: string; search: string }): Promise<Blob> {
+export async function downloadPartnerLeadReport(filters: { campaignId: string; status: string; search: string; startDate?: string; endDate?: string; month?: string; year?: string }): Promise<Blob> {
   const query = new URLSearchParams();
   for (const [key,value] of Object.entries(filters)) if (value.trim() && value !== 'ALL') query.set(key, value.trim());
   const headers = new Headers({ Accept: 'text/csv' }); const token = getInMemoryToken();

@@ -9,6 +9,7 @@ function sanitizeMemoryPartner(partner: any, includePassword = false): any {
   if (!includePassword) delete partner.passwordHash;
   delete partner.resetPasswordToken;
   delete partner.resetPasswordExpires;
+  delete partner.resetPasswordRequestedAt;
   delete partner.sessionsInvalidatedAt;
   if (partner.pan) {
     partner.maskedPan = maskPan(partner.pan);
@@ -263,9 +264,8 @@ export const PartnerStore = {
       await Partner.findByIdAndUpdate(id, {
         $set: {
           passwordHash: newPasswordHash,
-          resetPasswordToken: undefined,
-          resetPasswordExpires: undefined,
         },
+        $unset: { resetPasswordToken: 1, resetPasswordExpires: 1 },
       }).exec();
       return true;
     }

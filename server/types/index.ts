@@ -71,6 +71,7 @@ export interface IPartner {
   referredBy?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
+  resetPasswordRequestedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }

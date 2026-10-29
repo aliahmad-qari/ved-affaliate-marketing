@@ -6,7 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import mongoose from 'mongoose';
 import { FeaturedCampaignsSection } from '../src/components/home/FeaturedCampaignsSection.tsx';
-import { HeroSection } from '../src/components/home/HeroSection.tsx';
+import { createServer } from 'vite';
 import { WhyChooseSection } from '../src/components/home/WhyChooseSection.tsx';
 import { AdminLeadCard } from '../src/components/admin/AdminLeadCard.tsx';
 import { createApp } from '../server/app.ts';
@@ -17,7 +17,11 @@ import { AdminUser } from '../server/models/AdminUser.ts';
 import { signToken } from '../server/utils/jwt.ts';
 
 const description = 'VED AFFILIATE connects partners with leading financial campaigns across Demat, Trading, Mutual Funds, Loans & More. Submit eligible leads and earn on verified conversions.';
-test('homepage exact copy, compact benefits, LIVE featured data and existing navigation', () => {
+test('homepage exact copy, compact benefits, LIVE featured data and existing navigation', async t => {
+  // Load the existing WebP hero through Vite, without repository DB/seed plugins.
+  const vite = await createServer({ configFile: false, server: { middlewareMode: true, watch: null }, appType: 'custom' });
+  t.after(async () => { await vite.close(); });
+  const { HeroSection } = await vite.ssrLoadModule('/src/components/home/HeroSection.tsx');
   const hero = renderToStaticMarkup(<HeroSection onNavigate={() => {}} />);
   assert.ok(hero.includes(description.replace('&', '&amp;')));
   const metadata = readFileSync(new URL('../index.html', import.meta.url), 'utf8');

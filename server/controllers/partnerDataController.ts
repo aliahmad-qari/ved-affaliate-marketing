@@ -206,9 +206,10 @@ export const getPartnerLeads = async (req: Request, res: Response, next: NextFun
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
-    const campaignQuery = await buildAdminLeadQuery({ campaignId: req.query.campaignId }, partnerId);
+    const campaignQuery = await buildAdminLeadQuery({ ...req.query, status: undefined, search: undefined }, partnerId);
     const { leads, total } = await LeadStore.findLeadsByPartner(partnerId, {
       campaignIds: campaignQuery.campaignId?.$in,
+      createdAt: campaignQuery.createdAt,
       status: typeof status === 'string' ? status : undefined,
       search: typeof search === 'string' ? search : undefined,
       limit: limitNum,

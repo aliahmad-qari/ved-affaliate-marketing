@@ -17,6 +17,8 @@ import { Button } from '../components/ui/Button.tsx';
 import { PartnerLeadReportControls } from '../components/partner/PartnerLeadReportControls.tsx';
 import { fetchPartnerLeads, fetchPartnerCampaigns, submitPartnerLead } from '../services/partnerApi.ts';
 import { LeadItem, PartnerCampaignItem, LeadStatus } from '../types/partner.ts';
+import { LeadDateFilterControls } from '../components/ui/LeadDateFilterControls.tsx';
+import { emptyLeadDateFilters } from '../../shared/leadDateFilters.ts';
 
 interface PartnerLeadsPageProps {
   onNavigate: (tab: string) => void;
@@ -32,6 +34,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [reportCampaignId, setReportCampaignId] = useState('ALL');
+  const [dateFilters, setDateFilters] = useState({ ...emptyLeadDateFilters });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const loadVersion = useRef(0);
@@ -53,6 +56,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       setIsLoading(true);
       setError(null);
       const res = await fetchPartnerLeads({
+        ...dateFilters,
         status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
         search: appliedSearch || undefined,
         campaignId: reportCampaignId,
@@ -74,7 +78,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   useEffect(() => {
     loadLeads();
     return () => { loadVersion.current++; };
-  }, [selectedStatus, reportCampaignId, appliedSearch, page]);
+  }, [selectedStatus, reportCampaignId, appliedSearch, page, dateFilters]);
 
   useEffect(() => {
     if (!isSubmitModalOpen) return;
@@ -179,7 +183,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       </div>
 
       {/* Filter and Search Bar */}
-      <PartnerLeadReportControls campaignId={reportCampaignId} status={selectedStatus} search={appliedSearch} onCampaign={value => { setPage(1); setReportCampaignId(value); }} />
+      <LeadDateFilterControls value={dateFilters} onChange={value => { setPage(1); setDateFilters(value); }} onReset={() => { setPage(1); setSelectedStatus('ALL'); setSearchTerm(''); setAppliedSearch(''); setReportCampaignId('ALL'); }} />
+      <PartnerLeadReportControls campaignId={reportCampaignId} status={selectedStatus} search={appliedSearch} dates={dateFilters} onCampaign={value => { setPage(1); setReportCampaignId(value); }} />
       <div className="bg-[#0B1325] border border-[#1C273C] rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         
         {/* Status Pill Filters */}

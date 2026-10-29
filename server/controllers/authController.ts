@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { validateKyc, normalizeKyc } from '../utils/kyc.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
 import { AdminUser } from '../models/AdminUser.ts';
@@ -271,97 +270,4 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     success: true,
     data: req.user,
   });
-};
-
-export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { email } = req.body;
-
-    if (!email || typeof email !== 'string') {
-      res.status(400).json({
-        success: false,
-        message: 'Please provide a valid registered email address.',
-      });
-      return;
-    }
-
-    const partner = await PartnerStore.findByEmailOrMobile(email.trim(), true);
-    if (partner) {
-      // Generate secure 32-byte hex reset token
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-      const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-      await PartnerStore.updateById(partner._id || partner.id, {
-        resetPasswordToken: hashedToken,
-        resetPasswordExpires: expires,
-      } as any);
-
-      // In production with configured SMTP credentials, send the email here.
-      // We log in development environment only if appropriate
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[VED AUTH] Password reset token generated for ${partner.email}: ${rawToken}`);
-      }
-    }
-
-    // Always return safe non-enumerating message to prevent account discovery
-    res.status(200).json({
-      success: true,
-      message: 'If an account with that email address is registered, instructions to reset your password have been sent.',
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { token, password, confirmPassword } = req.body;
-
-    if (!token || typeof token !== 'string') {
-      res.status(400).json({
-        success: false,
-        message: 'Password reset token is required.',
-      });
-      return;
-    }
-
-    if (!password || password.length < 8) {
-      res.status(400).json({
-        success: false,
-        message: 'New password must be at least 8 characters long with letters and numbers.',
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      res.status(400).json({
-        success: false,
-        message: 'Passwords do not match.',
-      });
-      return;
-    }
-
-    const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
-
-    const targetPartner = await PartnerStore.findByResetToken(hashedToken);
-    if (!targetPartner) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid or expired password reset token. Please request a new link.',
-      });
-      return;
-    }
-
-    // Hash new password
-    const newHash = await bcrypt.hash(password, 12);
-    await PartnerStore.updatePassword(targetPartner._id || targetPartner.id, newHash);
-
-    res.status(200).json({
-      success: true,
-      message: 'Password has been successfully updated. You can now log in with your new credentials.',
-    });
-  } catch (error) {
-    next(error);
-  }
 };

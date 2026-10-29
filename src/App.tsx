@@ -14,6 +14,7 @@ import { CampaignsPage } from './pages/CampaignsPage.tsx';
 import { SupportPage } from './pages/SupportPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
+import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { PartnerLeadsPage } from './pages/PartnerLeadsPage.tsx';
@@ -62,6 +63,8 @@ function MainApp() {
       'campaigns',
       'support',
       'login',
+      'forgot-password',
+      'reset-password',
       'register',
       'profile',
       'dashboard',
@@ -255,6 +258,8 @@ function MainApp() {
         {currentRoute === 'login' && (
           <LoginPage onNavigate={navigateTo} />
         )}
+        {currentRoute === 'forgot-password' && <PasswordRecoveryPage key="forgot" onNavigate={navigateTo} />}
+        {currentRoute === 'reset-password' && <PasswordRecoveryPage key="reset" reset onNavigate={navigateTo} />}
 
         {currentRoute === 'profile' && (
           <ProfilePage onNavigate={navigateTo} />

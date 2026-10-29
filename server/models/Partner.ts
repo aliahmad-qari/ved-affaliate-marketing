@@ -136,6 +136,7 @@ const PartnerSchema: Schema = new Schema(
       default: '',
       trim: true,
     },
+    resetPasswordRequestedAt: { type: Date, select: false },
     resetPasswordToken: {
       type: String,
       select: false,
@@ -162,6 +163,7 @@ const PartnerSchema: Schema = new Schema(
         delete ret.passwordHash;
         delete ret.resetPasswordToken;
         delete ret.resetPasswordExpires;
+        delete ret.resetPasswordRequestedAt;
         delete ret.sessionsInvalidatedAt;
         delete ret.__v;
 

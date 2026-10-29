@@ -11,7 +11,7 @@ const logic = source.slice(source.indexOf('  const load ='), source.indexOf('  u
   .replace('target: AdminTab, direction: number', 'target, direction');
 
 function harness(tab: string, page = 1) {
-  const state: any = { tab, pageNumbers: { [tab]: page }, data: { data: [], totalPages: 3 }, loading: false, busy: false, search: 'sample', status: 'PENDING', leadCampaign: 'campaign-1', withdrawalFilters: { page, search: '', status: 'ALL', paymentMethod: 'ALL' }, loadRequestId: { current: 0 }, activeTab: { current: tab }, calls: [], updates: [] };
+  const state: any = { tab, pageNumbers: { [tab]: page }, data: { data: [], totalPages: 3 }, loading: false, busy: false, search: 'sample', status: 'PENDING', leadCampaign: 'campaign-1', leadDates: {}, withdrawalFilters: { page, search: '', status: 'ALL', paymentMethod: 'ALL' }, loadRequestId: { current: 0 }, activeTab: { current: tab }, calls: [], updates: [] };
   state.setLoading = (value: boolean) => { state.loading = value; };
   state.setError = (value: string) => { state.error = value; };
   state.setData = (value: any) => { state.data = value; };
@@ -73,7 +73,7 @@ test('withdrawal paging remains independent and lead refresh uses the current pa
   const h = harness('withdrawals', 2);
   await h.load();
   assert.equal(new URL(h.state.calls[0], 'http://test').searchParams.get('page'), '2');
-  assert.ok(source.includes('busy, pageNumbers.leads]'));
+  assert.ok(source.includes('busy, pageNumbers.leads, leadDates]'));
   for (const tab of ['partners', 'referrals', 'leads', 'support']) {
     assert.ok(source.includes(`changePage('${tab}', -1)`));
     assert.ok(source.includes(`changePage('${tab}', 1)`));

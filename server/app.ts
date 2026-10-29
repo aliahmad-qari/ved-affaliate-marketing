@@ -77,6 +77,9 @@ export const createApp = (): Express => {
   });
 
   app.use(cookieParser());
+  app.use('/reset-password', (_req, res, next) => {
+    res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); next();
+  });
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, LogIn, AlertCircle, ArrowRight, CheckCircle2, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Lock, LogIn, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
 import { VedLogo } from '../components/ui/VedLogo.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
-import { forgotPasswordRequest } from '../services/authApi.ts';
 
 interface LoginPageProps {
   onNavigate: (tab: string) => void;
@@ -17,12 +16,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Forgot password state
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotSuccessMessage, setForgotSuccessMessage] = useState<string | null>(null);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -56,23 +49,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
       setErrorMessage(err.message || 'Invalid credentials. Please verify your Email/Mobile and Password.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail.trim()) return;
-
-    try {
-      setForgotLoading(true);
-      const msg = await forgotPasswordRequest(forgotEmail.trim());
-      setForgotSuccessMessage(msg);
-    } catch (err: any) {
-      setForgotSuccessMessage(
-        'If an account with that email address is registered, instructions to reset your password have been sent.'
-      );
-    } finally {
-      setForgotLoading(false);
     }
   };
 
@@ -124,10 +100,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setShowForgotModal(true);
-                  setForgotSuccessMessage(null);
-                }}
+                onClick={() => onNavigate('forgot-password')}
                 className="text-[11px] text-[#D4AF37] hover:underline cursor-pointer"
               >
                 Forgot Password?
@@ -179,72 +152,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-          <div className="relative w-full max-w-sm bg-[#0D1424] border border-[#1C273C] rounded-2xl p-6 shadow-2xl text-left">
-            <div className="flex items-center gap-2 text-[#D4AF37] mb-2">
-              <KeyRound className="w-5 h-5" />
-              <h3 className="text-base font-bold text-[#F8FAFC]">Password Recovery</h3>
-            </div>
-            <p className="text-xs text-[#AAB3C2] mb-4">
-              Enter your registered email address to receive password reset instructions.
-            </p>
-
-            {forgotSuccessMessage ? (
-              <div className="space-y-4">
-                <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl p-3 text-xs text-emerald-200 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{forgotSuccessMessage}</span>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  fullWidth
-                  onClick={() => setShowForgotModal(false)}
-                >
-                  Back to Sign In
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleForgotPassword} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-medium text-[#AAB3C2] mb-1">
-                    Registered Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    className="w-full bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowForgotModal(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={forgotLoading}
-                  >
-                    {forgotLoading ? 'Processing...' : 'Send Reset Link'}
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

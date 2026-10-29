@@ -7,6 +7,9 @@ export interface AdminUserDocument extends Document {
   status: 'ACTIVE' | 'SUSPENDED';
   sessionsInvalidatedAt?: Date;
   lastLoginAt?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
+  resetPasswordRequestedAt?: Date;
 }
 
 const AdminUserSchema = new Schema<AdminUserDocument>(
@@ -17,6 +20,9 @@ const AdminUserSchema = new Schema<AdminUserDocument>(
     status: { type: String, enum: ['ACTIVE', 'SUSPENDED'], default: 'ACTIVE', index: true },
     sessionsInvalidatedAt: { type: Date, select: false },
     lastLoginAt: { type: Date },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false },
+    resetPasswordRequestedAt: { type: Date, select: false },
   },
   {
     timestamps: true,
@@ -24,6 +30,9 @@ const AdminUserSchema = new Schema<AdminUserDocument>(
       transform(_doc, ret: Record<string, any>) {
         delete ret.passwordHash;
         delete ret.sessionsInvalidatedAt;
+        delete ret.resetPasswordToken;
+        delete ret.resetPasswordExpires;
+        delete ret.resetPasswordRequestedAt;
         delete ret.__v;
         return ret;
       },

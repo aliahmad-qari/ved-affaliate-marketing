@@ -113,13 +113,15 @@ export const LeadStore = {
       limit?: number;
       skip?: number;
       campaignIds?: string[];
+      createdAt?: { $gte?: Date; $lt?: Date; $lte?: Date };
     } = {}
   ): Promise<{ leads: ILead[]; total: number }> {
     const pId = partnerId.toUpperCase();
-    const { status, search, limit = 50, skip = 0, campaignIds } = options;
+    const { status, search, limit = 50, skip = 0, campaignIds, createdAt } = options;
 
     if (isMongooseReady()) {
       const query: Record<string, any> = { partnerId: pId };
+      if (createdAt) query.createdAt = createdAt;
       if (campaignIds) query.campaignId = { $in: campaignIds };
 
       if (status && status !== 'ALL') {
@@ -152,6 +154,10 @@ export const LeadStore = {
 
     // Memory fallback
     let filtered = memoryLeads.filter((l) => l.partnerId === pId);
+    if (createdAt) filtered = filtered.filter(lead => {
+      const time = new Date(lead.createdAt!).getTime();
+      return (!createdAt.$gte || time >= createdAt.$gte.getTime()) && (!createdAt.$lt || time < createdAt.$lt.getTime()) && (!createdAt.$lte || time <= createdAt.$lte.getTime());
+    });
     if (campaignIds) filtered = filtered.filter(lead => campaignIds.includes(lead.campaignId));
 
     if (status && status !== 'ALL') {

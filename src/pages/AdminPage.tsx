@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { LeadDateFilterControls } from '../components/ui/LeadDateFilterControls.tsx';
+import { emptyLeadDateFilters } from '../../shared/leadDateFilters.ts';
 import { AdminBusinessSettings } from '../components/admin/AdminBusinessSettings.tsx';
 import { campaignCategories } from '../../shared/campaignCategories.ts';
 import { adminApi } from '../services/adminApi.ts';
@@ -36,10 +38,11 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [withdrawalFilters, setWithdrawalFilters] = useState({ ...defaultWithdrawalFilters });
-  const selectTab = (next: AdminTab) => { if (next === tab) return; setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); setLedgerPartner(null); setData(null); setPageNumbers(prev => ({ ...prev, [next]: 1 })); setTab(next); };
+  const selectTab = (next: AdminTab) => { if (next === tab) return; setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); setLeadDates({ ...emptyLeadDateFilters }); setLedgerPartner(null); setData(null); setPageNumbers(prev => ({ ...prev, [next]: 1 })); setTab(next); };
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [leadCampaign, setLeadCampaign] = useState('ALL');
+  const [leadDates, setLeadDates] = useState({ ...emptyLeadDateFilters });
   const [leadCampaigns, setLeadCampaigns] = useState<any[]>([]);
   const [ledgerPartner, setLedgerPartner] = useState<any>(null);
   const [error, setError] = useState('');
@@ -75,6 +78,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         if (!reset && search.trim()) query.set('search', search.trim());
         if (!reset && status !== 'ALL') query.set('status', status);
         if (!reset && target === 'leads' && leadCampaign !== 'ALL') query.set('campaignId', leadCampaign);
+        if (!reset && target === 'leads') for (const [key, value] of Object.entries(leadDates)) if (value) query.set(key, value);
         query.set('page', String(reset ? 1 : requestedPage));
       }
       const suffix = query.size ? `?${query}` : '';
@@ -123,7 +127,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   useEffect(() => {
     if (admin) void load(tab);
     return () => { loadRequestId.current++; };
-  }, [admin, tab, withdrawalFilters, leadCampaign]);
+  }, [admin, tab, withdrawalFilters, leadCampaign, leadDates]);
 
   useEffect(() => {
     if (!admin || tab !== 'leads') return;
@@ -131,7 +135,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       if (!document.hidden && !busy) void load('leads');
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [admin, tab, search, status, leadCampaign, busy, pageNumbers.leads]);
+  }, [admin, tab, search, status, leadCampaign, busy, pageNumbers.leads, leadDates]);
 
   useEffect(() => {
     if (!admin || (tab !== 'leads' && tab !== 'partners')) return;
@@ -185,6 +189,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
           <label className="mb-4 block text-sm text-[#AAB3C2]">Email<input className={`${inputClass} mt-1`} type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label className="mb-6 block text-sm text-[#AAB3C2]">Password<input className={`${inputClass} mt-1`} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
           <Button type="submit" variant="primary" fullWidth disabled={busy}>Sign in</Button>
+          <button type="button" className="mt-4 text-sm text-[#D4AF37] hover:underline" onClick={() => onNavigate('forgot-password?account=admin')}>Forgot Password?</button>
         </form>
       </div>
     );
@@ -380,8 +385,9 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         return <button key={item.id} aria-current={tab === item.id ? 'page' : undefined} onClick={() => selectTab(item.id)} className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${tab === item.id ? 'border-[#D4AF37] bg-[#D4AF37] text-[#07101d] shadow-lg shadow-amber-500/10' : 'border-transparent text-slate-400 hover:border-sky-900 hover:bg-sky-500/5 hover:text-sky-200'}`}><Icon className="h-3.5 w-3.5" />{item.label}</button>;
       })}</nav>
       <AdminSectionHeader section={tab} />
+      {tab === 'leads' && <div className="mb-4"><LeadDateFilterControls value={leadDates} onChange={value => { setPageNumbers(prev => ({ ...prev, leads: 1 })); setLeadDates(value); }} onReset={() => { setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); }} /></div>}
       {error && <p role="alert" className="mb-4 border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
-      {['partners','referrals','leads','support'].includes(tab) && !ledgerPartner && <div className={tab === 'leads' ? 'admin-filters mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]' : 'admin-filters mb-4 flex flex-col gap-2 sm:flex-row'}><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} />{tab === 'leads' && <select className={`${inputClass} min-w-0`} aria-label="Filter leads by campaign" value={leadCampaign} onChange={event => { setData(null); setPageNumbers(prev => ({ ...prev, leads: 1 })); setLeadCampaign(event.target.value); }}><option value="ALL">All Campaigns</option>{leadCampaigns.map(item => <option key={item._id} value={item._id}>{item.name} · {item.status}</option>)}</select>}<select className={tab === 'leads' ? `${inputClass} min-w-0` : selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option><option value="ARCHIVED">Rejected / Archived (7+ days)</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={applyFilters}>Apply</Button>{tab === 'leads' && <Button variant="outline" onClick={() => { setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); setPageNumbers(prev => ({ ...prev, leads: 1 })); void load('leads', true, 1); }}>Reset</Button>}</div>}
+      {['partners','referrals','leads','support'].includes(tab) && !ledgerPartner && <div className={tab === 'leads' ? 'admin-filters mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]' : 'admin-filters mb-4 flex flex-col gap-2 sm:flex-row'}><input className={inputClass} placeholder={tab === 'referrals' ? 'Search referrer, new partner, or referral code' : 'Search'} value={search} onChange={(event) => setSearch(event.target.value)} />{tab === 'leads' && <select className={`${inputClass} min-w-0`} aria-label="Filter leads by campaign" value={leadCampaign} onChange={event => { setData(null); setPageNumbers(prev => ({ ...prev, leads: 1 })); setLeadCampaign(event.target.value); }}><option value="ALL">All Campaigns</option>{leadCampaigns.map(item => <option key={item._id} value={item._id}>{item.name} · {item.status}</option>)}</select>}<select className={tab === 'leads' ? `${inputClass} min-w-0` : selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{tab === 'leads' && <><option value="IN_PROCESS">In Process</option><option value="NOT_SUBMITTED">Not Submitted</option><option value="ARCHIVED">Rejected / Archived (7+ days)</option></>}{['PENDING','VERIFIED','APPROVED','REJECTED','PAID','ACTIVE','INACTIVE','SUSPENDED','OPEN','IN_PROGRESS','RESOLVED','CLOSED','PROCESSING','QUALIFIED','NOT_QUALIFIED','AVAILABLE','PROCESSED'].map((value) => <option key={value}>{value}</option>)}</select><Button variant="outline" onClick={applyFilters}>Apply</Button>{tab === 'leads' && <Button variant="outline" onClick={() => { setSearch(''); setStatus('ALL'); setLeadCampaign('ALL'); setLeadDates({ ...emptyLeadDateFilters }); setPageNumbers(prev => ({ ...prev, leads: 1 })); void load('leads', true, 1); }}>Reset</Button>}</div>}
       {loading && !data && tab !== 'overview' ? <div role="status" className="rounded-xl border border-[#203755] bg-[#0d192b] px-6 py-14 text-center text-sm text-slate-400">Loading records…</div> : <div className={tab === 'overview' || tab === 'withdrawals' ? undefined : 'admin-content'}>{content()}</div>}
       {kycDetails && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="presentation" onClick={() => setKycDetails(null)}><section role="dialog" aria-modal="true" aria-labelledby="kyc-title" className="admin-kyc w-full max-w-lg space-y-3 border border-[#263650] bg-[#0D1424] p-5" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><h2 id="kyc-title" className="text-lg font-bold">KYC details · {kycDetails.partnerId}</h2><button className="text-sm text-[#D4AF37]" onClick={() => setKycDetails(null)}>Close</button></div><p>{kycDetails.fullName} · {kycDetails.kycStatus}</p><p className="text-sm text-[#AAB3C2]">PAN: <span className="font-mono text-white">{kycDetails.pan}</span></p><div className="space-y-1 border-t border-[#263650] pt-3 text-sm text-[#AAB3C2]"><p>Account holder: {kycDetails.bankDetails?.accountHolderName}</p><p>Account number: <span className="font-mono text-white">{kycDetails.bankDetails?.accountNumber}</span></p><p>IFSC: {kycDetails.bankDetails?.ifscCode}</p><p>Bank: {kycDetails.bankDetails?.bankName}</p><p>UPI: {kycDetails.upiId || 'Not submitted'}</p></div></section></div>}
     </div>

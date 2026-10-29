@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Campaign } from '../models/Campaign.ts';
 import { escapeRegex } from './adminServices.ts';
+import { leadDateQuery } from '../../shared/leadDateFilters.ts';
 
 export async function buildAdminLeadQuery(input: Record<string, unknown>, partnerId?: string, options: { hideOldRejected?: boolean } = {}) {
   const query: Record<string, any> = {};
@@ -28,13 +29,7 @@ export async function buildAdminLeadQuery(input: Record<string, unknown>, partne
     // Customer-form leads use Mongo IDs; manual reports use slugs. Match both without rewriting history.
     query.campaignId = { $in: [String(campaign._id), campaign.slug] };
   }
-  for (const [field, operator] of [['startDate','$gte'],['endDate','$lte']] as const) {
-    if (input[field] === undefined || input[field] === '') continue;
-    if (typeof input[field] !== 'string') throw Object.assign(new Error('Invalid date filter.'), { status: 400 });
-    const date = new Date(input[field] as string);
-    if (!Number.isFinite(date.getTime())) throw Object.assign(new Error('Invalid date filter.'), { status: 400 });
-    query.createdAt = { ...query.createdAt, [operator]: date };
-  }
-  if (query.createdAt?.$gte > query.createdAt?.$lte) throw Object.assign(new Error('Start date must precede end date.'), { status: 400 });
+  const dates = leadDateQuery(input);
+  if (dates) query.createdAt = dates;
   return query;
 }
