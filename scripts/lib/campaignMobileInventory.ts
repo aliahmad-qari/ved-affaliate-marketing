@@ -8,13 +8,33 @@ export async function inventoryCampaignMobiles(campaigns: any[], leads: AsyncIte
   }
   const groups = new Map<string, any>();
   const summary = { totalLeads: 0, invalidOrMissingMobile: 0, unresolvedCampaign: 0, validRecords: 0, uniqueCampaignMobilePairs: 0,
-    duplicateGroups: 0, extraHistoricalRecords: 0, crossPartnerGroups: 0, crossSourceGroups: 0, approvedOrPaidConflictGroups: 0 };
+    duplicateGroups: 0, extraHistoricalRecords: 0, crossPartnerGroups: 0, crossSourceGroups: 0, approvedOrPaidConflictGroups: 0,
+    unresolvedDiagnostics: { missingOrNonScalar: 0, ambiguousExactAlias: 0, formattingCandidateOnly: 0, unmatchedObjectId: 0, unmatchedOther: 0, approvedOrPaidRecords: 0 },
+    financialConflictRecords: { approved: 0, paid: 0 } };
   for await (const lead of leads) {
     summary.totalLeads++;
     const mobile = normalizeCustomerMobile(lead.clientMobile);
     const ids = aliases.get(String(lead.campaignId));
     if (!mobile) summary.invalidOrMissingMobile++;
-    if (!ids || ids.size !== 1) summary.unresolvedCampaign++;
+    if (!ids || ids.size !== 1) {
+      summary.unresolvedCampaign++;
+      const diagnostic = summary.unresolvedDiagnostics;
+      if (['APPROVED', 'PAID'].includes(lead.status)) diagnostic.approvedOrPaidRecords++;
+      const raw = lead.campaignId;
+      if (raw == null || (typeof raw !== 'string' && typeof raw?.toHexString !== 'function') || !String(raw).trim()) diagnostic.missingOrNonScalar++;
+      else if (ids && ids.size > 1) diagnostic.ambiguousExactAlias++;
+      else {
+        // Suggestions are counts only. Never silently map legacy aliases or change claims.
+        const normalized = String(raw).trim().toLowerCase();
+        const candidates = new Set<string>();
+        for (const [alias, matches] of aliases) if (alias.trim().toLowerCase() === normalized) {
+          for (const id of matches) candidates.add(id);
+        }
+        if (candidates.size) diagnostic.formattingCandidateOnly++;
+        else if (/^[a-f\d]{24}$/i.test(String(raw))) diagnostic.unmatchedObjectId++;
+        else diagnostic.unmatchedOther++;
+      }
+    }
     if (!mobile || !ids || ids.size !== 1) continue;
     summary.validRecords++;
     const campaignId = [...ids][0];
@@ -23,11 +43,13 @@ export async function inventoryCampaignMobiles(campaigns: any[], leads: AsyncIte
     let group = groups.get(key);
     if (!group) {
       group = { canonicalCampaignId: campaignId, normalizedMobile: mobile, leadId: String(lead._id), partnerId: lead.partnerId,
-        state: 'CLAIMED', historicalCount: 0, partners: new Set(), sources: new Set(), financial: false };
+        state: 'CLAIMED', historicalCount: 0, partners: new Set(), sources: new Set(), financial: false, approvedCount: 0, paidCount: 0 };
       groups.set(key, group);
     }
     group.historicalCount++; group.partners.add(lead.partnerId); group.sources.add(source);
     group.financial ||= ['APPROVED', 'PAID'].includes(lead.status);
+    if (lead.status === 'APPROVED') group.approvedCount++;
+    if (lead.status === 'PAID') group.paidCount++;
     if (group.historicalCount > 1) { group.state = 'HISTORICAL_CONFLICT'; delete group.leadId; delete group.partnerId; }
     if (groups.size > 1000000) throw new Error('Inventory exceeds the supported in-memory size; use a reviewed batch plan.');
   }
@@ -37,8 +59,10 @@ export async function inventoryCampaignMobiles(campaigns: any[], leads: AsyncIte
     if (group.partners.size > 1) summary.crossPartnerGroups++;
     if (group.sources.size > 1) summary.crossSourceGroups++;
     if (group.financial) summary.approvedOrPaidConflictGroups++;
+    summary.financialConflictRecords.approved += group.approvedCount;
+    summary.financialConflictRecords.paid += group.paidCount;
   }
-  return { summary, claims: [...groups.values()].map(({ partners, sources, financial, ...claim }) => claim) };
+  return { summary, claims: [...groups.values()].map(({ partners, sources, financial, approvedCount, paidCount, ...claim }) => claim) };
 }
 
 export async function readInventory(db: any) {
