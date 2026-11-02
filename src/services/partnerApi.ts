@@ -32,6 +32,7 @@ async function partnerFetch(endpoint: string, options: RequestInit = {}): Promis
     const error: any = new Error(data.message || `Request failed with status ${response.status}`);
     error.status = response.status;
     error.code = data.code;
+    error.continuation = data.continuation;
     error.errors = data.errors;
     throw error;
   }

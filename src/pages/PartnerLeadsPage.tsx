@@ -19,6 +19,7 @@ import { fetchPartnerLeads, fetchPartnerCampaigns, submitPartnerLead } from '../
 import { LeadItem, PartnerCampaignItem, LeadStatus } from '../types/partner.ts';
 import { LeadDateFilterControls } from '../components/ui/LeadDateFilterControls.tsx';
 import { emptyLeadDateFilters } from '../../shared/leadDateFilters.ts';
+import { normalizeCustomerMobile } from '../../shared/customerMobile.ts';
 
 interface PartnerLeadsPageProps {
   onNavigate: (tab: string) => void;
@@ -48,6 +49,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const [submittedNotes, setSubmittedNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [duplicateExplanation, setDuplicateExplanation] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const loadLeads = async () => {
@@ -110,6 +112,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   };
 
   const openSubmitModal = () => {
+    setDuplicateExplanation(null);
     setSubmitError(null);
     setSubmitSuccess(null);
     setIsSubmitModalOpen(true);
@@ -132,7 +135,9 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const handleSubmitLead = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
-    if (!selectedCampaignId || clientName.trim().length < 2 || !/^[6-9]\d{9}$/.test(clientMobile.trim()) || !accountId.trim()) {
+    setDuplicateExplanation(null);
+    const mobile = normalizeCustomerMobile(clientMobile);
+    if (!selectedCampaignId || clientName.trim().length < 2 || !mobile || !accountId.trim()) {
       setSubmitError('Enter a campaign, customer name, valid 10-digit mobile, and account/reference ID.');
       return;
     }
@@ -144,7 +149,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
         setSubmitError(campaignWarning);
         return;
       }
-      await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: clientMobile.trim(), accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined });
+      await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: mobile, accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined });
       setSubmitSuccess('Lead submitted for Admin verification.');
       window.setTimeout(() => {
         closeSubmitModal();
@@ -152,6 +157,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       }, 1200);
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to submit lead.');
+      if (err.code === 'DUPLICATE_CAMPAIGN_MOBILE') setDuplicateExplanation(err.continuation?.message || 'VED cannot confirm an application-resume flow. Use the provider’s official application login or contact VED Support.');
     } finally {
       setIsSubmitting(false);
     }
@@ -386,9 +392,10 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
               <form onSubmit={handleSubmitLead} className="space-y-3">
                 {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
+                {duplicateExplanation && <details className="rounded-lg border border-[#D4AF37]/40 p-3 text-sm"><summary className="cursor-pointer text-[#D4AF37]">If Not Completed, Click Here</summary><p className="mt-3 text-xs leading-relaxed text-[#AAB3C2]">{duplicateExplanation}</p></details>}
                 <label className="block text-xs text-[#AAB3C2]">Campaign (LIVE / PAUSED)<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · {campaign.status} · ₹{campaign.payout}</option>)}</select></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
-                <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
+                <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={40} value={clientMobile} onChange={(event) => setClientMobile(event.target.value)} placeholder="10-digit mobile" required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Notes (optional)<textarea className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" rows={2} value={submittedNotes} onChange={(event) => setSubmittedNotes(event.target.value)} /></label>
                 {!campaignsLoading && campaignUnavailable && <p role="alert" className="rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{selectedCampaignId ? campaignWarning : "Choose a LIVE or PAUSED campaign to submit your report."}</p>}{campaignsLoading && <p role="status" className="text-xs text-[#AAB3C2]">Checking report campaign availability…</p>}{selectedCampaign && <p className="text-xs text-[#AAB3C2]">Required action: {selectedCampaign.requiredAction} · Potential payout ₹{selectedCampaign.payout}</p>}

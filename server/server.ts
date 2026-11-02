@@ -3,7 +3,6 @@ import path from 'path';
 import express from 'express';
 import { app } from './app.ts';
 import { connectDatabase } from './config/db.ts';
-import { ensureSeededData } from './controllers/campaignController.ts';
 
 dotenv.config();
 
@@ -23,9 +22,6 @@ export const startServer = async () => {
   const connected = await connectDatabase();
   if (!connected && process.env.NODE_ENV === 'production') {
     throw new Error('MongoDB is unavailable; refusing to start with volatile storage in production.');
-  }
-  if (connected) {
-    await ensureSeededData();
   }
 
   // If in production and dist exists, serve frontend static files

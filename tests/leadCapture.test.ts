@@ -16,9 +16,14 @@ import { WalletTransaction } from '../server/models/WalletTransaction.ts';
 import { AppSetting } from '../server/models/AppSetting.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { redirectToCampaignTracking } from '../server/controllers/campaignController.ts';
+import { LeadDuplicateProtection } from '../server/services/leadDuplicateProtection.ts';
 
 // Exercise real HTTP routes with isolated database doubles; no live database or vendor calls.
 test('customer capture, redirect, admin progress and existing tracking compatibility', async (t) => {
+  // Registry behavior is covered by duplicateLeads.test.ts; keep this redirect fixture isolated.
+  t.mock.method(LeadDuplicateProtection, 'assertReady', async () => {});
+  t.mock.method(LeadDuplicateProtection, 'claim', async () => {});
+  t.mock.method(LeadDuplicateProtection, 'find', async () => null);
   process.env.JWT_SECRET = 'test-secret-for-capture-only-32-characters';
   process.env.VENDOR_WEBHOOK_SECRET = 'test-vendor-secret';
   process.env.NODE_ENV = 'test';
@@ -53,7 +58,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
       }
     }, endSession: async () => {},
   }) as any);
-  t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && campaign.status === 'LIVE' ? campaign : null));
+  t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && (!query.status || campaign.status === query.status) ? campaign : null));
   t.mock.method(Campaign, 'findById', () => chain(campaign));
   t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
   t.mock.method(Partner, 'findOne', (query: any) => {
@@ -90,6 +95,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   t.mock.method(AppSetting, 'findOne', () => chain(null));
   t.mock.method(AuditLog, 'create', async (rows: any[]) => { audits.push(...rows); return rows; });
   t.mock.method(VendorWebhookEvent, 'create', async () => []);
+  t.mock.method(VendorWebhookEvent, 'findOne', () => chain(null));
   t.mock.method(WalletTransaction, 'updateOne', async (query: any, update: any) => {
     financialWrites++;
     if (!ledger.some((entry) => matches(entry, query))) {
@@ -161,7 +167,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(leads[0].submittedData.consentAt);
     assert.equal(notices.length, 1);
     assert.equal(financialWrites, 0);
-    assert.equal((await post(token)).status, 303);
+    assert.equal((await post(token)).status, 409);
     assert.equal(leads.length, 1, 'Repeated form submit should resume the same enquiry');
     assert.equal(clicks.length, 1);
     assert.equal(notices.length, 1);
@@ -289,7 +295,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(clicks.at(-1).partnerId, partner.partnerId);
     assert.equal(clicks.at(-1).clickId, leads.at(-1).vendorClickId);
     assert.equal(leads.at(-1).partnerId, partner.partnerId);
-    assert.equal((await post(mstockToken)).headers.get('location'), campaign.baseTrackingUrl);
+    assert.equal((await post(mstockToken)).status, 409, 'Retries show the duplicate fallback without another vendor redirect');
     assert.equal(leads.length, beforeLeads + 1, 'mStock retry must not duplicate the enquiry');
     let directLocation = '', directStatus = 0;
     await redirectToCampaignTracking(

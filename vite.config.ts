@@ -5,17 +5,12 @@ import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import { app } from './server/app.ts';
 import { connectDatabase } from './server/config/db.ts';
-import { ensureSeededData } from './server/controllers/campaignController.ts';
 
 const expressBackendPlugin = (): Plugin => ({
   name: 'express-backend-plugin',
   configureServer(server) {
-    // Attempt DB connection & seed in background
-    connectDatabase().then((connected) => {
-      if (connected) {
-        ensureSeededData();
-      }
-    });
+    // Connect only. Seed data is an explicit development operation.
+    void connectDatabase();
 
     server.middlewares.use((req, res, next) => {
       if (req.url && (req.url.startsWith('/api/') || req.url === '/api')) {

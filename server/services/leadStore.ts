@@ -6,6 +6,7 @@ import { isMongooseReady } from './partnerStore.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { escapeRegex } from './adminServices.ts';
+import { LeadDuplicateProtection, requireCustomerMobile, isClaimCollision, duplicateMobileError } from './leadDuplicateProtection.ts';
 
 // In-memory fallback stores
 const memoryLeads: ILead[] = [];
@@ -38,71 +39,29 @@ export const LeadStore = {
     submittedData?: Record<string, any>;
     payoutSnapshot: number;
   }): Promise<ILead> {
+    await LeadDuplicateProtection.assertReady();
+    const campaign = await LeadDuplicateProtection.resolveCampaign(data.campaignId);
+    const mobile = requireCustomerMobile(data.clientMobile);
     const cleanAccountId = data.accountId.trim();
-
-    // Check for duplicate account submission by same partner for same campaign
-    if (isMongooseReady()) {
-      const existing = await Lead.findOne({
-        partnerId: data.partnerId.toUpperCase(),
-        campaignId: data.campaignId,
-        accountId: cleanAccountId,
-      }).exec();
-
-      if (existing) {
-        const error: any = new Error(
-          `A lead with Account/Reference ID '${cleanAccountId}' has already been submitted for this campaign.`
-        );
-        error.code = 'DUPLICATE_LEAD';
-        error.status = 409;
-        throw error;
-      }
-
-      const leadId = generateLeadId();
-      const newLead = new Lead({
-        ...data,
-        partnerId: data.partnerId.toUpperCase(),
-        accountId: cleanAccountId,
-        leadId,
-        status: 'PENDING', // Submissions ALWAYS start as PENDING
-        rejectionReason: '',
-        currency: 'INR',
+    const session = await mongoose.startSession();
+    try {
+      let result: ILead;
+      await session.withTransaction(async () => {
+        const newLead = new Lead({ ...data, clientMobile: mobile,
+          partnerId: data.partnerId.toUpperCase(), accountId: cleanAccountId,
+          leadId: generateLeadId(), status: 'PENDING', rejectionReason: '', currency: 'INR',
+        });
+        await LeadDuplicateProtection.claim(String(campaign._id), mobile, String(newLead._id), data.partnerId.toUpperCase(), session);
+        const existing = await Lead.findOne({ partnerId: data.partnerId.toUpperCase(),
+          campaignId: { $in: [String(campaign._id), campaign.slug] }, accountId: cleanAccountId,
+        }).session(session).exec();
+        if (existing) throw Object.assign(new Error('This account/reference has already been submitted for this campaign.'), { code: 'DUPLICATE_LEAD', status: 409 });
+        await newLead.save({ session });
+        result = newLead.toJSON();
       });
-
-      await newLead.save();
-      return newLead.toJSON();
-    }
-
-    // Memory fallback
-    const duplicate = memoryLeads.find(
-      (l) =>
-        l.partnerId === data.partnerId.toUpperCase() &&
-        l.campaignId === data.campaignId &&
-        l.accountId.toLowerCase() === cleanAccountId.toLowerCase()
-    );
-
-    if (duplicate) {
-      const error: any = new Error(
-        `A lead with Account/Reference ID '${cleanAccountId}' has already been submitted for this campaign.`
-      );
-      error.code = 'DUPLICATE_LEAD';
-      error.status = 409;
-      throw error;
-    }
-
-    const lead: ILead = {
-      ...data,
-      partnerId: data.partnerId.toUpperCase(),
-      accountId: cleanAccountId,
-      leadId: generateLeadId(),
-      status: 'PENDING',
-      currency: 'INR',
-      rejectionReason: '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    memoryLeads.unshift(lead);
-    return JSON.parse(JSON.stringify(lead));
+      return result!;
+    } catch (error) { if (isClaimCollision(error)) throw duplicateMobileError(); throw error; }
+    finally { await session.endSession(); }
   },
 
   async findLeadsByPartner(

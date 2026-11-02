@@ -11,6 +11,8 @@ import { getDbStatus } from '../config/db.ts';
 import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
+import { LeadDuplicateProtection, DUPLICATE_MOBILE_MESSAGE, CONTINUATION_EXPLANATION, duplicateMobileError, isClaimCollision } from '../services/leadDuplicateProtection.ts';
+import { normalizeCustomerMobile } from '../../shared/customerMobile.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
   slug: string;
@@ -232,27 +234,31 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
   const consent = req.body.consent === 'yes';
   try {
     const { campaign, partner, target } = tracking = await resolveTracking(token.slug, token.ref, token.pid);
-    const mobile = rawMobile.replace(/[\s()-]/g, '').replace(/^(?:\+91|91)(?=\d{10}$)/, '');
+    const mobile = normalizeCustomerMobile(rawMobile);
     let error = '';
     if (name.length < 2 || name.length > 120 || /[\u0000-\u001f<>]/.test(name)) error = 'Please enter a valid full name (2–120 characters).';
-    else if (rawMobile.length > 20 || !/^[6-9]\d{9}$/.test(mobile)) error = 'Please enter a valid 10-digit Indian mobile number.';
+    else if (!mobile) error = 'Please enter a valid Indian mobile number.';
     else if (req.body.consent !== 'yes') error = 'Please consent to saving your details before continuing.';
     if (error) {
       renderForm(res, campaign, req.body.captureToken, error, name.slice(0, 120), rawMobile.slice(0, 20), 400, consent);
       return;
     }
 
+    await LeadDuplicateProtection.assertReady();
     const accountId = `ENQUIRY:${token.clickId}`;
     session = await mongoose.startSession();
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
-      if (existing) return; // A repeated submit of this form resumes the same enquiry.
+      if (existing) throw duplicateMobileError();
+      const leadObjectId = new mongoose.Types.ObjectId();
+      await LeadDuplicateProtection.claim(String(campaign._id), mobile!, String(leadObjectId), partner.partnerId, session!);
       await TrackingClick.create([{
         clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
         payoutSnapshot: Number(campaign.payout || 0), currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       }], { session });
       const [lead] = await Lead.create([{
+        _id: leadObjectId,
         leadId: generateLeadId(), partnerId: partner.partnerId, campaignId: String(campaign._id),
         campaignName: campaign.name, campaignType: campaign.campaignType, clientName: name, clientMobile: mobile,
         accountId, action: campaign.requiredAction, vendorClickId: token.clickId, status: 'PENDING',
@@ -267,12 +273,18 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     });
     res.redirect(303, destination(target, campaign, partner, token.clickId));
   } catch (error: any) {
+    if (error?.code === 'DUPLICATE_CAMPAIGN_MOBILE' || isClaimCollision(error)) {
+      renderPage(res, `<h1>Application already recorded</h1><p role="alert" data-code="DUPLICATE_CAMPAIGN_MOBILE">${escapeHtml(DUPLICATE_MOBILE_MESSAGE)}</p><details><summary style="cursor:pointer;color:#d4af37;padding:16px 0">If Not Completed, Click Here</summary><p>${escapeHtml(CONTINUATION_EXPLANATION)}</p></details>`, 409);
+      return;
+    }
     // Concurrent submissions may race on the unique enquiry/click indexes.
     if (error?.code === 11000) {
       try {
         const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid);
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
-        if (existing) { res.redirect(303, destination(target, campaign, partner, token.clickId)); return; }
+        if (existing) {
+          renderPage(res, `<h1>Application already recorded</h1><p role="alert">${escapeHtml(DUPLICATE_MOBILE_MESSAGE)}</p><details><summary>If Not Completed, Click Here</summary><p>${escapeHtml(CONTINUATION_EXPLANATION)}</p></details>`, 409); return;
+        }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
     }
     const status = error?.status || 503;

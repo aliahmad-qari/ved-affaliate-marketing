@@ -7,6 +7,8 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
+import { duplicateMobileResponse } from '../services/leadDuplicateProtection.ts';
+import { normalizeCustomerMobile } from '../../shared/customerMobile.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -125,7 +127,8 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       errors.clientName = 'Client full name is required (at least 2 characters).';
     }
 
-    if (!clientMobile || !isValidMobile(clientMobile)) {
+    const normalizedMobile = normalizeCustomerMobile(clientMobile);
+    if (!normalizedMobile) {
       errors.clientMobile = 'Valid 10-digit Indian client mobile number is required.';
     }
 
@@ -165,7 +168,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       campaignName: campaign.name,
       campaignType: campaign.campaignType,
       clientName: clientName.trim(),
-      clientMobile: clientMobile.trim(),
+      clientMobile: normalizedMobile!,
       accountId: accountId.trim(),
       action: campaign.requiredAction,
       submittedData: {
@@ -181,6 +184,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       data: lead,
     });
   } catch (error: any) {
+    if (error.code === 'DUPLICATE_CAMPAIGN_MOBILE') { res.status(409).json(duplicateMobileResponse()); return; }
     if (error.status === 409 || error.code === 'DUPLICATE_LEAD') {
       res.status(409).json({
         success: false,

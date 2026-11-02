@@ -10,6 +10,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { Notification } from '../models/Notification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
+import { LeadDuplicateProtection, duplicateMobileError, duplicateMobileResponse, isClaimCollision, requireCustomerMobile } from '../services/leadDuplicateProtection.ts';
 
 const text = (value: unknown, maxLength = 160): string =>
   typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -61,10 +62,17 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
     return;
   }
 
+  try { await LeadDuplicateProtection.assertReady(); }
+  catch { res.status(503).json({ success: false, message: 'Lead duplicate protection is awaiting database preparation.' }); return; }
   const session = await mongoose.startSession();
   try {
     let response: Record<string, unknown> = {};
     await session.withTransaction(async () => {
+      const priorEvent = await VendorWebhookEvent.findOne({ eventId }).session(session).lean().exec();
+      if (priorEvent) {
+        if (priorEvent.clickId !== clickId || priorEvent.conversionId !== conversionId || priorEvent.status !== targetStatus) throw Object.assign(new Error('Event conflicts with an existing callback.'), { status: 409 });
+        response = { duplicate: true }; return;
+      }
       const click = await TrackingClick.findOne({ clickId, expiresAt: { $gt: new Date() } }).session(session).exec();
       if (!click) throw Object.assign(new Error('Unknown or expired clickId.'), { status: 404 });
       const [partner, campaign] = await Promise.all([
@@ -76,16 +84,31 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       await VendorWebhookEvent.create([{ eventId, clickId, conversionId, status: targetStatus }], { session });
       const conversionKey = `${campaign._id}:${conversionId}`;
       let lead: any = await Lead.findOne({ vendorConversionKey: conversionKey }).session(session).exec();
-      // Form enquiries are reviewed by Admin; keep callbacks from creating a second earning for the same click.
-      if (!lead) lead = await Lead.findOne({ vendorClickId: clickId, 'submittedData.source': 'CUSTOMER_FORM' }).session(session).exec();
-      if (lead?.submittedData?.source === 'CUSTOMER_FORM') {
-        response = { leadId: lead.leadId, status: lead.status, ignoredManualEnquiry: true };
-        return;
+      if (!lead) lead = await Lead.findOne({ vendorClickId: clickId }).session(session).exec();
+      const mobile = requireCustomerMobile(req.body?.customerMobile || lead?.clientMobile);
+      if (lead?.clientMobile && requireCustomerMobile(lead.clientMobile) !== mobile) throw duplicateMobileError();
+      if (!lead) {
+        const claimed = await LeadDuplicateProtection.find(String(campaign._id), mobile, session);
+        if (claimed) {
+          if (claimed.state !== 'CLAIMED' || claimed.partnerId !== partner.partnerId || !claimed.leadId) throw duplicateMobileError();
+          lead = await Lead.findById(claimed.leadId).session(session).exec();
+          if (!lead) throw duplicateMobileError();
+        }
       }
       const beforeStatus = lead?.status;
 
       if (lead && lead.partnerId !== partner.partnerId) {
-        throw Object.assign(new Error('Conversion attribution does not match the original partner.'), { status: 409 });
+        throw duplicateMobileError();
+      }
+      if (lead) {
+        if (![String(campaign._id), campaign.slug].includes(lead.campaignId)) throw duplicateMobileError();
+        await LeadDuplicateProtection.claim(String(campaign._id), mobile, String(lead._id), lead.partnerId, session);
+        // Preserve the existing manual-review workflow; callbacks may not grant it another earning.
+        if (!lead.vendorConversionKey || lead.submittedData?.source === 'CUSTOMER_FORM') {
+          response = { ignoredManualEnquiry: true, existingLeadPreserved: true }; return;
+        }
+        if (lead.vendorConversionKey !== conversionKey || lead.vendorClickId !== clickId) throw duplicateMobileError();
+        if (lead.status === targetStatus) { response = { duplicate: true }; return; }
       }
       if (lead && lead.status !== 'PENDING' && lead.status !== targetStatus) {
         response = { leadId: lead.leadId, status: lead.status, ignoredTerminalUpdate: true };
@@ -94,14 +117,18 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
 
       if (!lead) {
         const accountId = text(req.body?.accountId, 120) || `VENDOR:${conversionId}`.slice(0, 120);
+        const leadObjectId = new mongoose.Types.ObjectId();
+        await LeadDuplicateProtection.claim(String(campaign._id), mobile, String(leadObjectId), partner.partnerId, session);
         [lead] = await Lead.create([{
+          _id: leadObjectId,
           leadId: generateLeadId(),
           partnerId: partner.partnerId,
           campaignId: String(campaign._id),
           campaignName: campaign.name,
           campaignType: campaign.campaignType,
           clientName: text(req.body?.customerName, 120),
-          clientMobile: text(req.body?.customerMobile, 40),
+          clientMobile: mobile,
+          submittedData: { source: 'VENDOR_WEBHOOK' },
           accountId,
           action: campaign.requiredAction,
           vendorClickId: clickId,
@@ -116,7 +143,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
         }], { session });
       } else {
         if (!lead.clientName && req.body?.customerName) lead.clientName = text(req.body.customerName, 120);
-        if (!lead.clientMobile && req.body?.customerMobile) lead.clientMobile = text(req.body.customerMobile, 40);
+        if (!lead.clientMobile) lead.clientMobile = mobile;
         lead.status = targetStatus;
         lead.reviewedBy = 'VENDOR_WEBHOOK';
         if (targetStatus === 'APPROVED') lead.approvedAt = new Date();
@@ -174,9 +201,12 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
     });
     res.status(200).json({ success: true, data: response });
   } catch (error: any) {
+    if (error?.code === 'DUPLICATE_CAMPAIGN_MOBILE' || isClaimCollision(error)) { res.status(409).json(duplicateMobileResponse()); return; }
     if (error?.code === 11000) {
-      res.status(200).json({ success: true, duplicate: true });
-      return;
+      // Only an already committed matching event is safe to acknowledge as a retry.
+      const prior = await VendorWebhookEvent.findOne({ eventId, clickId, conversionId, status: targetStatus }).lean().exec();
+      if (prior) { res.status(200).json({ success: true, duplicate: true }); return; }
+      res.status(409).json({ success: false, message: 'Conversion conflicts with an existing record; review is required.' }); return;
     }
     next(error);
   } finally {
