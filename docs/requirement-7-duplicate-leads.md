@@ -59,7 +59,7 @@ node --import tsx scripts/prepare-campaign-mobile-registry.ts --apply --writers-
 
 The migration marks readiness false, inventories historical leads, refuses unresolved campaign aliases, creates only the registry index, and seeds one claim per normalized pair. Single-lead pairs retain the original lead/partner reference. Multiple-lead pairs become HISTORICAL_CONFLICT with a count and no arbitrarily chosen owner. Source leads, clicks, accounts, financial transactions and audit history are not updated/deleted/merged.
 
-Invalid/missing historical mobiles stop activation by default. Only after explicit developer acceptance of the unidentified-history limitation may the operator add `--accept-unidentified-history`. Such records cannot be proven to match later identified customers. This is not full historical deduplication; no code can recover missing identity from nothing.
+Invalid/missing historical mobiles stop activation. Complete identity and claim coverage is required; `--accept-unidentified-history` no longer bypasses that requirement. For the two explicitly approved isolated historical references, follow `docs/historical-identity-compatibility.md`; all other unresolved references still block readiness.
 
 Matching partially prepared claims are idempotent; discrepancies stop the operation without overwriting their owner. Already-active registries cannot be rerun online. Readiness becomes true only after insertion and index verification complete. On failure, keep writers paused and readiness unconfirmed until a reviewed retry. Never mark readiness true manually to bypass missing inventory/indexes.
 

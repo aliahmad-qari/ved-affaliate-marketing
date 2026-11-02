@@ -153,6 +153,15 @@ test('all creation paths share campaign/mobile ownership, concurrent protection 
   failLead = true; const beforeClaims = claims.length, beforeClicks = clicks.length; assert.equal((await capture(await form(), '9876543213')).status, 503); assert.equal(claims.length, beforeClaims); assert.equal(clicks.length, beforeClicks); failLead = false;
   claims.push({ canonicalCampaignId: campaigns[0]._id, normalizedMobile: '9876543214', state: 'HISTORICAL_CONFLICT', historicalCount: 2 });
   assert.equal((await submit('9876543214', 'broker', 0, 'HISTORICAL')).status, 409);
+  const preserved = arrays.map(rows => JSON.stringify(rows));
+  clicks.push({ ...vendorClick, clickId: 'isolated-history', campaignId: 'historical:00000000-0000-4000-8000-000000000001' });
+  assert.equal((await webhook({ ...vendorBody, eventId: 'history-event', clickId: 'isolated-history', conversionId: 'history-conversion' })).status, 409);
+  clicks.pop();
+  assert.deepEqual(arrays.map(rows => JSON.stringify(rows)), preserved, 'Historical callback must not write events, leads, claims or financial entries');
+  clicks.push({ ...vendorClick, clickId: 'history-conflict' });
+  assert.equal((await webhook({ ...vendorBody, eventId: 'history-conflict-event', clickId: 'history-conflict', conversionId: 'history-conflict-conversion', customerMobile: '9876543214' })).status, 409);
+  clicks.pop();
+  assert.deepEqual(arrays.map(rows => JSON.stringify(rows)), preserved);
   const unauthorized = await fetch(base + `/api/public/campaigns/broker/resume?leadId=${original._id}&mobile=9876543210`); assert.equal(unauthorized.status, 404); assert.ok(!(await unauthorized.text()).includes(partners[0].partnerId));
   assert.equal((await submit('invalid', 'broker')).status, 400);
 });

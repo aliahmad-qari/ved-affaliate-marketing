@@ -75,6 +75,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       }
       const click = await TrackingClick.findOne({ clickId, expiresAt: { $gt: new Date() } }).session(session).exec();
       if (!click) throw Object.assign(new Error('Unknown or expired clickId.'), { status: 404 });
+      if (typeof click.campaignId === 'string' && click.campaignId.startsWith('historical:')) throw duplicateMobileError();
       const [partner, campaign] = await Promise.all([
         Partner.findOne({ partnerId: click.partnerId, accountStatus: 'ACTIVE' }).session(session).exec(),
         Campaign.findById(click.campaignId).session(session).exec(),
