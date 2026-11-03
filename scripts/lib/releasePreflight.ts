@@ -7,6 +7,7 @@ const MESSAGES = {
   PM2_IDENTITY: 'VED process identity, working directory or initial state is unexpected. Inspect only redacted PM2 metadata.',
   UNEXPECTED_WRITER: 'An additional VED process or active database operation was detected. Keep maintenance active and investigate privately.',
   LISTENER: 'The VED API port is still listening or socket inspection could not complete. Do not proceed.',
+  GIT_CLEANLINESS: 'Tracked changes, unexpected untracked files or unsafe operational paths were detected. Only regular non-symlink live deploy.sh and ecosystem.config.cjs may be untracked; runner/release checkouts must remain clean.',
 } as const;
 export class ReleasePreflightError extends Error {
   constructor(public code: keyof typeof MESSAGES) { super(MESSAGES[code]); }

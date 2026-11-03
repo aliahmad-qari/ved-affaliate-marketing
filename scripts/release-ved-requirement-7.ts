@@ -11,6 +11,7 @@ import { assertFrozenInventory, frozenInventoryDigest, readInventorySnapshot } f
 import { verifyCampaignMobileRegistry } from './lib/verifyCampaignMobileRegistry.ts';
 import { databaseToolsVersion, restoreVersionPolicy, stableFcv, verifyRestoreServer } from './lib/restoreVersionCompatibility.ts';
 import { assertVedQuiet, failPreflight, fenceVedWriters, initialVedMode, inspectVedProcesses, parseReleaseArguments, processIdentity, releaseApprovalDigest, releaseIsApproved, safeFailure } from './lib/releasePreflight.ts';
+import { assertOperationalPathsUntracked, verifyCheckoutCleanliness } from './lib/releaseGitCleanliness.ts';
 
 // No app/model imports, shell execution, git push, deploy.sh or automatic rollback.
 const PROCESS = 'ved-affiliate-api';
@@ -25,6 +26,9 @@ const quiet = (program: string, args: string[], cwd = ROOT, env = process.env) =
   cwd, env: program === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30 * 60 * 1000, maxBuffer: 32 * 1024 * 1024,
 }).trim();
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const gitStatus = (cwd: string) => execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], {
+  cwd, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+});
 function privateFile(file: string) {
   requireSafe(path.isAbsolute(file));
   const target = realpathSync(file), relative = path.relative(ROOT, target);
@@ -72,14 +76,19 @@ async function main() {
   stage = 'LOCKFILE_MATCH';
   requireSafe(hash(readFileSync(path.join(live, 'package-lock.json'))) === hash(readFileSync(path.join(release, 'package-lock.json'))));
   stage = 'REVIEWED_GIT_OBJECTS';
-  for (const dir of [ROOT, live, release]) requireSafe(quiet('git', ['status', '--porcelain'], dir) === '');
+  for (const dir of [ROOT, release]) verifyCheckoutCleanliness(dir, gitStatus(dir), false);
+  const operationalFiles = verifyCheckoutCleanliness(live, gitStatus(live), true);
   requireSafe(JSON.parse(readFileSync(path.join(release, 'package.json'), 'utf8')).scripts.start === 'tsx server.ts');
   requireSafe(quiet('git', ['rev-parse', 'HEAD'], release) === config.reviewedCommit);
   // This runner and the release must be reviewed at the same immutable revision.
   requireSafe(quiet('git', ['rev-parse', 'HEAD'], ROOT) === config.reviewedCommit);
   const oldCommit = quiet('git', ['rev-parse', 'HEAD'], live);
   requireSafe(quiet('git', ['cat-file', '-t', config.reviewedCommit], live) === 'commit');
-  const tracked = quiet('git', ['ls-tree', '-r', '--name-only', config.reviewedCommit], live).split('\n');
+  const tracked = execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', config.reviewedCommit], {
+    cwd: live, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).split('\0').filter(Boolean);
+  const liveTracked = execFileSync('git', ['ls-files', '-z'], { cwd: live, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\0').filter(Boolean);
+  assertOperationalPathsUntracked(liveTracked, tracked);
   requireSafe(!tracked.some(f => /(^|\/)(\.env(?:\..*)?|id_rsa|id_ed25519)$/.test(f) && f !== '.env.example'));
   stage = 'ARTIFACT_AND_CAPACITY';
   requireSafe(existsSync(path.join(release, 'dist/index.html')) && existsSync(path.join(live, 'node_modules/tsx/dist/cli.mjs')));
@@ -169,7 +178,7 @@ async function main() {
     if (initialState === 'stopped') await assertVedQuiet(checkPort, activeOperations);
     const plan = { configDigest: hash(configBytes), reviewedCommit: config.reviewedCommit, previousCommit: oldCommit,
       manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventoryPolicy: approval!.manifest.inventoryPolicy ?? 'STRICT_LEGACY', restoreImageId: image.Id,
-      compatibility, requiredDatabaseToolsVersion: dumpToolVersion, initialState, apiPort: port, backupRestorePolicy: BACKUP_RESTORE_POLICY };
+      compatibility, requiredDatabaseToolsVersion: dumpToolVersion, initialState, apiPort: port, backupRestorePolicy: BACKUP_RESTORE_POLICY, operationalFiles };
     const planDigest = releaseApprovalDigest(plan);
     console.log(JSON.stringify({ mode: apply ? 'APPROVED_RELEASE' : 'READ_ONLY_DRY_RUN', process: PROCESS, reviewedCommit: config.reviewedCommit,
       initialVedState: initialState, apiPort: port, nginxMaintenance: 'Not modified; reopening requires separate operator approval',
@@ -262,9 +271,11 @@ async function main() {
     requireSafe(same(sourceOnly(baseline), sourceOnly(fingerprint()))); journal('REGISTRY_VERIFIED');
     await fence('stopped');
     stage = 'APPROVED_ARTIFACT_INSTALLATION';
-    requireSafe(quiet('git', ['status', '--porcelain'], live) === '' && treeDigest(path.join(release, 'dist')) === artifactDigest);
+    requireSafe(same(verifyCheckoutCleanliness(live, gitStatus(live), true), operationalFiles) && treeDigest(path.join(release, 'dist')) === artifactDigest);
+    for (const dir of [ROOT, release]) verifyCheckoutCleanliness(dir, gitStatus(dir), false);
     // Deploy only the approved Git object; never pull main or execute an existing deploy script.
     quiet('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', config.reviewedCommit], live); switched = true;
+    requireSafe(same(verifyCheckoutCleanliness(live, gitStatus(live), true), operationalFiles));
     if (existsSync(path.join(live, 'dist'))) renameSync(path.join(live, 'dist'), path.join(runDir, 'previous-dist'));
     cpSync(path.join(release, 'dist'), path.join(live, 'dist'), { recursive: true, errorOnExist: true, force: false });
     requireSafe(treeDigest(path.join(live, 'dist')) === artifactDigest);

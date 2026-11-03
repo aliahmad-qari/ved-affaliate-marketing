@@ -15,6 +15,15 @@ This runner requires the live and release package-lock.json files to match: it
 does not upgrade production dependencies during downtime. The runner must execute
 from the reviewed release revision, not the live application directory.
 
+The only live-checkout cleanliness exception is untracked deploy.sh and
+ecosystem.config.cjs at the repository root. They must be regular files, not
+symlinks/directories. All other untracked files and any tracked/staged/conflicted
+changes remain blocked. Runner/release checkouts have NO exception. Operational
+file contents/modes are hashed read-only into the release approval, rechecked before
+and after source checkout, and never printed, executed, copied or modified. Source
+revisions tracking either operational path (including directory prefixes) are
+rejected before maintenance so checkout cannot overwrite or remove those files.
+
 Create one owner-only (0600) JSON configuration outside ALL checkouts. No real
 configuration, credentials or completed historical manifest belongs in Git.
 Example shape; replace placeholders privately:
