@@ -7,6 +7,26 @@ options, vendor URLs or application-resume mechanism are created.
 
 ## Private approval
 
+For the confirmed 679-lead/27-campaign inventory, use the standalone interactive
+helper from the separate VPS audit checkout:
+
+```bash
+node --import tsx scripts/create-historical-reference-manifest.ts
+```
+
+It privately reads AUDIT_MONGODB_URI, then MONGODB_URI, then the existing owner-only
+live .env or /etc/ved/r7-release.json (mongoUri). Prefer an authorized read-only URI
+when available. No URI is requested in chat, passed in argv or printed. Run as the
+OS account owning the private /etc/ved directory; it must have owner-only permissions.
+The helper reads snapshot transactions only, verifies exact A=1/0/0 and B=9/9/0
+record/approved/paid counts, and asks for explicit authorized isolation acceptance.
+It rechecks snapshot data after approval and exclusively creates the 0600 manifest;
+it never overwrites an existing file or creates database/index/readiness records.
+Only sanitized counts and the exact-file SHA-256 go to stdout; approval prompts go
+to the terminal. Any data drift or ambiguity stops setup. Preserve the resulting
+file/UUIDs for retries. If a partial file exists after a filesystem error, obtain
+private review rather than deleting/replacing it automatically.
+
 An authorized operator must create a JSON manifest OUTSIDE every repository checkout,
 using the exact two original references privately established by the diagnostic.
 Do not paste or commit the completed manifest. Store it with owner-only permissions
