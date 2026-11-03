@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { readInventory } from './lib/campaignMobileInventory.ts';
+import { assertFrozenInventory, readInventorySnapshot } from './lib/campaignMobileInventory.ts';
 import { loadHistoricalManifest } from './lib/historicalReferenceManifest.ts';
 import { verifyCampaignMobileRegistry } from './lib/verifyCampaignMobileRegistry.ts';
 
@@ -9,6 +9,8 @@ async function main() {
     throw new Error('Explicit approval, a backup and paused writers are required.');
   }
   const approval = loadHistoricalManifest(process.env.HISTORICAL_REFERENCE_MANIFEST, process.env.APPROVED_HISTORICAL_MANIFEST_SHA256);
+  const frozenDigest = process.env.VED_FROZEN_INVENTORY_SHA256;
+  if (!frozenDigest || !/^[a-f\d]{64}$/.test(frozenDigest)) throw new Error('A writer-fenced source inventory is required.');
   const client = new mongoose.mongo.MongoClient(process.env.MIGRATION_MONGODB_URI, { maxPoolSize: 2, serverSelectionTimeoutMS: 5000 });
   try {
     await client.connect(); const db = client.db();
@@ -18,11 +20,14 @@ async function main() {
     const prior = await state.findOne({ _id: 'campaign-mobile-v1' });
     if (prior?.ready) throw new Error('Registry is already active; do not rerun migration online.');
     if (prior?.historicalManifestDigest && prior.historicalManifestDigest !== approval?.digest) throw new Error('Prior preparation approval mismatch.');
-    await state.updateOne({ _id: 'campaign-mobile-v1' }, { $set: { ready: false, version: 1 } }, { upsert: true });
-    const { summary, claims } = await readInventory(db, approval?.manifest);
+    if (prior?.frozenInventoryDigest && prior.frozenInventoryDigest !== frozenDigest) throw new Error('Prior frozen source mismatch; manual recovery required.');
+    const inventory = await readInventorySnapshot(client, approval?.manifest);
+    assertFrozenInventory(inventory, frozenDigest);
+    const { summary, claims } = inventory;
     console.log(JSON.stringify(summary, null, 2));
     if (summary.unresolvedCampaign) throw new Error('Unresolved campaign aliases require review before activation.');
     if (summary.invalidOrMissingMobile || summary.validRecords !== summary.totalLeads) throw new Error('Complete customer identity coverage is required.');
+    await state.updateOne({ _id: 'campaign-mobile-v1' }, { $set: { ready: false, version: 1, frozenInventoryDigest: frozenDigest } }, { upsert: true });
     // Bind partial preparation to the exact approval before any claim writes.
     if (approval) await state.updateOne({ _id: 'campaign-mobile-v1' }, { $set: { historicalManifestDigest: approval.digest } });
     const registry = db.collection('campaignmobileclaims');
@@ -35,9 +40,8 @@ async function main() {
     }
     await verifyCampaignMobileRegistry(registry, claims, summary.totalLeads);
     // Reinventory while writers remain fenced; never activate a stale preparation.
-    const check = await readInventory(db, approval?.manifest);
-    const signature = (rows: any[]) => rows.map(r => JSON.stringify(r)).sort().join('\n');
-    if (signature(check.claims) !== signature(claims) || JSON.stringify(check.summary) !== JSON.stringify(summary)) throw new Error('Historical inventory changed during preparation.');
+    const check = await readInventorySnapshot(client, approval?.manifest);
+    assertFrozenInventory(check, frozenDigest);
     await state.updateOne({ _id: 'campaign-mobile-v1' }, { $set: { ready: true, version: 1, preparedAt: new Date(), unidentifiedHistoryCount: 0, coverageVerified: true, coveredLeadCount: summary.totalLeads, isolatedHistoricalRecords: summary.isolatedHistoricalRecords } });
     console.log('Registry prepared. Existing leads, wallet entries and audit records were not changed.');
   } finally { await client.close(); }

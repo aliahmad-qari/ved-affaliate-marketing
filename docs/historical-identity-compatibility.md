@@ -7,8 +7,8 @@ options, vendor URLs or application-resume mechanism are created.
 
 ## Private approval
 
-For the confirmed 679-lead/27-campaign inventory, use the standalone interactive
-helper from the separate VPS audit checkout:
+For the two approved historical groups and 27 campaigns, use the standalone
+interactive helper while production remains live, from the separate VPS audit checkout:
 
 ```bash
 node --import tsx scripts/create-historical-reference-manifest.ts
@@ -18,12 +18,16 @@ It privately reads AUDIT_MONGODB_URI, then MONGODB_URI, then the existing owner-
 live .env or /etc/ved/r7-release.json (mongoUri). Prefer an authorized read-only URI
 when available. No URI is requested in chat, passed in argv or printed. Run as the
 OS account owning the private /etc/ved directory; it must have owner-only permissions.
+Approval binds the exact two historical references, record membership, attribution
+and approved/paid counts, not the changing number of active-campaign leads. The
+snapshot total is recorded for information only under FROZEN_AT_CUTOVER policy.
 The helper reads snapshot transactions only, verifies exact A=1/0/0 and B=9/9/0
 record/approved/paid counts, and asks for explicit authorized isolation acceptance.
-It rechecks snapshot data after approval and exclusively creates the 0600 manifest;
+It rechecks the approved historical records after approval and exclusively creates the 0600 manifest;
 it never overwrites an existing file or creates database/index/readiness records.
 Only sanitized counts and the exact-file SHA-256 go to stdout; approval prompts go
-to the terminal. Any data drift or ambiguity stops setup. Preserve the resulting
+to the terminal. Historical identity/status/membership drift or ambiguity stops setup;
+normal active lead growth does not. Preserve the resulting
 file/UUIDs for retries. If a partial file exists after a filesystem error, obtain
 private review rather than deleting/replacing it automatically.
 
@@ -40,7 +44,9 @@ Structure (placeholders below are documentation only, not an executable manifest
   "version": 1,
   "approvedBy": "<authorized reviewer>",
   "approvalReference": "<recorded approval>",
-  "expectedTotalLeads": 679,
+  "expectedTotalLeads": "<observed number; informational>",
+  "inventoryPolicy": "FROZEN_AT_CUTOVER",
+  "historicalRecordsDigest": "<helper-generated historical-record digest>",
   "expectedCampaigns": 27,
   "entries": [
     {
@@ -62,9 +68,9 @@ Structure (placeholders below are documentation only, not an executable manifest
 ```
 
 Confirm paid counts privately before approving the file. Group A's zero approved
-count alone does not establish its paid count. Current production may also grow;
-expected totals must reflect a fresh, reviewed cutover inventory, never a guessed
-count. Any mismatch stops preparation. Nine approved leads do not prove nine
+count alone does not establish its paid count. Current production may grow normally;
+the release command automatically obtains a fresh frozen inventory ONLY after
+writer fencing. Any change after that freeze stops preparation. Nine approved leads do not prove nine
 distinct mobiles; ordinary grouping determines singleton/conflict claims.
 
 Review the exact file and its SHA-256 digest via a trusted approval channel. The
@@ -101,9 +107,11 @@ audit. Without a manifest, previous strict unresolved-reference reporting remain
    processes. No other VPS service or Nginx changes are required.
 3. Take a consistent VED backup and verify isolated restoration, preserving all source
    collections, registry/state if present, and financial records.
-4. Refresh masked counts and approve the exact manifest/digest. Securely set
-   MIGRATION_MONGODB_URI, CONFIRM_DEDUPLICATION_MIGRATION=YES and the two tool variables.
-   Then, only with migration approval and writers actually fenced:
+4. Approve the historical manifest/digest once. Use the release runner, which fences
+   writers, captures the full consistent cutover inventory and passes its digest
+   automatically in VED_FROZEN_INVENTORY_SHA256. Standalone migration also requires
+   that exact frozen digest; do not invent it or use a live/preparation inventory.
+   Only with migration approval and writers actually fenced:
 
    ```bash
    node --import tsx scripts/prepare-campaign-mobile-registry.ts --apply --writers-paused
@@ -113,7 +121,8 @@ audit. Without a manifest, previous strict unresolved-reference reporting remain
    --accept-unidentified-history bypass no longer applies). It creates only registry
    data/index and readiness metadata. It verifies complete lead coverage, exact claim
    read-back, no extra registry rows, a full non-sparse/non-partial unique compound
-   index and a repeat inventory before readiness. The exact manifest digest is retained
+   index and a repeat snapshot against the frozen digest before readiness. Manifest
+   digest, frozen inventory digest and covered lead count are retained
    in state. The source database must remain writer-fenced throughout; the command-line
    flag and repeat scan are NOT an enforced lock.
 6. Activate the reviewed VED release using the separately verified production process.

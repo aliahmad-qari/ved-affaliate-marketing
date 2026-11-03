@@ -7,7 +7,7 @@ import os from 'node:os';
 import mongoose from 'mongoose';
 import { parse as parseEnv } from 'dotenv';
 import { loadHistoricalManifest } from './lib/historicalReferenceManifest.ts';
-import { readInventory } from './lib/campaignMobileInventory.ts';
+import { assertFrozenInventory, frozenInventoryDigest, readInventorySnapshot } from './lib/campaignMobileInventory.ts';
 import { verifyCampaignMobileRegistry } from './lib/verifyCampaignMobileRegistry.ts';
 import { databaseToolsVersion, restoreVersionPolicy, stableFcv, verifyRestoreServer } from './lib/restoreVersionCompatibility.ts';
 
@@ -125,7 +125,7 @@ async function main() {
     const probe = client.startSession();
     try { await probe.withTransaction(async () => { await db.collection('leads').findOne({}, { session: probe, projection: { _id: 1 } }); }, { readConcern: { level: 'snapshot' } }); }
     finally { await probe.endSession(); }
-    const inventory = await readInventory(db, approval!.manifest);
+    const inventory = await readInventorySnapshot(client, approval!.manifest);
     requireSafe(!inventory.summary.unresolvedCampaign && !inventory.summary.invalidOrMissingMobile && inventory.summary.validRecords === inventory.summary.totalLeads);
     requireSafe(!(await db.collection('leadDeduplicationState').findOne({ _id: 'campaign-mobile-v1' as any }))?.ready);
     // Verify cluster-monitor permission before a maintenance window.
@@ -136,7 +136,7 @@ async function main() {
     ]).toArray();
     await activity();
     const plan = { configDigest: hash(configBytes), reviewedCommit: config.reviewedCommit, previousCommit: oldCommit,
-      manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventory: inventory.summary, restoreImageId: image.Id,
+      manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventoryPolicy: approval!.manifest.inventoryPolicy ?? 'STRICT_LEGACY', restoreImageId: image.Id,
       compatibility, requiredDatabaseToolsVersion: dumpToolVersion };
     const planDigest = hash(JSON.stringify(plan));
     console.log(JSON.stringify({ mode: apply ? 'APPROVED_RELEASE' : 'READ_ONLY_DRY_RUN', process: PROCESS, reviewedCommit: config.reviewedCommit,
@@ -150,15 +150,19 @@ async function main() {
     const lock = path.resolve(live, quiet('git', ['rev-parse', '--git-path', 'ved-r7-release.lock'], live));
     mkdirSync(lock, { mode: 0o700 }); // Exclusive; retained on success/failure for explicit operator acknowledgement.
     runDir = path.join(backups, `ved-r7-${Date.now()}-${randomUUID()}`); mkdirSync(runDir, { mode: 0o700 });
+    let frozenDigest: string | undefined;
+    let frozenLeadCount: number | undefined;
     const journal = (phase: string) => {
-      writeFileSync(path.join(runDir!, 'release-state.json'), JSON.stringify({ phase, reviewedCommit: config.reviewedCommit, previousCommit: oldCommit, planDigest, switched, fenced }, null, 2), { mode: 0o600 });
+      writeFileSync(path.join(runDir!, 'release-state.json'), JSON.stringify({ phase, reviewedCommit: config.reviewedCommit, previousCommit: oldCommit, planDigest, switched, fenced, frozenInventoryDigest: frozenDigest, frozenLeadCount }, null, 2), { mode: 0o600 });
       console.log(`VED release phase: ${phase}`);
     };
     journal('APPROVAL_ACCEPTED');
     fenced = true; quiet('pm2', ['stop', PROCESS]);
     requireSafe(vedProcesses(pm2()).every(p => p.pm2_env.status === 'stopped'));
     requireSafe((await activity()).length === 0); journal('VED_WRITERS_STOPPED');
-    const frozen = await readInventory(db, approval!.manifest); requireSafe(same(frozen.summary, inventory.summary));
+    const frozen = await readInventorySnapshot(client, approval!.manifest);
+    frozenDigest = frozenInventoryDigest(frozen); frozenLeadCount = frozen.summary.totalLeads;
+    journal('SOURCE_INVENTORY_FROZEN');
     const fingerprintEnv = { ...process.env, VED_FINGERPRINT_URI: config.mongoUri, VED_FINGERPRINT_DB: config.databaseName };
     const fpScript = path.join(ROOT, 'scripts/ved-release-fingerprint.cjs');
     const fingerprint = () => JSON.parse(quiet('mongosh', ['--nodb', '--quiet', '--file', fpScript], ROOT, fingerprintEnv));
@@ -201,14 +205,17 @@ async function main() {
       compatibility, actualVerifierVersion: restoredMetadata.version, actualVerifierFcv: stableFcv(restoredMetadata.fcv), dumpToolVersion, restoreToolVersion }), { mode: 0o600 });
     quiet('docker', ['stop', container]); // Only the newly created isolated verifier; retain it for private recovery inspection.
     requireSafe((await activity()).length === 0 && same(baseline, fingerprint())); journal('BACKUP_RESTORE_VERIFIED');
+    assertFrozenInventory(await readInventorySnapshot(client, approval!.manifest), frozenDigest);
     quiet(process.execPath, ['--import', 'tsx', 'scripts/prepare-campaign-mobile-registry.ts', '--apply', '--writers-paused'], ROOT, {
       ...process.env, MIGRATION_MONGODB_URI: config.mongoUri, CONFIRM_DEDUPLICATION_MIGRATION: 'YES',
       HISTORICAL_REFERENCE_MANIFEST: config.manifestPath, APPROVED_HISTORICAL_MANIFEST_SHA256: config.manifestSha256,
+      VED_FROZEN_INVENTORY_SHA256: frozenDigest,
     });
-    const after = await readInventory(db, approval!.manifest);
+    const after = await readInventorySnapshot(client, approval!.manifest);
+    assertFrozenInventory(after, frozenDigest);
     await verifyCampaignMobileRegistry(db.collection('campaignmobileclaims'), after.claims, after.summary.totalLeads);
     const state = await db.collection('leadDeduplicationState').findOne({ _id: 'campaign-mobile-v1' as any });
-    requireSafe(state?.ready && state.coverageVerified && state.historicalManifestDigest === approval!.digest && state.coveredLeadCount === after.summary.totalLeads);
+    requireSafe(state?.ready && state.coverageVerified && state.historicalManifestDigest === approval!.digest && state.frozenInventoryDigest === frozenDigest && state.coveredLeadCount === frozenLeadCount);
     const sourceOnly = (rows: any[]) => rows.filter(row => !CONTROLLED.has(row.name));
     requireSafe(same(sourceOnly(baseline), sourceOnly(fingerprint()))); journal('REGISTRY_VERIFIED');
     requireSafe(quiet('git', ['status', '--porcelain'], live) === '' && treeDigest(path.join(release, 'dist')) === artifactDigest);

@@ -8,6 +8,8 @@ export interface HistoricalReferenceManifest {
   approvedBy: string;
   approvalReference: string;
   expectedTotalLeads: number;
+  inventoryPolicy?: 'FROZEN_AT_CUTOVER';
+  historicalRecordsDigest?: string;
   expectedCampaigns: number;
   entries: { originalReference: string; historicalIdentity: string; expectedRecords: number; expectedApproved: number; expectedPaid: number }[];
 }
@@ -17,6 +19,8 @@ export function validateHistoricalManifest(value: any): HistoricalReferenceManif
   if (!value || value.version !== 1 || typeof value.approvedBy !== 'string' || !value.approvedBy.trim() ||
       typeof value.approvalReference !== 'string' || !value.approvalReference.trim() ||
       !Number.isSafeInteger(value.expectedTotalLeads) || value.expectedTotalLeads < 1 ||
+      (value.inventoryPolicy !== undefined && value.inventoryPolicy !== 'FROZEN_AT_CUTOVER') ||
+      (value.inventoryPolicy === 'FROZEN_AT_CUTOVER' && (typeof value.historicalRecordsDigest !== 'string' || !/^[a-f\d]{64}$/.test(value.historicalRecordsDigest))) ||
       !Number.isSafeInteger(value.expectedCampaigns) || value.expectedCampaigns < 1 ||
       !Array.isArray(value.entries) || value.entries.length !== 2) fail();
   const refs = new Set<string>(), identities = new Set<string>();

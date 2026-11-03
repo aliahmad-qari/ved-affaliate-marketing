@@ -8,7 +8,7 @@ import { buildHistoricalManifest } from './lib/buildHistoricalManifest.ts';
 
 const DIRECTORY = '/etc/ved';
 const OUTPUT = '/etc/ved/historical-references.json';
-const COUNTS = { totalLeads: 679, campaigns: 27, unresolvedGroups: 2, unresolvedRecords: 10,
+const FIXED_COUNTS = { campaigns: 27, unresolvedGroups: 2, unresolvedRecords: 10,
   groupA: { records: 1, approved: 0, paid: 0 }, groupB: { records: 9, approved: 9, paid: 0 } };
 const requireSafe = (condition: unknown) => { if (!condition) throw new Error('Private manifest prerequisite failed.'); };
 function privateContents(file: string) {
@@ -30,6 +30,7 @@ function existingUri() {
 }
 async function main() {
   requireSafe(process.platform === 'linux' && process.stdin.isTTY && process.stderr.isTTY);
+  requireSafe(process.argv.slice(2).length === 0);
   const directory = lstatSync(DIRECTORY);
   requireSafe(directory.isDirectory() && !directory.isSymbolicLink() && realpathSync(DIRECTORY) === DIRECTORY && directory.uid === process.getuid?.() && (directory.mode & 0o077) === 0);
   requireSafe(!existsSync(OUTPUT));
@@ -43,7 +44,7 @@ async function main() {
       try {
         await session.withTransaction(async () => {
           const campaigns = await db.collection('campaigns').find({}, { session, projection: { _id: 1, slug: 1 }, maxTimeMS: 15000 }).sort({ _id: 1 }).limit(28).toArray();
-          const leads = await db.collection('leads').find({}, { session, projection: { _id: 1, campaignId: 1, clientMobile: 1, partnerId: 1, status: 1 }, maxTimeMS: 15000 }).sort({ _id: 1 }).limit(680).toArray();
+          const leads = await db.collection('leads').find({}, { session, projection: { _id: 1, campaignId: 1, clientMobile: 1, partnerId: 1, status: 1 }, maxTimeMS: 15000 }).sort({ _id: 1 }).limit(100001).toArray();
           data = { campaigns, leads };
         }, { readConcern: { level: 'snapshot' }, readPreference: 'primary' });
       } finally { await session.endSession(); }
@@ -53,16 +54,21 @@ async function main() {
     const reviewer = `${os.userInfo().username} (uid ${process.getuid!()})`;
     const approvalReference = `interactive-isolation-approval:${new Date().toISOString()}`;
     const manifest = await buildHistoricalManifest(before.campaigns, before.leads, reviewer, approvalReference);
-    console.log(JSON.stringify(COUNTS));
+    const counts = { observedTotalLeads: before.leads.length, ...FIXED_COUNTS };
+    console.log(JSON.stringify(counts));
     const terminal = createInterface({ input: process.stdin, output: process.stderr });
     try {
-      const answer = await terminal.question('These identities do not prove participation in any active campaign. Existing approvals/financial records remain unchanged; affected callbacks may require manual reconciliation. If authorized, type exactly: I AM AUTHORIZED AND ACCEPT HISTORICAL ISOLATION\n> ');
-      requireSafe(answer === 'I AM AUTHORIZED AND ACCEPT HISTORICAL ISOLATION');
+      const requiredApproval = 'I AM AUTHORIZED AND ACCEPT HISTORICAL ISOLATION';
+      const answer = await terminal.question(`These identities do not prove participation in any active campaign. Existing approvals/financial records remain unchanged; affected callbacks may require manual reconciliation. If authorized, type exactly: ${requiredApproval}\n> `);
+      requireSafe(answer === requiredApproval);
     } finally { terminal.close(); }
-    // Refuse drift while the operator was approving; do not refresh expectations silently.
+    // Recheck only the approved historical identity claims; active-lead growth is expected.
     const after = await snapshot();
-    const signature = (value: unknown) => createHash('sha256').update(mongoose.mongo.BSON.EJSON.stringify(value, { relaxed: false })).digest('hex');
-    requireSafe(signature(before) === signature(after));
+    const checked = await buildHistoricalManifest(after.campaigns, after.leads, reviewer, approvalReference);
+    const historicalEvidence = (value: typeof manifest) => value.entries.map(e => ({ originalReference: e.originalReference,
+      expectedRecords: e.expectedRecords, expectedApproved: e.expectedApproved, expectedPaid: e.expectedPaid }));
+    requireSafe(JSON.stringify(historicalEvidence(manifest)) === JSON.stringify(historicalEvidence(checked)));
+    requireSafe(manifest.historicalRecordsDigest === checked.historicalRecordsDigest);
     const bytes = JSON.stringify(manifest, null, 2) + '\n';
     // Exclusive and no-follow: even a late-created file/symlink is never overwritten.
     const fd = openSync(OUTPUT, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
@@ -70,7 +76,7 @@ async function main() {
     finally { closeSync(fd); }
     const parent = openSync(DIRECTORY, constants.O_RDONLY);
     try { fsyncSync(parent); } finally { closeSync(parent); }
-    console.log(JSON.stringify({ manifestSha256: createHash('sha256').update(bytes).digest('hex'), ...COUNTS }));
+    console.log(JSON.stringify({ manifestSha256: createHash('sha256').update(bytes).digest('hex'), ...counts }));
   } finally { await client.close(); }
 }
 main().catch(() => {

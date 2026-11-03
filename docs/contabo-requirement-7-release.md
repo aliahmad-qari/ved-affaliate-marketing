@@ -112,9 +112,13 @@ node --import tsx scripts/release-ved-requirement-7.ts \
   --apply --approve '<approvalDigest from dry-run>'
 ```
 
-The same preflight runs again. Configuration, release, artifact, process or inventory
-drift invalidates approval. Do not refresh expected manifest counts blindly; if
-new legitimate leads changed them, obtain the updated private approval and dry-run.
+The same preflight runs again. Configuration, release, artifact, process, versions
+or historical-identity approval drift invalidates approval. Ordinary active lead
+growth does NOT invalidate the plan: total inventory is deliberately excluded from
+its digest. New manifests use FROZEN_AT_CUTOVER; their expectedTotalLeads is an
+informational preparation-snapshot count. Historical record membership/attribution
+and exact per-group status counts remain bound to the approved manifest. Older
+strict manifests are not silently reinterpreted or overwritten.
 
 ## What the approved command automates
 
@@ -123,6 +127,8 @@ new legitimate leads changed them, obtain the updated private approval and dry-r
    Confirm stopped state and no active database operations for the VED database.
    **This pauses the entire VED application**, because the current monolith has no
    independently switchable lead-writing gate. Other VPS projects remain running.
+   Now capture a fresh consistent source snapshot, freeze its complete identity/claim
+   digest and current lead count, and retain both in the private release journal.
 3. Take a database archive with credentials in a private Mongo tools config, never
    argv. Confirm source fingerprints did not change during backup.
 4. Start a fresh network-disabled restore container. Restore the full VED database
@@ -132,7 +138,9 @@ new legitimate leads changed them, obtain the updated private approval and dry-r
    recovery journal. Reconfirm the production baseline before migration.
 6. Run the existing approved-manifest preparation command. Read back all claims,
    verify full coverage/index/readiness/digest and verify every non-registry source
-   collection is unchanged. Any failed condition leaves VED stopped.
+   collection is unchanged. VED_FROZEN_INVENTORY_SHA256 is passed automatically;
+   migration and its repeat snapshot must match it exactly. Registry readiness stores
+   the same frozen digest and covered count. Any failed condition leaves VED stopped.
 7. Only now check out the approved SHA in the live checkout, detached, with Git
    hooks disabled. Keep .env, existing dependencies and untracked local files.
    Retain previous dist, then install and hash-check the reviewed dist artifact.
