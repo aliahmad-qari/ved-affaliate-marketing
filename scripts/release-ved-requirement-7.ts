@@ -9,6 +9,7 @@ import { parse as parseEnv } from 'dotenv';
 import { loadHistoricalManifest } from './lib/historicalReferenceManifest.ts';
 import { readInventory } from './lib/campaignMobileInventory.ts';
 import { verifyCampaignMobileRegistry } from './lib/verifyCampaignMobileRegistry.ts';
+import { databaseToolsVersion, restoreVersionPolicy, stableFcv, verifyRestoreServer } from './lib/restoreVersionCompatibility.ts';
 
 // No app/model imports, shell execution, git push, deploy.sh or automatic rollback.
 const PROCESS = 'ved-affiliate-api';
@@ -98,6 +99,7 @@ async function main() {
     requireSafe((e.NODE_ENV ?? fileEnv.NODE_ENV) === 'production');
   }
   for (const tool of ['mongodump', 'mongorestore', 'mongosh', 'docker']) quiet(tool, ['--version']);
+  const dumpToolVersion = databaseToolsVersion(quiet('mongodump', ['--version']), 'mongodump');
   const image = JSON.parse(quiet('docker', ['image', 'inspect', config.restoreImage]))[0];
   const imageVersion = image.Config.Env.find((s: string) => s.startsWith('MONGO_VERSION='))?.split('=')[1];
   requireSafe(imageVersion && os.freemem() > 1536 * 1024 * 1024);
@@ -112,7 +114,13 @@ async function main() {
     const estimatedBytes = Number(sizes.dataSize) + Number(sizes.indexSize);
     requireSafe(Number.isFinite(estimatedBytes) && estimatedBytes >= 0 && estimatedBytes <= 128 * 1024 * 1024);
     const hello = await db.admin().command({ hello: 1 }); requireSafe(hello.setName || hello.msg === 'isdbgrid');
-    const version = await db.admin().command({ buildInfo: 1 }); requireSafe(version.version === imageVersion);
+    const productionMetadata = async () => {
+      const build = await db.admin().command({ buildInfo: 1 });
+      const parameter = await db.admin().command({ getParameter: 1, featureCompatibilityVersion: 1 });
+      return { version: build.version as string, fcv: stableFcv(parameter.featureCompatibilityVersion) };
+    };
+    const production = await productionMetadata();
+    const compatibility = restoreVersionPolicy(production.version, imageVersion, production.fcv, config.restoreImage, config.restoreCompatibilityApproval);
     // Require transaction execution, not only a topology indication. Read-only probe.
     const probe = client.startSession();
     try { await probe.withTransaction(async () => { await db.collection('leads').findOne({}, { session: probe, projection: { _id: 1 } }); }, { readConcern: { level: 'snapshot' } }); }
@@ -128,11 +136,13 @@ async function main() {
     ]).toArray();
     await activity();
     const plan = { configDigest: hash(configBytes), reviewedCommit: config.reviewedCommit, previousCommit: oldCommit,
-      manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventory: inventory.summary, restoreImageId: image.Id };
+      manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventory: inventory.summary, restoreImageId: image.Id,
+      compatibility, requiredDatabaseToolsVersion: dumpToolVersion };
     const planDigest = hash(JSON.stringify(plan));
     console.log(JSON.stringify({ mode: apply ? 'APPROVED_RELEASE' : 'READ_ONLY_DRY_RUN', process: PROCESS, reviewedCommit: config.reviewedCommit,
       totalLeads: inventory.summary.totalLeads, isolatedHistoricalRecords: inventory.summary.isolatedHistoricalRecords,
       backupRestore: 'Dedicated network-disabled MongoDB container; full data/index/options comparison',
+      compatibility, requiredDatabaseToolsVersion: dumpToolVersion,
       pauseScope: 'Entire VED process only; no route-only gate exists', approvalDigest: planDigest }, null, 2));
     if (!apply) return;
     requireSafe(args[4] === planDigest);
@@ -173,12 +183,22 @@ async function main() {
       catch { await new Promise(resolve => setTimeout(resolve, 1000)); }
     }
     requireSafe(ready);
+    const verifierMetadata = () => JSON.parse(quiet('docker', ['exec', container!, 'mongosh', '--quiet', '--eval',
+      'const b=db.adminCommand({buildInfo:1}); const f=db.adminCommand({getParameter:1,featureCompatibilityVersion:1}); if(b.ok!==1||f.ok!==1)quit(2); print(JSON.stringify({version:b.version,fcv:f.featureCompatibilityVersion}));']));
+    const actualVerifier = verifierMetadata();
+    verifyRestoreServer(compatibility, actualVerifier.version, actualVerifier.fcv);
+    const restoreToolVersion = databaseToolsVersion(quiet('docker', ['exec', container, 'mongorestore', '--version']), 'mongorestore');
+    requireSafe(restoreToolVersion === dumpToolVersion);
     quiet('docker', ['cp', archive, `${container}:/tmp/ved.archive.gz`]);
     quiet('docker', ['cp', fpScript, `${container}:/tmp/fingerprint.cjs`]);
     quiet('docker', ['exec', container, 'mongorestore', '--archive=/tmp/ved.archive.gz', '--gzip', `--nsInclude=${config.databaseName}.*`]);
     const restored = JSON.parse(quiet('docker', ['exec', '-e', `VED_FINGERPRINT_DB=${config.databaseName}`, container, 'mongosh', '--nodb', '--quiet', '--file', '/tmp/fingerprint.cjs']));
     requireSafe(hash(readFileSync(archive)) === archiveDigest && same(baseline, restored));
-    writeFileSync(path.join(runDir, 'restore-verified.json'), JSON.stringify({ archiveDigest, verified: true, collections: restored.length }), { mode: 0o600 });
+    const restoredMetadata = verifierMetadata();
+    verifyRestoreServer(compatibility, restoredMetadata.version, restoredMetadata.fcv);
+    requireSafe(same(production, await productionMetadata()));
+    writeFileSync(path.join(runDir, 'restore-verified.json'), JSON.stringify({ archiveDigest, verified: true, collections: restored.length,
+      compatibility, actualVerifierVersion: restoredMetadata.version, actualVerifierFcv: stableFcv(restoredMetadata.fcv), dumpToolVersion, restoreToolVersion }), { mode: 0o600 });
     quiet('docker', ['stop', container]); // Only the newly created isolated verifier; retain it for private recovery inspection.
     requireSafe((await activity()).length === 0 && same(baseline, fingerprint())); journal('BACKUP_RESTORE_VERIFIED');
     quiet(process.execPath, ['--import', 'tsx', 'scripts/prepare-campaign-mobile-registry.ts', '--apply', '--writers-paused'], ROOT, {

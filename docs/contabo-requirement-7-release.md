@@ -48,8 +48,34 @@ Required already-installed tools: Node/tsx dependencies, Git, an existing PM2
 daemon under the SAME OS account that owns VED, MongoDB Database Tools, mongosh,
 and Docker. No automatic tool installation or image pull occurs. Preload the
 approved official MongoDB image whose MONGO_VERSION exactly matches production.
+The sole opt-in exception is Atlas 8.0.36 to an isolated 8.0.34 verifier. To approve
+it, add this object to the private JSON (imageDigest must exactly equal restoreImage):
+
+```json
+"restoreCompatibilityApproval": {
+  "approved": true,
+  "sourceVersion": "8.0.36",
+  "verifierVersion": "8.0.34",
+  "fcv": "8.0",
+  "imageDigest": "mongo@sha256:<same approved digest as restoreImage>"
+}
+```
+
+Without this object, exact-version behavior remains. No other mismatch is allowed.
+Actual production buildInfo and stable FCV are checked read-only; unknown or
+transitional FCV fails. Actual container buildInfo/FCV are checked before AND after
+restore. Its mongorestore must match the host mongodump tool version exactly. Both
+server versions, FCV, exception, image digest and required tool version are bound
+to the dry-run approval digest; verified actual versions/tool versions are retained
+in restore-verified.json. All document/index/options/financial preservation gates
+remain mandatory. This is dataset-specific restore verification, not a general
+promise that older-patch archive restores are compatible. Do not change production
+FCV to satisfy the check. An Atlas upgrade invalidates the approved version pair.
+Omit restoreCompatibilityApproval when using an exact-version verifier.
+
 The database account needs backup/read/index/registry-write permissions plus
-read-only $currentOp visibility. No account/role/topology changes are automated.
+read-only $currentOp and FCV getParameter visibility. No account/role/topology
+changes are automated.
 
 Prepare backupDirectory outside all checkouts as an owner-only (0700) directory
 on the SAME filesystem as the live application, with at least 1 GiB free space
