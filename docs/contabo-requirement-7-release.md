@@ -1,0 +1,148 @@
+# One-command Contabo release, explicit approval required
+
+This opt-in Linux CLI never runs from application startup or GitHub Actions. It
+does not run deploy.sh, pull/push main, run unit tests, change Nginx or restart any
+other PM2 application. The default command is read-only; --apply requires the exact
+dry-run approval digest. This tooling must itself be reviewed and saved in an
+immutable release commit before production use. It has NOT been run on Contabo.
+
+## One-time private inputs
+
+Use a separate, clean release checkout, with its reviewed production dist already
+built and its existing dependencies installed. The live checkout must already have
+the approved Git object available (fetching a feature branch does not deploy it).
+This runner requires the live and release package-lock.json files to match: it
+does not upgrade production dependencies during downtime. The runner must execute
+from the reviewed release revision, not the live application directory.
+
+Create one owner-only (0600) JSON configuration outside ALL checkouts. No real
+configuration, credentials or completed historical manifest belongs in Git.
+Example shape; replace placeholders privately:
+
+```json
+{
+  "liveDirectory": "/var/www/ved-affaliate-marketing",
+  "releaseDirectory": "/var/www/ved-r7-release",
+  "backupDirectory": "/var/www/ved-r7-backups",
+  "reviewedCommit": "<full SHA including this reviewed release tooling>",
+  "databaseName": "<exact existing VED database>",
+  "mongoUri": "<private authorized VED connection>",
+  "manifestPath": "/etc/ved/historical-references.json",
+  "manifestSha256": "<approved exact-file SHA-256>",
+  "restoreImage": "mongo@sha256:<approved local image digest>",
+  "allVedWritersAreThisProcess": true,
+  "vendorRetryHandlingApproved": true,
+  "acceptHistoricalIsolation": true,
+  "deploymentAutomationFrozen": true
+}
+```
+
+The four true values are explicit operator attestations, not facts a script can
+discover. Confirm there are no separate VED import/cron/callback workers or external
+writers. No one may push main or otherwise redeploy during cutover. Review vendor
+retry/reconciliation arrangements; the tool does not queue incoming callbacks.
+The existing private manifest must contain the two approved identities/counts as
+documented in historical-identity-compatibility.md.
+
+Required already-installed tools: Node/tsx dependencies, Git, an existing PM2
+daemon under the SAME OS account that owns VED, MongoDB Database Tools, mongosh,
+and Docker. No automatic tool installation or image pull occurs. Preload the
+approved official MongoDB image whose MONGO_VERSION exactly matches production.
+The database account needs backup/read/index/registry-write permissions plus
+read-only $currentOp visibility. No account/role/topology changes are automated.
+
+Prepare backupDirectory outside all checkouts as an owner-only (0700) directory
+on the SAME filesystem as the live application, with at least 1 GiB free space
+and room for the previous dist. Database data plus index size must be at most
+128 MiB for this bounded restore procedure; larger databases require separate review.
+The isolated restore is network-disabled, publishes NO ports, is limited to one
+CPU and 1 GiB RAM, and has bounded temporary storage. Preflight requires at least
+1.5 GiB free host RAM. If capacity/tools/permissions do not match, STOP and resolve
+them explicitly; do not weaken checks. No other project's database is used.
+
+## Operator procedure: dry-run, then separate approval
+
+From the separate reviewed release checkout:
+
+```bash
+node --import tsx scripts/release-ved-requirement-7.ts \
+  --config /etc/ved/r7-release.json
+```
+
+This validates the clean Git revisions, staged asset digest, exact lockfile match,
+PM2 entry/cwd/environment, historical manifest and counts, transaction execution,
+collection types, tools, pinned image, resources and current-operation visibility.
+It prints only a sanitized plan with an approvalDigest. It does not stop services,
+create a backup/container, prepare the registry, modify files or write the database.
+Watch/cron-restarted PM2 configurations and unknown launch wrappers are rejected.
+Supported launchers are the repository server.ts/server/server.ts, tsx server.ts,
+or npm start/npm run start with cwd pointing at the exact live directory.
+
+After a human separately approves that exact plan and maintenance window:
+
+```bash
+node --import tsx scripts/release-ved-requirement-7.ts \
+  --config /etc/ved/r7-release.json \
+  --apply --approve '<approvalDigest from dry-run>'
+```
+
+The same preflight runs again. Configuration, release, artifact, process or inventory
+drift invalidates approval. Do not refresh expected manifest counts blindly; if
+new legitimate leads changed them, obtain the updated private approval and dry-run.
+
+## What the approved command automates
+
+1. Acquire an exclusive VED release lock; create a private backup/recovery journal.
+2. Stop ONLY pm2 process name ved-affiliate-api, including its cluster instances.
+   Confirm stopped state and no active database operations for the VED database.
+   **This pauses the entire VED application**, because the current monolith has no
+   independently switchable lead-writing gate. Other VPS projects remain running.
+3. Take a database archive with credentials in a private Mongo tools config, never
+   argv. Confirm source fingerprints did not change during backup.
+4. Start a fresh network-disabled restore container. Restore the full VED database
+   there WITHOUT --drop. Compare every document hash/count, collection options and
+   index definition with production. Verify the archive checksum too.
+5. Stop only that new verifier container. Retain the archive, restore proof and
+   recovery journal. Reconfirm the production baseline before migration.
+6. Run the existing approved-manifest preparation command. Read back all claims,
+   verify full coverage/index/readiness/digest and verify every non-registry source
+   collection is unchanged. Any failed condition leaves VED stopped.
+7. Only now check out the approved SHA in the live checkout, detached, with Git
+   hooks disabled. Keep .env, existing dependencies and untracked local files.
+   Retain previous dist, then install and hash-check the reviewed dist artifact.
+8. Restart ONLY ved-affiliate-api with its retained PM2 configuration/environment.
+   Check local API health and unchanged unrelated PM2 process statuses. Failed
+   health verification stops VED again. No fake lead or financial test is created.
+
+No fixed maintenance duration is promised. Backup/restore and MongoDB speed dictate
+the pause; there are no repeated builds or unit suites in the release path.
+
+## Failure and recovery
+
+No finally block ever starts VED. Any post-fence failure attempts to stop ONLY VED
+and its newly created verifier, then exits nonzero. It does not reset readiness,
+delete claims, restore the production database, roll back financial activity, or
+restart an old application automatically. If PM2 itself cannot execute stop, an
+operator must confirm the fence manually before any further action.
+
+Inspect only the private backupDirectory/ved-r7-*/release-state.json, FAILED,
+baseline.json and restore-verified.json. Mongo tools config/archives contain secrets
+or production data: keep the directory owner-only, with approved retention/offsite
+protection. Do not paste them into chat or commit them. A stopped verifier container
+is retained under a unique ved-r7-restore-* name for deliberate cleanup; no prune
+or broad delete command is used. No container is configured to restart automatically.
+
+The exclusive lock is retained at the live repository Git path
+ved-r7-release.lock after success/failure. A human must inspect the journal before
+removing that one lock and approving another attempt. Already-ready registries are
+not automatically rerun: recovery after a prepared-but-not-started release needs
+explicit review, not an automatic rollback/reopen. The previous source SHA and dist
+are retained, but an old source release bypasses duplicate protection and must not
+be reopened without a separate approved recovery decision. Never restore an older
+snapshot over newer valid leads or financial activity.
+
+Remaining trust boundary: PM2 stop/currentOp/fingerprints cannot prove there are no
+future writes from an undeclared external process. The all-writers/frozen-automation
+attestations and maintenance discipline remain mandatory. Client functional acceptance
+follows successful startup; historical isolation does not identify a prior active
+campaign and does not provide genuine vendor application resume.
