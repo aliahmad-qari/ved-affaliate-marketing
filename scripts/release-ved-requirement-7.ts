@@ -10,15 +10,19 @@ import { loadHistoricalManifest } from './lib/historicalReferenceManifest.ts';
 import { assertFrozenInventory, frozenInventoryDigest, readInventorySnapshot } from './lib/campaignMobileInventory.ts';
 import { verifyCampaignMobileRegistry } from './lib/verifyCampaignMobileRegistry.ts';
 import { databaseToolsVersion, restoreVersionPolicy, stableFcv, verifyRestoreServer } from './lib/restoreVersionCompatibility.ts';
+import { assertVedQuiet, failPreflight, fenceVedWriters, initialVedMode, inspectVedProcesses, parseReleaseArguments, processIdentity, releaseApprovalDigest, releaseIsApproved, safeFailure } from './lib/releasePreflight.ts';
 
 // No app/model imports, shell execution, git push, deploy.sh or automatic rollback.
 const PROCESS = 'ved-affiliate-api';
 const ROOT = realpathSync(fileURLToPath(new URL('../', import.meta.url)));
 const CONTROLLED = new Set(['campaignmobileclaims', 'leadDeduplicationState']);
+let stage = 'ARGUMENTS';
+const BACKUP_RESTORE_POLICY = { version: 1, network: 'none', publicPorts: false, fullDocumentIndexOptionsComparison: true,
+  checksumRequired: true, frozenInventoryRequired: true, sourceFinancialIntegrityRequired: true, automaticRollbackOrReopen: false };
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const requireSafe = (condition: unknown) => { if (!condition) throw new Error('Release prerequisite failed.'); };
 const quiet = (program: string, args: string[], cwd = ROOT, env = process.env) => execFileSync(program, args, {
-  cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30 * 60 * 1000, maxBuffer: 32 * 1024 * 1024,
+  cwd, env: program === 'git' ? { ...env, GIT_OPTIONAL_LOCKS: '0' } : env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30 * 60 * 1000, maxBuffer: 32 * 1024 * 1024,
 }).trim();
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 function privateFile(file: string) {
@@ -47,17 +51,16 @@ function pm2(): any[] {
   return JSON.parse(quiet('pm2', ['jlist']));
 }
 function vedProcesses(all: any[]) { return all.filter(p => p.name === PROCESS); }
-function processIdentity(p: any) {
-  return { id: p.pm_id, name: p.name, cwd: p.pm2_env.pm_cwd, entry: p.pm2_env.pm_exec_path, args: p.pm2_env.args ?? [], mode: p.pm2_env.exec_mode };
-}
 async function main() {
+  const cli = parseReleaseArguments(process.argv.slice(2)), apply = cli.apply;
+  stage = 'PLATFORM';
   requireSafe(process.platform === 'linux');
-  const args = process.argv.slice(2), apply = args.includes('--apply');
-  requireSafe(args.length === (apply ? 5 : 2) && args[0] === '--config' && (!apply || args[2] === '--apply' && args[3] === '--approve'));
-  const configFile = privateFile(args[1]);
+  stage = 'PRIVATE_CONFIG';
+  const configFile = privateFile(cli.configFile);
   const configBytes = readFileSync(configFile);
   const config = JSON.parse(configBytes.toString());
   requireSafe(config.allVedWritersAreThisProcess === true && config.vendorRetryHandlingApproved === true && config.acceptHistoricalIsolation === true && config.deploymentAutomationFrozen === true);
+  stage = 'RELEASE_PATHS';
   const live = realpathSync(config.liveDirectory), release = realpathSync(config.releaseDirectory), backups = realpathSync(config.backupDirectory);
   requireSafe(live === '/var/www/ved-affaliate-marketing' && live !== release && live !== ROOT && release !== live);
   requireSafe(!release.startsWith(live + '/') && !live.startsWith(release + '/') && !backups.startsWith(live + '/') && !backups.startsWith(release + '/'));
@@ -66,7 +69,9 @@ async function main() {
   requireSafe((statSync(backups).mode & 0o077) === 0 && statSync(backups).uid === process.getuid?.());
   requireSafe(/^[a-f0-9]{40}$/.test(config.reviewedCommit) && /^[A-Za-z][A-Za-z0-9_-]{0,62}$/.test(config.databaseName));
   requireSafe(/^mongo@sha256:[a-f0-9]{64}$/.test(config.restoreImage));
+  stage = 'LOCKFILE_MATCH';
   requireSafe(hash(readFileSync(path.join(live, 'package-lock.json'))) === hash(readFileSync(path.join(release, 'package-lock.json'))));
+  stage = 'REVIEWED_GIT_OBJECTS';
   for (const dir of [ROOT, live, release]) requireSafe(quiet('git', ['status', '--porcelain'], dir) === '');
   requireSafe(JSON.parse(readFileSync(path.join(release, 'package.json'), 'utf8')).scripts.start === 'tsx server.ts');
   requireSafe(quiet('git', ['rev-parse', 'HEAD'], release) === config.reviewedCommit);
@@ -76,16 +81,34 @@ async function main() {
   requireSafe(quiet('git', ['cat-file', '-t', config.reviewedCommit], live) === 'commit');
   const tracked = quiet('git', ['ls-tree', '-r', '--name-only', config.reviewedCommit], live).split('\n');
   requireSafe(!tracked.some(f => /(^|\/)(\.env(?:\..*)?|id_rsa|id_ed25519)$/.test(f) && f !== '.env.example'));
+  stage = 'ARTIFACT_AND_CAPACITY';
   requireSafe(existsSync(path.join(release, 'dist/index.html')) && existsSync(path.join(live, 'node_modules/tsx/dist/cli.mjs')));
   requireSafe(statSync(live).dev === statSync(backups).dev);
   const disk = statfsSync(backups);
   requireSafe(disk.bavail * disk.bsize >= 1024 * 1024 * 1024);
   const artifactDigest = treeDigest(path.join(release, 'dist'));
+  stage = 'HISTORICAL_MANIFEST';
   const approval = loadHistoricalManifest(config.manifestPath, config.manifestSha256);
   requireSafe(approval && !realpathSync(config.manifestPath).startsWith(live + '/') && !realpathSync(config.manifestPath).startsWith(release + '/'));
-  const all = pm2(), processes = vedProcesses(all);
-  requireSafe(processes.length > 0 && processes.every(p => p.pm2_env.status === 'online' && p.pm2_env.pm_cwd === live));
+  stage = 'PM2_IDENTITY_AND_MAINTENANCE';
+  const all = pm2();
   const fileEnv = existsSync(path.join(live, '.env')) ? parseEnv(readFileSync(path.join(live, '.env'))) : {};
+  const candidates = vedProcesses(all);
+  requireSafe(candidates.length > 0);
+  const port = Number(candidates[0].pm2_env.PORT ?? fileEnv.PORT ?? 3001);
+  requireSafe(Number.isInteger(port) && port > 0 && port <= 65535);
+  const initialState = initialVedMode(config, port);
+  const processes = inspectVedProcesses(all, live, config.mongoUri, initialState);
+  const expectedIdentities = processes.map(processIdentity);
+  const stopOnlyExpectedVed = () => {
+    requireSafe(same(vedProcesses(pm2()).map(processIdentity), expectedIdentities));
+    quiet('pm2', ['stop', PROCESS]);
+  };
+  const checkPort = async () => {
+    try { if (quiet('ss', ['-H', '-ltn', `sport = :${port}`]) !== '') failPreflight('LISTENER'); }
+    catch { failPreflight('LISTENER'); }
+  };
+  if (initialState === 'stopped') await checkPort();
   for (const p of processes) {
     const e = p.pm2_env, launchArgs = Array.isArray(e.args) ? e.args : [e.args].filter(Boolean);
     const entry = e.pm_exec_path;
@@ -97,7 +120,9 @@ async function main() {
     requireSafe(!e.cron_restart);
     requireSafe((e.MONGODB_URI ?? fileEnv.MONGODB_URI) === config.mongoUri);
     requireSafe((e.NODE_ENV ?? fileEnv.NODE_ENV) === 'production');
+    requireSafe(Number(e.PORT ?? fileEnv.PORT ?? 3001) === port);
   }
+  stage = 'TOOLS_AND_IMAGE';
   for (const tool of ['mongodump', 'mongorestore', 'mongosh', 'docker']) quiet(tool, ['--version']);
   const dumpToolVersion = databaseToolsVersion(quiet('mongodump', ['--version']), 'mongodump');
   const image = JSON.parse(quiet('docker', ['image', 'inspect', config.restoreImage]))[0];
@@ -106,6 +131,7 @@ async function main() {
   const client = new mongoose.mongo.MongoClient(config.mongoUri, { maxPoolSize: 2, serverSelectionTimeoutMS: 5000 });
   let fenced = false, switched = false, container: string | undefined, runDir: string | undefined;
   try {
+    stage = 'PRODUCTION_DATABASE_AND_CAPACITY';
     await client.connect(); const db = client.db(); requireSafe(db.databaseName === config.databaseName);
     const metadata = await db.listCollections().toArray();
     requireSafe(metadata.length > 0 && metadata.every(c => c.type === 'collection' && !c.name.startsWith('system.')));
@@ -119,33 +145,41 @@ async function main() {
       const parameter = await db.admin().command({ getParameter: 1, featureCompatibilityVersion: 1 });
       return { version: build.version as string, fcv: stableFcv(parameter.featureCompatibilityVersion) };
     };
+    stage = 'MONGODB_VERSION_AND_FCV';
     const production = await productionMetadata();
     const compatibility = restoreVersionPolicy(production.version, imageVersion, production.fcv, config.restoreImage, config.restoreCompatibilityApproval);
     // Require transaction execution, not only a topology indication. Read-only probe.
+    stage = 'TRANSACTION_PROBE';
     const probe = client.startSession();
     try { await probe.withTransaction(async () => { await db.collection('leads').findOne({}, { session: probe, projection: { _id: 1 } }); }, { readConcern: { level: 'snapshot' } }); }
     finally { await probe.endSession(); }
+    stage = 'INVENTORY_AND_READINESS';
     const inventory = await readInventorySnapshot(client, approval!.manifest);
     requireSafe(!inventory.summary.unresolvedCampaign && !inventory.summary.invalidOrMissingMobile && inventory.summary.validRecords === inventory.summary.totalLeads);
     requireSafe(!(await db.collection('leadDeduplicationState').findOne({ _id: 'campaign-mobile-v1' as any }))?.ready);
     // Verify cluster-monitor permission before a maintenance window.
+    stage = 'VED_DATABASE_ACTIVITY';
     const activity = async () => client.db('admin').aggregate([
       { $currentOp: { allUsers: true, idleConnections: false } },
       { $match: { active: true, $or: [{ ns: { $regex: `^${config.databaseName.replace(/[-]/g, '\\-')}\\.` } }, { 'command.$db': config.databaseName }] } },
       { $count: 'count' },
     ]).toArray();
     await activity();
+    const activeOperations = async () => Number((await activity())[0]?.count ?? 0);
+    if (initialState === 'stopped') await assertVedQuiet(checkPort, activeOperations);
     const plan = { configDigest: hash(configBytes), reviewedCommit: config.reviewedCommit, previousCommit: oldCommit,
       manifestDigest: approval!.digest, artifactDigest, processes: processes.map(processIdentity), inventoryPolicy: approval!.manifest.inventoryPolicy ?? 'STRICT_LEGACY', restoreImageId: image.Id,
-      compatibility, requiredDatabaseToolsVersion: dumpToolVersion };
-    const planDigest = hash(JSON.stringify(plan));
+      compatibility, requiredDatabaseToolsVersion: dumpToolVersion, initialState, apiPort: port, backupRestorePolicy: BACKUP_RESTORE_POLICY };
+    const planDigest = releaseApprovalDigest(plan);
     console.log(JSON.stringify({ mode: apply ? 'APPROVED_RELEASE' : 'READ_ONLY_DRY_RUN', process: PROCESS, reviewedCommit: config.reviewedCommit,
+      initialVedState: initialState, apiPort: port, nginxMaintenance: 'Not modified; reopening requires separate operator approval',
       totalLeads: inventory.summary.totalLeads, isolatedHistoricalRecords: inventory.summary.isolatedHistoricalRecords,
       backupRestore: 'Dedicated network-disabled MongoDB container; full data/index/options comparison',
       compatibility, requiredDatabaseToolsVersion: dumpToolVersion,
       pauseScope: 'Entire VED process only; no route-only gate exists', approvalDigest: planDigest }, null, 2));
-    if (!apply) return;
-    requireSafe(args[4] === planDigest);
+    stage = 'EXPLICIT_RELEASE_APPROVAL';
+    if (!releaseIsApproved(cli, planDigest)) return;
+    stage = 'EXCLUSIVE_RELEASE_LOCK';
     process.umask(0o077);
     const lock = path.resolve(live, quiet('git', ['rev-parse', '--git-path', 'ved-r7-release.lock'], live));
     mkdirSync(lock, { mode: 0o700 }); // Exclusive; retained on success/failure for explicit operator acknowledgement.
@@ -157,9 +191,13 @@ async function main() {
       console.log(`VED release phase: ${phase}`);
     };
     journal('APPROVAL_ACCEPTED');
-    fenced = true; quiet('pm2', ['stop', PROCESS]);
-    requireSafe(vedProcesses(pm2()).every(p => p.pm2_env.status === 'stopped'));
-    requireSafe((await activity()).length === 0); journal('VED_WRITERS_STOPPED');
+    stage = 'VED_WRITER_FENCE';
+    fenced = true;
+    const fence = (state: 'online' | 'stopped') => fenceVedWriters({ initialState: state, expectedIdentities, live, uri: config.mongoUri,
+      readProcesses: pm2, stopVed: stopOnlyExpectedVed, checkPort, activeOperations });
+    await fence(initialState);
+    journal('VED_WRITERS_STOPPED');
+    stage = 'FROZEN_SOURCE_INVENTORY';
     const frozen = await readInventorySnapshot(client, approval!.manifest);
     frozenDigest = frozenInventoryDigest(frozen); frozenLeadCount = frozen.summary.totalLeads;
     journal('SOURCE_INVENTORY_FROZEN');
@@ -167,6 +205,7 @@ async function main() {
     const fpScript = path.join(ROOT, 'scripts/ved-release-fingerprint.cjs');
     const fingerprint = () => JSON.parse(quiet('mongosh', ['--nodb', '--quiet', '--file', fpScript], ROOT, fingerprintEnv));
     const baseline = fingerprint();
+    stage = 'DATABASE_BACKUP';
     writeFileSync(path.join(runDir, 'baseline.json'), JSON.stringify(baseline), { mode: 0o600 });
     const mongoConfig = path.join(runDir, 'mongo-tools.yaml');
     // JSON is a YAML subset. URI is never passed on the command line or printed.
@@ -178,6 +217,7 @@ async function main() {
     const archiveDigest = hash(readFileSync(archive));
     writeFileSync(path.join(runDir, 'archive.sha256'), archiveDigest + '\n', { mode: 0o600 });
     container = `ved-r7-restore-${randomUUID()}`;
+    stage = 'ISOLATED_RESTORE_VERIFICATION';
     quiet('docker', ['run', '-d', '--name', container, '--network', 'none', '--memory', '1g', '--cpus', '1', '--pids-limit', '128',
       '--read-only', '--tmpfs', '/data/db:rw,size=512m', '--tmpfs', '/data/configdb:rw,size=32m', '--tmpfs', '/tmp:rw,size=256m',
       config.restoreImage, '--bind_ip', '127.0.0.1']);
@@ -206,6 +246,8 @@ async function main() {
     quiet('docker', ['stop', container]); // Only the newly created isolated verifier; retain it for private recovery inspection.
     requireSafe((await activity()).length === 0 && same(baseline, fingerprint())); journal('BACKUP_RESTORE_VERIFIED');
     assertFrozenInventory(await readInventorySnapshot(client, approval!.manifest), frozenDigest);
+    await fence('stopped');
+    stage = 'REGISTRY_PREPARATION_AND_VERIFICATION';
     quiet(process.execPath, ['--import', 'tsx', 'scripts/prepare-campaign-mobile-registry.ts', '--apply', '--writers-paused'], ROOT, {
       ...process.env, MIGRATION_MONGODB_URI: config.mongoUri, CONFIRM_DEDUPLICATION_MIGRATION: 'YES',
       HISTORICAL_REFERENCE_MANIFEST: config.manifestPath, APPROVED_HISTORICAL_MANIFEST_SHA256: config.manifestSha256,
@@ -218,6 +260,8 @@ async function main() {
     requireSafe(state?.ready && state.coverageVerified && state.historicalManifestDigest === approval!.digest && state.frozenInventoryDigest === frozenDigest && state.coveredLeadCount === frozenLeadCount);
     const sourceOnly = (rows: any[]) => rows.filter(row => !CONTROLLED.has(row.name));
     requireSafe(same(sourceOnly(baseline), sourceOnly(fingerprint()))); journal('REGISTRY_VERIFIED');
+    await fence('stopped');
+    stage = 'APPROVED_ARTIFACT_INSTALLATION';
     requireSafe(quiet('git', ['status', '--porcelain'], live) === '' && treeDigest(path.join(release, 'dist')) === artifactDigest);
     // Deploy only the approved Git object; never pull main or execute an existing deploy script.
     quiet('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', config.reviewedCommit], live); switched = true;
@@ -226,9 +270,9 @@ async function main() {
     requireSafe(treeDigest(path.join(live, 'dist')) === artifactDigest);
     journal('APPROVED_RELEASE_INSTALLED');
     // Environment, node_modules, .env, uploads and all source database records are retained.
+    stage = 'VED_ONLY_STARTUP_AND_HEALTH';
+    await fence('stopped');
     quiet('pm2', ['restart', PROCESS]);
-    const port = Number(processes[0].pm2_env.PORT ?? fileEnv.PORT ?? 3001);
-    requireSafe(Number.isInteger(port) && port > 0 && port <= 65535);
     let healthy = false;
     for (let attempt = 0; attempt < 30; attempt++) {
       try {
@@ -244,13 +288,19 @@ async function main() {
     requireSafe(same(unrelatedBefore, pm2().filter(p => p.name !== PROCESS).map(p => ({ id: p.pm_id, status: p.pm2_env.status }))));
     journal('RELEASE_STARTED');
     console.log('Release started after verified backup restoration and registry readiness. Only VED was restarted. Perform client acceptance; retain backup and release journal.');
-  } catch {
+  } catch (error) {
     if (fenced) {
-      try { quiet('pm2', ['stop', PROCESS]); } catch { /* Never reopen; operator must confirm stop if PM2 is unavailable. */ }
+      try { stopOnlyExpectedVed(); } catch { /* Never reopen; operator must confirm stop if PM2 identity/availability changed. */ }
       if (container) try { quiet('docker', ['stop', container]); } catch { /* Retain isolated verifier for investigation. */ }
       if (runDir) writeFileSync(path.join(runDir, 'FAILED'), 'STOP: VED writers must remain fenced. Review private release-state.json and restore proof. No automatic rollback/reopen.\n', { mode: 0o600 });
     }
-    throw new Error('Release stopped. No automatic rollback or reopening; inspect private release state.');
-  } finally { await client.close(); }
+    throw error;
+  } finally {
+    try { await client.close(); }
+    catch (error) {
+      if (fenced) try { stopOnlyExpectedVed(); } catch { /* Operator must confirm the VED-only fence. */ }
+      throw error;
+    }
+  }
 }
-main().catch(() => { console.error('VED release stopped safely. No raw subprocess/database errors or secrets are printed. If approval was applied, verify VED remains stopped; inspect the private backup journal.'); process.exitCode = 1; });
+main().catch(error => { console.error(`VED release stopped: ${safeFailure(error, stage)} If already fenced, keep VED stopped and Nginx maintenance active; inspect the private journal. No automatic rollback/reopen.`); process.exitCode = 1; });

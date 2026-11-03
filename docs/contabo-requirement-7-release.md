@@ -88,6 +88,57 @@ them explicitly; do not weaken checks. No other project's database is used.
 
 ## Operator procedure: dry-run, then separate approval
 
+### Already-stopped VED maintenance
+
+Default preflight still expects VED online. If it is already deliberately stopped,
+an authorized operator may add these private configuration fields ONLY after
+verifying the maintenance approval and Nginx routing (the tool never changes Nginx):
+
+```json
+"initialVedState": "stopped-maintenance",
+"maintenanceApproval": {
+  "approved": true,
+  "reference": "<actual authorized maintenance approval reference>",
+  "nginxMaintenanceConfirmed": true,
+  "apiPort": 4004
+}
+```
+
+Do not set these flags automatically. This mode requires all matching PM2 instances
+stopped with PID 0, exact live cwd/launch configuration, effective port 4004, no TCP
+listener on that port (IPv4 or IPv6), no additional VED PM2 writer and zero active
+VED database operations. Existing all-writers/automation attestations still apply:
+read-only process/activity checks cannot prove absence of undeclared future writers.
+Mixed/errored/restarting states are rejected. During apply, identity and the fence
+are revalidated; already-stopped mode skips the redundant stop command. Only the
+final, fully verified release can restart ved-affiliate-api. Nginx maintenance must
+remain until a SEPARATE operator-approved reopening step; no config change here
+removes maintenance routing.
+
+The pre-maintenance reviewed SHA stays immutable. After reviewing/validating this
+patch, make a new commit. Before editing reviewedCommit in the private config,
+verify in the release checkout that HEAD is that new SHA, its tracked tree is clean,
+and its dist was built for that revision. Verify in the live checkout, read-only:
+
+```bash
+git -C /var/www/ved-affaliate-marketing cat-file -t <NEW_REVIEWED_SHA>
+git -C /var/www/ved-affaliate-marketing show <NEW_REVIEWED_SHA>:package-lock.json | sha256sum
+sha256sum /var/www/ved-affaliate-marketing/package-lock.json
+```
+
+The first must return commit; the lock hashes must match. If the new object is absent,
+obtain it through the approved feature-branch transfer process without checking out
+or starting production. Only then may the operator back up the private config and
+set reviewedCommit to the new SHA. Never amend/overwrite the original reviewed
+commit or restore production lock metadata without separate approved review.
+
+Dry run does not start, stop or restart a service in either mode. It prints a safe
+stage/check identifier on failure, never a raw database/subprocess exception. Apply
+requires the exact newly generated digest; argument parsing rejects missing, extra
+or malformed flags/digests before reading private config. Digest binding explicitly
+includes initial state, port and full backup/restore policy, in addition to revision,
+configuration, artifacts, PM2 identities, image/FCV/tools and manifest approval.
+
 From the separate reviewed release checkout:
 
 ```bash
