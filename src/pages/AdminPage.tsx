@@ -49,7 +49,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [busy, setBusy] = useState(false);
   const [kycDetails, setKycDetails] = useState<any>(null);
   const [supportResponses, setSupportResponses] = useState<Record<string, string>>({});
-  const [reportFilters, setReportFilters] = useState({ startDate: '', endDate: '', status: '', campaignId: '', partnerId: '' });
+  const [reportFilters, setReportFilters] = useState({ startDate: '', endDate: '', status: '', campaignId: '', partnerId: '', search: '' });
   const [campaign, setCampaign] = useState({ ...emptyCampaign });
   const [configuredCategories, setConfiguredCategories] = useState(campaignCategories([]));
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
@@ -225,12 +225,14 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       const query = new URLSearchParams();
       if (reportFilters.startDate) query.set('startDate', reportFilters.startDate);
       if (reportFilters.endDate) query.set('endDate', reportFilters.endDate);
+      if (reportFilters.status) query.set('status', reportFilters.status);
+      if (reportFilters.search.trim()) query.set('search', reportFilters.search.trim());
       if (campaign?._id || reportFilters.campaignId) query.set('campaignId', campaign?._id || reportFilters.campaignId);
       const blob = await adminApi.get(`/admin/reports/campaign-report.xlsx${query.size ? `?${query}` : ''}`);
       const href = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = href;
-      anchor.download = `ved-${campaign?._id || 'all-campaigns'}-campaign-report.xlsx`;
+      anchor.download = `ved-${campaign?._id || 'all-campaigns'}-leads.xlsx`;
       anchor.click();
       URL.revokeObjectURL(href);
     } catch (err: any) { setError(err.message || 'Unable to download campaign report.'); }
@@ -352,11 +354,12 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         <label className="text-xs text-slate-400">Status<input className={`${inputClass} mt-2 border-[#D4AF37]/20 focus:border-[#D4AF37]`} value={reportFilters.status} onChange={(event) => setReportFilters({ ...reportFilters, status: event.target.value })} placeholder="Optional" /></label>
         <label className="text-xs text-slate-400">Campaign ID<input className={`${inputClass} mt-2 border-[#D4AF37]/20 focus:border-[#D4AF37]`} value={reportFilters.campaignId} onChange={(event) => setReportFilters({ ...reportFilters, campaignId: event.target.value })} placeholder="Optional" /></label>
         <label className="text-xs text-slate-400">Partner ID<input className={`${inputClass} mt-2 border-[#D4AF37]/20 focus:border-[#D4AF37]`} value={reportFilters.partnerId} onChange={(event) => setReportFilters({ ...reportFilters, partnerId: event.target.value })} placeholder="Optional" /></label>
+        <label className="text-xs text-slate-400">Search leads<input className={`${inputClass} mt-2 border-[#D4AF37]/20 focus:border-[#D4AF37]`} value={reportFilters.search} onChange={(event) => setReportFilters({ ...reportFilters, search: event.target.value })} placeholder="Lead ID, customer, mobile, account or campaign" /></label>
       </div>
       <section className="space-y-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-5 rounded-xl hover:border-[#D4AF37]/40 transition-colors backdrop-blur-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-bold text-white text-lg">📊 Campaign Reports</h2>
-          <Button variant="primary" onClick={() => void downloadCampaignWorkbook()}>📥 Download All Campaigns</Button>
+          <h2 className="font-bold text-white text-lg">📊 Campaign Lead Excel Export</h2>
+          <Button variant="primary" onClick={() => void downloadCampaignWorkbook()}>📥 Download All Matching Leads</Button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {records.map((item) => <Button key={item._id} variant="outline" onClick={() => void downloadCampaignWorkbook({ _id: item._id, slug: item.slug })}>{item.name}</Button>)}
