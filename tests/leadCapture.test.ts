@@ -110,7 +110,8 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const response = await fetch(`${base}${link}`);
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.ok(html.includes('Complete Your Application'));
+    assert.ok(html.includes('Unlock'));
+    assert.ok(html.includes('CONTINUE SECURELY'));
     assert.ok(html.includes('action="/api/public/campaigns/sample/go"'));
     assert.ok(html.includes('name="clientName"') && html.includes('name="clientMobile"'));
     assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -161,7 +162,17 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(leads[0].submittedData.consentAt);
     assert.equal(notices.length, 1);
     assert.equal(financialWrites, 0);
-    assert.equal((await post(token)).status, 303);
+    const replay = await post(token, { clientName: '', clientMobile: '', consent: '' });
+    assert.equal(replay.status, 200);
+    const replayHtml = await replay.text();
+    assert.ok(replayHtml.includes('NUMBER ALREADY REGISTERED'));
+    assert.ok(replayHtml.includes('href="/"'));
+    assert.ok(!replayHtml.includes('Test Customer'));
+    const receipt = saved.headers.get('set-cookie')!.split(';')[0];
+    const remembered = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: receipt } });
+    assert.ok((await remembered.text()).includes('NUMBER ALREADY REGISTERED'));
+    const forged = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: 'ved_customer_capture=forged' } });
+    assert.ok(!(await forged.text()).includes('NUMBER ALREADY REGISTERED'));
     assert.equal(leads.length, 1, 'Repeated form submit should resume the same enquiry');
     assert.equal(clicks.length, 1);
     assert.equal(notices.length, 1);
@@ -195,7 +206,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(failed.headers.get('location'), null, 'Never redirect when storage fails');
     const failureHtml = await failed.text();
     assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="+91 98765 43210"'), 'Failed saves retain entered details on the form');
-    assert.match(failureHtml, /name="consent"\s+value="yes"\s+checked\b/, 'Retry must preserve consent despite HTML formatting');
+    assert.match(failureHtml, /<input(?=[^>]*name="consent")(?=[^>]*value="yes")(?=[^>]*checked)[^>]*>/, 'Retry must preserve consent despite HTML formatting');
     assert.equal(failed.headers.get('referrer-policy'), 'same-origin', 'Retry forms must preserve the native POST origin too');
     assert.equal(leads.length, 1);
     failSave = false;
@@ -289,7 +300,9 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(clicks.at(-1).partnerId, partner.partnerId);
     assert.equal(clicks.at(-1).clickId, leads.at(-1).vendorClickId);
     assert.equal(leads.at(-1).partnerId, partner.partnerId);
-    assert.equal((await post(mstockToken)).headers.get('location'), campaign.baseTrackingUrl);
+    const mstockReplay = await post(mstockToken);
+    assert.equal(mstockReplay.headers.get('location'), null);
+    assert.ok((await mstockReplay.text()).includes('NUMBER ALREADY REGISTERED'));
     assert.equal(leads.length, beforeLeads + 1, 'mStock retry must not duplicate the enquiry');
     let directLocation = '', directStatus = 0;
     await redirectToCampaignTracking(

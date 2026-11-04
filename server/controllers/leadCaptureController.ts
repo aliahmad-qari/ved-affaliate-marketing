@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { registrationDocument } from '../utils/registrationView.ts';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
@@ -95,91 +96,22 @@ ${retryLink ? `<a href="${escapeHtml(retryLink)}">Reopen the form</a>` : '<p>Ple
 }
 
 function renderForm(res: Response, campaign: any, token: string, error = '', name = '', mobile = '', status = 200, consent = false) {
-  renderPage(res, `
-<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px">
-  <h1 style="margin:0;font-size:28px;font-weight:700;color:#fff">Complete Your Application</h1>
-  <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6ce0da;font-weight:600;white-space:nowrap">✓ Secure &amp; Trusted</span>
-</div>
+  registrationResponse(res, { token, action: '/api/public/campaigns/' + encodeURIComponent(campaign.slug) + '/go', error, name, mobile, consent }, status);
+}
 
-<p style="color:#8fa6bd;font-size:12px;margin:16px 0 24px;text-transform:uppercase;letter-spacing:1px">ENTER DETAILS BELOW TO CONTINUE, WE WILL REDIRECT TO MAIN PAGE</p>
+function registrationResponse(res: Response, props: Parameters<typeof registrationDocument>[0], status = 200) {
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'same-origin');
+  res.set('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.status(status).type('html').send(registrationDocument(props));
+}
 
-${error ? `
-<div style="display:flex;gap:12px;margin:20px 0;padding:14px;border:1px solid #c84b4b;border-radius:10px;background:linear-gradient(135deg,#5a1a1a,#3d0f0f)">
-  <span style="font-size:18px;flex-shrink:0">⚠️</span>
-  <div>
-    <strong style="display:block;font-size:12px;color:#ffa0a0;margin-bottom:4px">Please fix this:</strong>
-    <p style="color:#ff9999;font-size:11px;margin:0">${escapeHtml(error)}</p>
-  </div>
-</div>
-` : ''}
-
-<form method="post" action="/api/public/campaigns/${encodeURIComponent(campaign.slug)}/go" style="margin:24px 0">
-  <input type="hidden" name="captureToken" value="${escapeHtml(token)}">
-  
-  <div style="margin-bottom:24px">
-    <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:#c3cede;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">
-      <span>👤 Full Name</span>
-    </label>
-    <input 
-      id="customer-name" 
-      name="clientName" 
-      type="text" 
-      autocomplete="name" 
-      minlength="2" 
-      maxlength="120" 
-      placeholder="Enter your full name" 
-      value="${escapeHtml(name)}" 
-      style="width:100%;padding:13px 14px;background:#091424;border:1.5px solid #2b3c52;border-radius:10px;color:#fff;font-size:16px;font-weight:500;transition:all .2s"
-      onfocus="this.style.borderColor='#d4af37';this.style.boxShadow='0 0 0 2px #d4af370a'"
-      onblur="this.style.borderColor='#2b3c52';this.style.boxShadow='none'"
-      required>
-  </div>
-
-  <div style="margin-bottom:24px">
-    <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:#c3cede;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">
-      <span>📱 Mobile Number</span>
-    </label>
-    <input 
-      id="customer-mobile" 
-      name="clientMobile" 
-      type="tel" 
-      inputmode="tel" 
-      autocomplete="tel" 
-      maxlength="20" 
-      placeholder="Enter 10-digit mobile number" 
-      value="${escapeHtml(mobile)}" 
-      style="width:100%;padding:13px 14px;background:#091424;border:1.5px solid #2b3c52;border-radius:10px;color:#fff;font-size:16px;font-weight:500;transition:all .2s"
-      onfocus="this.style.borderColor='#d4af37';this.style.boxShadow='0 0 0 2px #d4af370a'"
-      onblur="this.style.borderColor='#2b3c52';this.style.boxShadow='none'"
-      required>
-  </div>
-
-  <div style="margin:24px 0;padding:14px;background:linear-gradient(135deg,#0f1f35,#0a1525);border:1.5px solid #223249;border-radius:10px">
-    <label style="display:flex;gap:12px;align-items:flex-start;line-height:1.6;color:#97a8be;font-size:11px;font-weight:400;cursor:pointer">
-      <input 
-        type="checkbox" 
-        name="consent" 
-        value="yes" 
-        ${consent ? 'checked' : ''} 
-        required
-        style="margin-top:3px;width:18px;height:18px;cursor:pointer;accent-color:#d4af37">
-      <span>I agree that VED Affiliate may save my name and contact number and contact me regarding this application.</span>
-    </label>
-  </div>
-
-  <button type="submit" style="width:100%;border:1px solid #d4af37;border-radius:10px;background:linear-gradient(110deg,#d4af37,#e9c85a);color:#07101c;font-size:13px;font-weight:700;padding:15px;margin-top:8px;cursor:pointer;box-shadow:0 8px 24px #d4af371c;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px">
-    <span style="flex:1">Submit &amp; Continue</span>
-    <span style="font-weight:700;font-size:14px">→</span>
-  </button>
-</form>
-
-<div style="margin-top:28px;padding-top:20px;border-top:1px solid #1e2e45">
-  <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#6ce0da;font-weight:600">
-    <span>🔒</span>
-    <span>Your details are used only for application tracking and verification.</span>
-  </div>
-</div>
-`, status);
+const receiptName = 'ved_customer_capture';
+function rememberCapture(req: Request, res: Response, token: CaptureToken) {
+  const receipt = jwt.sign({ slug: token.slug, ref: token.ref, pid: token.pid, clickId: token.clickId }, secret(), {
+    expiresIn: '7d', audience: 'ved-customer-receipt', issuer: 'ved-api', algorithm: 'HS256',
+  });
+  res.cookie(receiptName, receipt, { httpOnly: true, secure: req.secure || process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 86400000, path: '/api/public/campaigns/' + encodeURIComponent(token.slug) + '/go' });
 }
 
 export const showLeadCaptureForm = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -191,7 +123,15 @@ export const showLeadCaptureForm = async (req: Request, res: Response, next: Nex
   try {
     const ref = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
     const pid = typeof req.query.pid === 'string' ? req.query.pid.trim() : '';
-    const { campaign } = await resolveTracking(req.params.slug, ref, pid);
+    const { campaign, partner } = await resolveTracking(req.params.slug, ref, pid);
+    let receipt: CaptureToken | undefined;
+    try {
+      receipt = jwt.verify(req.cookies?.[receiptName], secret(), { algorithms: ['HS256'], audience: 'ved-customer-receipt', issuer: 'ved-api' }) as CaptureToken;
+    } catch { /* An absent, expired or forged receipt never identifies an existing application. */ }
+    if (receipt && receipt.slug === campaign.slug && receipt.ref === ref && receipt.pid === pid && typeof receipt.clickId === 'string') {
+      const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + receipt.clickId }).lean().exec();
+      if (existing) { registrationResponse(res, { registered: true }); return; }
+    }
     const token = jwt.sign({ slug: campaign.slug, ref, pid, clickId: crypto.randomUUID() }, secret(), {
       expiresIn: '30m', audience: 'ved-lead-capture', issuer: 'ved-api',
     });
@@ -232,6 +172,12 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
   const consent = req.body.consent === 'yes';
   try {
     const { campaign, partner, target } = tracking = await resolveTracking(token.slug, token.ref, token.pid);
+    const ownEnquiry = { partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + token.clickId };
+    if (await Lead.findOne(ownEnquiry).lean().exec()) {
+      rememberCapture(req, res, token);
+      registrationResponse(res, { registered: true });
+      return;
+    }
     const mobile = rawMobile.replace(/[\s()-]/g, '').replace(/^(?:\+91|91)(?=\d{10}$)/, '');
     let error = '';
     if (name.length < 2 || name.length > 120 || /[\u0000-\u001f<>]/.test(name)) error = 'Please enter a valid full name (2–120 characters).';
@@ -243,10 +189,11 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     }
 
     const accountId = `ENQUIRY:${token.clickId}`;
+    let alreadyRegistered = false;
     session = await mongoose.startSession();
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
-      if (existing) return; // A repeated submit of this form resumes the same enquiry.
+      if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
       await TrackingClick.create([{
         clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
         payoutSnapshot: Number(campaign.payout || 0), currency: campaign.currency || 'INR',
@@ -265,14 +212,16 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         referenceType: 'LEAD', referenceId: String(lead._id), dedupeKey: `CUSTOMER_ENQUIRY:${token.clickId}`,
       }], { session });
     });
-    res.redirect(303, destination(target, campaign, partner, token.clickId));
+    rememberCapture(req, res, token);
+    if (alreadyRegistered) registrationResponse(res, { registered: true });
+    else res.redirect(303, destination(target, campaign, partner, token.clickId));
   } catch (error: any) {
     // Concurrent submissions may race on the unique enquiry/click indexes.
     if (error?.code === 11000) {
       try {
         const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid);
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
-        if (existing) { res.redirect(303, destination(target, campaign, partner, token.clickId)); return; }
+        if (existing) { rememberCapture(req, res, token); registrationResponse(res, { registered: true }); return; }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
     }
     const status = error?.status || 503;
