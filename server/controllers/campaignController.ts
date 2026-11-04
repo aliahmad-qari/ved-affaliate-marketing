@@ -16,27 +16,6 @@ const sanitizeCampaign = (campaign: any) => {
   return obj;
 };
 
-// Seed fallback database if empty when MongoDB is connected
-export const ensureSeededData = async () => {
-  try {
-    const { isConnected } = getDbStatus();
-    if (!isConnected) return;
-
-    const count = await Campaign.countDocuments();
-    if (count === 0) {
-      console.log('[VED SEED] Seeding initial campaigns into MongoDB Atlas...');
-      await Campaign.insertMany(initialCampaignSeeds);
-      console.log(`[VED SEED SUCCESS] Seeded ${initialCampaignSeeds.length} campaigns.`);
-    }
-    await Campaign.updateOne(
-      { slug: 'kotak-cherry', baseTrackingUrl: 'https://internal-tracking.vedafl.com/kotakcherry/v1' },
-      { $set: { baseTrackingUrl: initialCampaignSeeds.find((campaign) => campaign.slug === 'kotak-cherry')?.baseTrackingUrl } },
-    );
-  } catch (err) {
-    console.error('[VED SEED ERROR] Error seeding initial campaign data:', err);
-  }
-};
-
 /**
  * GET /api/public/campaigns
  * Retrieves list of public campaigns with optional category, status, and search filters.

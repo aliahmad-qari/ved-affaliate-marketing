@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "tsx server.ts",
     "admin:provision": "tsx scripts/provision-admin.ts",
+    "seed:development": "tsx scripts/seed-development.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
