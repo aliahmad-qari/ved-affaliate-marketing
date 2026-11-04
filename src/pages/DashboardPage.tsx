@@ -18,6 +18,7 @@ import { PartnerLeadReportControls } from '../components/partner/PartnerLeadRepo
 import { fetchPartnerDashboard } from '../services/partnerApi.ts';
 import { DashboardData } from '../types/partner.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { PartnerAvatar } from '../components/profile/PartnerAvatar.tsx';
 
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
@@ -65,7 +66,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       
       {/* Welcome & Partner Identification Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-6 shadow-xl">
-        <div>
+        <div className="flex min-w-0 items-center gap-4">
+          <PartnerAvatar name={partner?.fullName || 'Partner'} photoUrl={partner?.profilePhotoUrl} className="h-14 w-14 sm:h-16 sm:w-16" />
+          <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#121D36] text-[#D4AF37] border border-[#D4AF37]/30 font-mono">
               {partner?.partnerId || 'PARTNER'}
@@ -80,6 +83,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <p className="text-xs text-[#AAB3C2] mt-0.5">
             Real-time verified earnings, lead processing, and payout management.
           </p>
+          </div>
         </div>
 
         {/* Quick Action Buttons */}

@@ -68,6 +68,8 @@ export interface IPartner {
   kycStatus: KycStatus;
   kycRejectionReason?: string;
   referralCode: string;
+  profilePhotoUrl?: string;
+  profilePhotoPublicId?: string;
   referredBy?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;

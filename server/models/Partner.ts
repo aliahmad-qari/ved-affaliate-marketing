@@ -131,6 +131,8 @@ const PartnerSchema: Schema = new Schema(
       trim: true,
       index: true,
     },
+    profilePhotoUrl: { type: String, default: '' },
+    profilePhotoPublicId: { type: String, default: '', select: false },
     referredBy: {
       type: String,
       default: '',
@@ -165,6 +167,7 @@ const PartnerSchema: Schema = new Schema(
         delete ret.resetPasswordExpires;
         delete ret.resetPasswordRequestedAt;
         delete ret.sessionsInvalidatedAt;
+        delete ret.profilePhotoPublicId;
         delete ret.__v;
 
         // Mask sensitive financial identifiers for privacy

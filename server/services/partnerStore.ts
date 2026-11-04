@@ -11,6 +11,7 @@ function sanitizeMemoryPartner(partner: any, includePassword = false): any {
   delete partner.resetPasswordExpires;
   delete partner.resetPasswordRequestedAt;
   delete partner.sessionsInvalidatedAt;
+  delete partner.profilePhotoPublicId;
   if (partner.pan) {
     partner.maskedPan = maskPan(partner.pan);
     delete partner.pan;
@@ -281,5 +282,35 @@ export const PartnerStore = {
       }
     }
     return false;
+  },
+
+  async getProfilePhotoRef(id: string): Promise<{ url: string; publicId: string } | null> {
+    if (isMongooseReady()) {
+      const partner: any = await Partner.findById(id).select('+profilePhotoPublicId profilePhotoUrl').exec();
+      return partner ? { url: partner.profilePhotoUrl || '', publicId: partner.profilePhotoPublicId || '' } : null;
+    }
+    const partner: any = [...memoryPartners.values()].find((item: any) => item._id === id || item.partnerId === id);
+    return partner ? { url: partner.profilePhotoUrl || '', publicId: partner.profilePhotoPublicId || '' } : null;
+  },
+
+  async setProfilePhoto(id: string, url: string, publicId: string): Promise<any | null> {
+    if (isMongooseReady()) return Partner.findByIdAndUpdate(id, { $set: { profilePhotoUrl: url, profilePhotoPublicId: publicId } }, { new: true, runValidators: true }).exec();
+    for (const [email, partner] of memoryPartners.entries()) if ((partner as any)._id === id || partner.partnerId === id) {
+      Object.assign(partner, { profilePhotoUrl: url, profilePhotoPublicId: publicId, updatedAt: new Date() });
+      memoryPartners.set(email, partner);
+      return sanitizeMemoryPartner(structuredClone(partner));
+    }
+    return null;
+  },
+
+  async clearProfilePhoto(id: string): Promise<any | null> {
+    if (isMongooseReady()) return Partner.findByIdAndUpdate(id, { $set: { profilePhotoUrl: '' }, $unset: { profilePhotoPublicId: 1 } }, { new: true }).exec();
+    for (const [email, partner] of memoryPartners.entries()) if ((partner as any)._id === id || partner.partnerId === id) {
+      Object.assign(partner, { profilePhotoUrl: '', updatedAt: new Date() });
+      delete (partner as any).profilePhotoPublicId;
+      memoryPartners.set(email, partner);
+      return sanitizeMemoryPartner(structuredClone(partner));
+    }
+    return null;
   },
 };

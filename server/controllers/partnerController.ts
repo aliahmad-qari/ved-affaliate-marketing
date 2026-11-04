@@ -44,6 +44,8 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       'kycRejectionReason',
       'referralCode',
       'referredBy',
+      'profilePhotoUrl',
+      'profilePhotoPublicId',
       'passwordHash',
       'earnings',
       'wallet',

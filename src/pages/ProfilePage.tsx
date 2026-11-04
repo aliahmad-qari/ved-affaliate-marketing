@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   User,
   Shield,
@@ -14,6 +14,9 @@ import {
   AlertCircle,
   Clock,
   ExternalLink,
+  Camera,
+  Trash2,
+  LoaderCircle,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
 import { VedLogo } from '../components/ui/VedLogo.tsx';
@@ -22,18 +25,24 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { maskPan, maskAccountNumber } from '../lib/masking.ts';
 import { copyText } from '../lib/clipboard.ts';
 import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
+import { PartnerAvatar } from '../components/profile/PartnerAvatar.tsx';
 
 interface ProfilePageProps {
   onNavigate: (tab: string) => void;
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
-  const { partner, logout, updateProfile, changePassword, refreshProfile } = useAuth();
+  const { partner, logout, updateProfile, changePassword, refreshProfile, uploadProfilePhoto, removeProfilePhoto } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'security' | 'kyc'>('overview');
   const [copiedPartnerId, setCopiedPartnerId] = useState(false);
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [manualCopy, setManualCopy] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -95,6 +104,48 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       `Join VED AFFILIATE PVT. LIMITED to promote leading financial apps in India and earn on verified leads! Register using my official partner referral code: ${partner.referralCode}\n${referralUrl}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setPhotoError('Choose a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setPhotoError('Choose an image no larger than 3 MB.');
+      return;
+    }
+    const preview = URL.createObjectURL(file);
+    setPhotoPreview(preview);
+    setPhotoBusy(true);
+    try {
+      await uploadProfilePhoto(file);
+      setPhotoSuccess('Profile photo updated.');
+    } catch (error: any) {
+      setPhotoError(error.message || 'Unable to upload the profile photo.');
+    } finally {
+      URL.revokeObjectURL(preview);
+      setPhotoPreview(current => current === preview ? null : current);
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    setPhotoBusy(true);
+    try {
+      await removeProfilePhoto();
+      setPhotoPreview(null);
+      setPhotoSuccess('Profile photo removed.');
+    } catch (error: any) {
+      setPhotoError(error.message || 'Unable to remove the profile photo.');
+    } finally { setPhotoBusy(false); }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -171,10 +222,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-7 shadow-2xl mb-6 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#121D36] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] font-extrabold text-xl shadow-lg shrink-0">
-              {partner.fullName.substring(0, 2).toUpperCase()}
-            </div>
-            <div>
+            <PartnerAvatar name={partner.fullName} photoUrl={photoPreview || partner.profilePhotoUrl} className="h-14 w-14 rounded-2xl text-xl" />
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-bold text-[#F8FAFC]">
                   {partner.fullName}
@@ -201,6 +250,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 <span>·</span>
                 <span>{partner.city}, {partner.state}</span>
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input ref={photoInputRef} aria-label="Choose profile photo" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={event => void handlePhotoChange(event)} />
+                <Button type="button" variant="outline" size="sm" disabled={photoBusy} onClick={() => photoInputRef.current?.click()}>
+                  {photoBusy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                  {partner.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
+                </Button>
+                {partner.profilePhotoUrl && <Button type="button" variant="ghost" size="sm" disabled={photoBusy} onClick={() => void handleRemovePhoto()} className="text-rose-300"><Trash2 className="h-3.5 w-3.5" />Remove</Button>}
+                <span className="text-[10px] text-[#AAB3C2]">PNG, JPEG, or WebP · up to 3 MB</span>
+              </div>
+              {photoError && <p role="alert" className="mt-2 text-xs text-rose-300">{photoError}</p>}
+              {photoSuccess && <p role="status" className="mt-2 text-xs text-emerald-300">{photoSuccess}</p>}
             </div>
           </div>
 

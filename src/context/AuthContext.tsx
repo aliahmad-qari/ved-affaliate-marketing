@@ -13,6 +13,8 @@ import {
   getCurrentUser,
   getPartnerProfile,
   updatePartnerProfile,
+  uploadPartnerProfilePhoto as uploadProfilePhotoRequest,
+  removePartnerProfilePhoto as removeProfilePhotoRequest,
   changePartnerPassword,
 } from '../services/authApi.ts';
 
@@ -25,6 +27,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (input: UpdateProfileInput) => Promise<void>;
+  uploadProfilePhoto: (file: File) => Promise<void>;
+  removeProfilePhoto: () => Promise<void>;
   changePassword: (input: ChangePasswordInput) => Promise<string>;
 }
 
@@ -83,6 +87,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPartner(updated);
   };
 
+  const uploadProfilePhoto = async (file: File) => {
+    setPartner(await uploadProfilePhotoRequest(file));
+  };
+
+  const removeProfilePhoto = async () => {
+    setPartner(await removeProfilePhotoRequest());
+  };
+
   const changePassword = async (input: ChangePasswordInput) => {
     return await changePartnerPassword(input);
   };
@@ -98,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         refreshProfile,
         updateProfile,
+        uploadProfilePhoto,
+        removeProfilePhoto,
         changePassword,
       }}
     >

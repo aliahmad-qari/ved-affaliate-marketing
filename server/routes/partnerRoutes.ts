@@ -19,8 +19,11 @@ import {
 import { requireAuth, requireRole } from '../middleware/authMiddleware.ts';
 import notificationRoutes from './notificationRoutes.ts';
 import { getPartnerReportCampaigns, downloadPartnerLeadReport } from '../controllers/partnerReportController.ts';
+import { uploadPartnerProfilePhoto, removePartnerProfilePhoto } from '../controllers/partnerPhotoController.ts';
+import multer from 'multer';
 
 const router = Router();
+const profilePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024, files: 1, parts: 1 } });
 
 // All partner routes require authentication
 router.use(requireAuth, requireRole('PARTNER'));
@@ -42,6 +45,8 @@ router.use('/notifications', notificationRoutes);
 // Milestone 2: Profile & Security Endpoints
 router.get('/profile', getProfile);
 router.patch('/profile', updateProfile);
+router.post('/profile/photo', profilePhotoUpload.single('photo'), uploadPartnerProfilePhoto);
+router.delete('/profile/photo', removePartnerProfilePhoto);
 router.post('/kyc', submitKyc);
 router.patch('/password', changePassword);
 

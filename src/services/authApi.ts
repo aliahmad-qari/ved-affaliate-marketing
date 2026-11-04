@@ -117,6 +117,18 @@ export async function updatePartnerProfile(input: UpdateProfileInput): Promise<P
   return res.data;
 }
 
+export async function uploadPartnerProfilePhoto(file: File): Promise<Partner> {
+  const form = new FormData();
+  form.append('photo', file);
+  const res = await authFetch('/api/partner/profile/photo', { method: 'POST', body: form });
+  return res.data;
+}
+
+export async function removePartnerProfilePhoto(): Promise<Partner> {
+  const res = await authFetch('/api/partner/profile/photo', { method: 'DELETE' });
+  return res.data;
+}
+
 export async function submitPartnerKyc(input: KycInput): Promise<Partner> {
   const res = await authFetch('/api/partner/kyc', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),

@@ -28,6 +28,7 @@ export interface Partner {
   kycStatus: KycStatus;
   kycRejectionReason?: string;
   referralCode: string;
+  profilePhotoUrl?: string;
   referredBy?: string;
   createdAt?: string;
   updatedAt?: string;
