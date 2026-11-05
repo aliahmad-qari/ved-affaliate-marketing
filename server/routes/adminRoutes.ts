@@ -13,6 +13,7 @@ import {
   listAdminSupportTickets,
   updateAdminCampaign,
   updateAdminPartner,
+  updateAdminPartnerPayoutSettings,
   updateAdminSupportTicket,
   updateBusinessSettings,
   uploadCampaignLogo,
@@ -47,6 +48,7 @@ router.get('/partners/:id/kyc', getAdminPartnerKyc);
 router.get('/partners/:id/leads', getPartnerLeadLedger);
 router.get('/partners/:id/balance-adjustments', getPartnerBalanceAdjustments);
 router.patch('/partners/:id', updateAdminPartner);
+router.patch('/partners/:id/payout-settings', updateAdminPartnerPayoutSettings);
 router.get('/leads', listAdminLeads);
 router.get('/lead-campaigns', getLeadCampaignOptions);
 router.get('/leads/:id', getAdminLeadDetail);

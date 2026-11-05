@@ -6,6 +6,7 @@ import { TrackingClick } from '../models/TrackingClick.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
+import { resolvePartnerPayout } from '../services/partnerPayout.ts';
 
 // Helper to sanitize public campaign output
 const sanitizeCampaign = (campaign: any) => {
@@ -166,7 +167,7 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         referralCode: ref.toUpperCase(),
         partnerId: pid.toUpperCase(),
         accountStatus: 'ACTIVE',
-      }).select('partnerId referralCode').lean().exec();
+      }).select('partnerId referralCode payoutSettings').lean().exec();
       if (!partner) {
         res.status(400).json({ success: false, message: 'Partner attribution is invalid or inactive.' });
         return;
@@ -178,7 +179,7 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         partnerId: partner.partnerId,
         campaignId: String(campaign._id),
         campaignSlug: campaign.slug,
-        payoutSnapshot: Number(campaign.payout || 0),
+        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings),
         currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });

@@ -12,6 +12,7 @@ import { getDbStatus } from '../config/db.ts';
 import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
+import { resolvePartnerPayout } from '../services/partnerPayout.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
   slug: string;
@@ -40,7 +41,7 @@ async function resolveTracking(slug: string, ref: string, pid: string) {
     throw Object.assign(new Error('This campaign link is not active yet.'), { status: 404 });
   }
   const partner: any = await Partner.findOne({ referralCode: ref.toUpperCase(), partnerId: pid.toUpperCase(), accountStatus: 'ACTIVE' })
-    .select('partnerId referralCode').lean().exec();
+    .select('partnerId referralCode payoutSettings').lean().exec();
   if (!partner) throw Object.assign(new Error('Partner attribution is invalid or inactive.'), { status: 400 });
   return { campaign, partner, target };
 }
@@ -196,14 +197,14 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
       if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
       await TrackingClick.create([{
         clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
-        payoutSnapshot: Number(campaign.payout || 0), currency: campaign.currency || 'INR',
+        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       }], { session });
       const [lead] = await Lead.create([{
         leadId: generateLeadId(), partnerId: partner.partnerId, campaignId: String(campaign._id),
         campaignName: campaign.name, campaignType: campaign.campaignType, clientName: name, clientMobile: mobile,
         accountId, action: campaign.requiredAction, vendorClickId: token.clickId, status: 'PENDING',
-        payoutSnapshot: Number(campaign.payout || 0), currency: campaign.currency || 'INR',
+        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
         submittedData: { source: 'CUSTOMER_FORM', processStatus: 'IN_PROCESS', consentAt: new Date().toISOString(), consentVersion: 'lead-capture-v1' },
       }], { session });
       await Notification.create([{

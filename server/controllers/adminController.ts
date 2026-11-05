@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { v2 as cloudinary } from 'cloudinary';
 import { fileTypeFromBuffer } from 'file-type';
 import crypto from 'node:crypto';
@@ -13,6 +14,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { notifyPartners, writeAudit } from '../services/adminServices.ts';
 import { campaignCategories, DEFAULT_TICKER_MESSAGE } from '../../shared/campaignCategories.ts';
 import { validateKyc } from '../utils/kyc.ts';
+import { isValidPayoutAmount } from '../services/partnerPayout.ts';
 
 const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
 const termFields = ['eligibility', 'validationRejection', 'payoutTimeline', 'duplicateFraudRules'] as const;
@@ -274,6 +276,70 @@ export const updateAdminPartner = async (req: Request, res: Response, next: Next
     await writeAudit(req, 'PARTNER_STATUS_UPDATED', 'Partner', String(partner._id), { accountStatus: before.accountStatus, kycStatus: before.kycStatus }, { accountStatus: partner.accountStatus, kycStatus: partner.kycStatus });
     await notifyPartners([partner.partnerId], 'ACCOUNT_UPDATE', 'Partner account updated', `Your account/KYC status is now ${partner.accountStatus} / ${partner.kycStatus}.`, 'PARTNER', String(partner._id));
     res.json({ success: true, data: partner.toJSON() });
+  } catch (error) { next(error); }
+};
+
+export const updateAdminPartnerPayoutSettings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { defaultPayout, campaignOverrides, expectedUpdatedAt } = req.body || {};
+  if ((defaultPayout !== null && !isValidPayoutAmount(defaultPayout))
+    || !Array.isArray(campaignOverrides)
+    || campaignOverrides.length > 100
+    || typeof expectedUpdatedAt !== 'string'
+    || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    res.status(400).json({ success: false, message: 'Provide valid payout settings and the partner version being edited.' });
+    return;
+  }
+
+  const ids = new Set<string>();
+  const normalizedOverrides: Array<{ campaignId: string; payout: number }> = [];
+  for (const entry of campaignOverrides) {
+    if (!entry || typeof entry.campaignId !== 'string' || !mongoose.Types.ObjectId.isValid(entry.campaignId)
+      || !isValidPayoutAmount(entry.payout) || ids.has(entry.campaignId)) {
+      res.status(400).json({ success: false, message: 'Campaign overrides must use unique campaign IDs and valid non-negative amounts with at most two decimals.' });
+      return;
+    }
+    ids.add(entry.campaignId);
+    normalizedOverrides.push({ campaignId: entry.campaignId, payout: Math.round(entry.payout * 100) / 100 });
+  }
+
+  try {
+    if (ids.size) {
+      const matching = await Campaign.countDocuments({ _id: { $in: [...ids] } }).exec();
+      if (matching !== ids.size) {
+        res.status(400).json({ success: false, message: 'One or more campaign overrides refer to an unknown campaign.' });
+        return;
+      }
+    }
+
+    const payoutSettings = {
+      ...(defaultPayout === null ? {} : { defaultPayout: Math.round(defaultPayout * 100) / 100 }),
+      campaignOverrides: normalizedOverrides,
+    };
+    const expectedVersion = new Date(expectedUpdatedAt);
+    const session = await mongoose.startSession();
+    try {
+      let result: any = null;
+      await session.withTransaction(async () => {
+        const before: any = await Partner.findById(req.params.id).session(session).exec();
+        if (!before) throw Object.assign(new Error('Partner not found.'), { status: 404 });
+        if (!before.updatedAt || new Date(before.updatedAt).getTime() !== expectedVersion.getTime()) {
+          throw Object.assign(new Error('Partner data changed while editing. Reload the partner and try again.'), { status: 409 });
+        }
+        const updated: any = await Partner.findOneAndUpdate(
+          { _id: before._id, updatedAt: before.updatedAt },
+          { $set: { payoutSettings } },
+          { new: true, runValidators: true, session },
+        ).exec();
+        if (!updated) throw Object.assign(new Error('Partner data changed while editing. Reload the partner and try again.'), { status: 409 });
+        await AuditLog.create([{
+          adminId: String(req.user._id), adminEmail: req.user.email, action: 'PARTNER_PAYOUT_SETTINGS_UPDATED',
+          entityType: 'Partner', entityId: String(before._id),
+          before: { payoutSettings: before.payoutSettings || null }, after: { payoutSettings }, ipAddress: req.ip,
+        }], { session });
+        result = { partnerId: updated.partnerId, payoutSettings: updated.payoutSettings || null, updatedAt: updated.updatedAt };
+      });
+      res.json({ success: true, data: result });
+    } finally { await session.endSession(); }
   } catch (error) { next(error); }
 };
 

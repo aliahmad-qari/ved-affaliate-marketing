@@ -7,6 +7,7 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
+import { resolvePartnerPayout } from '../services/partnerPayout.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -81,6 +82,7 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
       return {
         ...camp,
+        payout: resolvePartnerPayout(camp, partner.payoutSettings),
         trackingUrl,
         whatsappShareUrl,
         isLive: camp.status === 'LIVE',
@@ -157,7 +159,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
     }
 
     // Snapshot payout directly from official campaign record
-    const payoutSnapshot = Number(campaign.payout) || 0;
+    const payoutSnapshot = resolvePartnerPayout(campaign, req.user.payoutSettings);
 
     const lead = await LeadStore.createLead({
       partnerId,

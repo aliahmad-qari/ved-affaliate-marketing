@@ -29,6 +29,10 @@ export interface Partner {
   kycRejectionReason?: string;
   referralCode: string;
   profilePhotoUrl?: string;
+  payoutSettings?: {
+    defaultPayout?: number;
+    campaignOverrides?: Array<{ campaignId: string; payout: number }>;
+  };
   referredBy?: string;
   createdAt?: string;
   updatedAt?: string;

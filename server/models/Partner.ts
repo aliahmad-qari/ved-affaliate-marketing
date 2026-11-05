@@ -43,6 +43,16 @@ const BankDetailsSchema = new Schema(
   { _id: false }
 );
 
+const PartnerCampaignPayoutOverrideSchema = new Schema({
+  campaignId: { type: String, required: true, trim: true },
+  payout: { type: Number, required: true, min: 0 },
+}, { _id: false });
+
+const PartnerPayoutSettingsSchema = new Schema({
+  defaultPayout: { type: Number, min: 0 },
+  campaignOverrides: { type: [PartnerCampaignPayoutOverrideSchema], default: [] },
+}, { _id: false });
+
 const PartnerSchema: Schema = new Schema(
   {
     partnerId: {
@@ -134,6 +144,7 @@ const PartnerSchema: Schema = new Schema(
     profilePhotoUrl: { type: String, default: '' },
     profilePhotoPublicId: { type: String, default: '', select: false },
     emailVerifiedAt: { type: Date, select: false },
+    payoutSettings: { type: PartnerPayoutSettingsSchema, default: undefined },
     referredBy: {
       type: String,
       default: '',

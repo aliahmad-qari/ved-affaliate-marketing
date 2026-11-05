@@ -23,6 +23,7 @@ import { useSiteSettings } from '../context/SiteSettingsContext.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 import { copyText } from '../lib/clipboard.ts';
 import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
+import { resolvePartnerPayoutAmount } from '../../shared/partnerPayout.ts';
 
 interface CampaignsPageProps {
   campaigns: Campaign[];
@@ -228,7 +229,13 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
         {/* Campaign Cards Grid */}
         {!isLoading && !error && filteredCampaigns.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCampaigns.map((campaign) => (
+            {filteredCampaigns.map((campaign) => {
+              const partnerPayoutSettings = isAuthenticated ? partner?.payoutSettings : undefined;
+              const campaignId = String(campaign._id || '');
+              const hasPartnerOverride = partnerPayoutSettings?.defaultPayout !== undefined
+                || partnerPayoutSettings?.campaignOverrides?.some(item => item.campaignId === campaignId) === true;
+              const applicablePayout = resolvePartnerPayoutAmount(campaignId, campaign.payout, partnerPayoutSettings);
+              return (
               <div
                 key={campaign.slug}
                 className="bg-[#0D1424] border border-[#1C273C] hover:border-[#D4AF37]/40 rounded-xl p-5 sm:p-6 transition-all duration-200 flex flex-col justify-between group hover:shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
@@ -273,7 +280,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <div>
                         <span className="text-[#AAB3C2]">Potential Payout: </span>
                         <span className="text-[#D4AF37] font-bold">
-                          {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
+                          {applicablePayout > 0 || hasPartnerOverride || (campaign.payout !== null && campaign.payout !== undefined) ? `₹${applicablePayout}` : 'Admin Configured'}
                         </span>
                       </div>
                     </div>
@@ -356,7 +363,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

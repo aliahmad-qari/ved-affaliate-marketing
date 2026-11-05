@@ -28,7 +28,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
   const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [];
-  let failSave = false, financialWrites = 0;
+  let failSave = false, financialWrites = 0, transactionQueue = Promise.resolve();
   const chain = (value: any): any => {
     const query: any = { exec: async () => typeof value === 'function' ? value() : value };
     query.then = (resolve: any, reject: any) => query.exec().then(resolve, reject);
@@ -46,11 +46,15 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   });
   t.mock.method(mongoose, 'startSession', async () => ({
     withTransaction: async (operation: () => Promise<void>) => {
+      const preceding = transactionQueue;
+      let release!: () => void;
+      transactionQueue = new Promise<void>(resolve => { release = resolve; });
+      await preceding;
       const sizes = [leads.length, clicks.length, notices.length];
       try { await operation(); } catch (error) {
         [leads.length, clicks.length, notices.length] = sizes;
         throw error;
-      }
+      } finally { release(); }
     }, endSession: async () => {},
   }) as any);
   t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && campaign.status === 'LIVE' ? campaign : null));
@@ -236,11 +240,15 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     // Existing manual partner submission remains available and does not create customer-form progress fields.
     const partnerToken = signToken({ id: 'partner-1', partnerId: partner.partnerId, email: 'partner@example.test', role: 'PARTNER' });
     const manualBody = { campaignId: 'sample', clientName: 'Manual Customer', clientMobile: '9876543210', accountId: 'APPLICATION-123', submittedNotes: 'Existing manual flow', status: 'APPROVED' };
+    partner.payoutSettings = { defaultPayout: 325, campaignOverrides: [{ campaignId: campaign._id, payout: 410 }] };
     const manualSubmit = () => fetch(`${base}/api/partner/leads`, { method: 'POST', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(manualBody) });
     const manualResponse = await manualSubmit();
     assert.equal(manualResponse.status, 201);
     const manualLead = (await manualResponse.json()).data;
     assert.equal(manualLead.status, 'PENDING');
+    assert.equal(manualLead.payoutSnapshot, 410, 'campaign-specific partner payout takes precedence for new manual leads');
+    assert.equal(leads.find(lead => lead._id === 'lead-2')?.payoutSnapshot, 250, 'later partner settings do not alter an existing lead snapshot');
+    assert.equal(ledger.find(entry => entry.referenceId === 'lead-2')?.amount, 250, 'later partner settings do not alter an existing wallet credit');
     assert.equal(manualLead.submittedData.source, undefined);
     assert.equal((await manualSubmit()).status, 409);
     // DRAFT and ENDED reports remain blocked even without any available rows.
@@ -253,7 +261,13 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     }
     campaign.status = 'LIVE';
     assert.equal((await patch(`/leads/${manualLead._id}/process`, { processStatus: 'NOT_SUBMITTED' })).status, 404);
-    assert.equal((await patch(`/leads/${manualLead._id}/review`, { status: 'APPROVED' })).status, 200);
+    const existingCreditCount = ledger.length;
+    const concurrentApprovals = await Promise.all([
+      patch(`/leads/${manualLead._id}/review`, { status: 'APPROVED' }),
+      patch(`/leads/${manualLead._id}/review`, { status: 'APPROVED' }),
+    ]);
+    assert.deepEqual(concurrentApprovals.map(response => response.status).sort(), [200, 409]);
+    assert.equal(ledger.length, existingCreditCount + 1, 'concurrent approval attempts create one wallet credit');
 
     // Legacy vendor conversions without a customer-form enquiry still get processed automatically.
     clicks.push({ ...clicks[0], clickId: 'legacy-click' });
@@ -273,13 +287,13 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(summary.totalLeads, 4);
     assert.equal(summary.successfulLeads, 3);
     assert.equal(summary.rejectedLeads, 1);
-    assert.equal(summary.totalEarnings, 750);
-    assert.equal(summary.availableWalletBalance, 500, 'Paid earnings must not remain available to withdraw');
+    assert.equal(summary.totalEarnings, 910);
+    assert.equal(summary.availableWalletBalance, 660, 'Paid earnings must not remain available to withdraw');
     const walletResponse = await partnerGet('/wallet');
     assert.equal(walletResponse.status, 200);
     const wallet = (await walletResponse.json()).data;
-    assert.equal(wallet.availableBalance, 500);
-    assert.equal(wallet.totalEarned, 750);
+    assert.equal(wallet.availableBalance, 660);
+    assert.equal(wallet.totalEarned, 910);
     assert.equal(wallet.transactions.length, 3);
     const notificationsResponse = await partnerGet('/notifications');
     assert.equal(notificationsResponse.status, 200);
@@ -328,6 +342,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(directTarget.searchParams.get('ref'), partner.referralCode);
     assert.equal(directTarget.searchParams.get('pid'), partner.partnerId);
     assert.equal(directTarget.searchParams.get('clickid'), clicks.at(-1).clickId);
+    assert.equal(clicks.at(-1).payoutSnapshot, 410, 'new vendor clicks capture the current campaign-specific partner payout');
     assert.equal(directTarget.searchParams.get('offer'), 'original');
     assert.ok(!directLocation.includes('undefined'));
     campaign.status = 'PAUSED';
@@ -339,7 +354,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(pausedReport.status, 201, 'Manual reports remain accepted after a LIVE campaign becomes PAUSED');
     const report = (await pausedReport.json()).data;
     assert.equal(report.status, 'PENDING');
-    assert.equal(report.payoutSnapshot, campaign.payout);
+    assert.equal(report.payoutSnapshot, 410, 'new manual leads capture the current campaign-specific partner payout');
     assert.equal(leads.length, priorReports + 1);
     assert.equal(ledger.length, priorEarnings, 'A pending report must not credit earnings');
     assert.equal(clicks.length, priorClicks, 'Manual reporting must not alter click attribution');

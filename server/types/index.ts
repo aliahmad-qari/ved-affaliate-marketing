@@ -70,6 +70,10 @@ export interface IPartner {
   referralCode: string;
   profilePhotoUrl?: string;
   profilePhotoPublicId?: string;
+  payoutSettings?: {
+    defaultPayout?: number;
+    campaignOverrides?: Array<{ campaignId: string; payout: number }>;
+  };
   referredBy?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
