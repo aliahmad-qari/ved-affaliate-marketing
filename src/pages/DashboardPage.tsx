@@ -19,6 +19,7 @@ import { fetchPartnerDashboard } from '../services/partnerApi.ts';
 import { DashboardData } from '../types/partner.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { PartnerAvatar } from '../components/profile/PartnerAvatar.tsx';
+import { PartnerSubTeamLinks } from '../components/partner/PartnerSubTeamLinks.tsx';
 
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
@@ -229,6 +230,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       </div>
 
       <PartnerLeadReportControls campaignId={reportCampaignId} status="ALL" search="" onCampaign={setReportCampaignId} />
+      <PartnerSubTeamLinks />
       {/* Quick Action Navigation Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         

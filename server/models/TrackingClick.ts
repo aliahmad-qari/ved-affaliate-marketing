@@ -5,6 +5,7 @@ export interface TrackingClickDocument extends Document {
   partnerId: string;
   campaignId: string;
   campaignSlug: string;
+  subTeamLinkId?: string;
   payoutSnapshot: number;
   currency: string;
   expiresAt: Date;
@@ -16,6 +17,7 @@ const TrackingClickSchema = new Schema<TrackingClickDocument>(
     partnerId: { type: String, required: true, uppercase: true, index: true },
     campaignId: { type: String, required: true, index: true },
     campaignSlug: { type: String, required: true },
+    subTeamLinkId: { type: String, trim: true },
     payoutSnapshot: { type: Number, required: true, min: 0 },
     currency: { type: String, required: true, default: 'INR' },
     expiresAt: { type: Date, required: true, expires: 0 },

@@ -7,6 +7,7 @@ import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
 import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { createSubTeamClick, resolveSubTeamPartner } from '../services/subTeamAttribution.ts';
 
 // Helper to sanitize public campaign output
 const sanitizeCampaign = (campaign: any) => {
@@ -145,6 +146,7 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
     const codePattern = /^[A-Za-z0-9-]{3,40}$/;
     const ref = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
     const pid = typeof req.query.pid === 'string' ? req.query.pid.trim() : '';
+    const subTeamTrackingId = typeof req.query.subteam === 'string' ? req.query.subteam.trim() : '';
 
     const campaign: any = getDbStatus().isConnected
       ? await Campaign.findOne({ slug: req.params.slug, status: 'LIVE' }).select('+baseTrackingUrl').lean().exec()
@@ -162,27 +164,45 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
       return;
     }
 
-    if (codePattern.test(ref) || codePattern.test(pid)) {
-      const partner = await Partner.findOne({
-        referralCode: ref.toUpperCase(),
-        partnerId: pid.toUpperCase(),
-        accountStatus: 'ACTIVE',
-      }).select('partnerId referralCode payoutSettings').lean().exec();
-      if (!partner) {
-        res.status(400).json({ success: false, message: 'Partner attribution is invalid or inactive.' });
-        return;
+    if (subTeamTrackingId || codePattern.test(ref) || codePattern.test(pid)) {
+      let partner: any;
+      let subTeamLink: any;
+      if (subTeamTrackingId) {
+        if (!codePattern.test(ref) || !codePattern.test(pid)) {
+          res.status(400).json({ success: false, message: 'Sub-team links require the original parent partner identifiers.' }); return;
+        }
+        try {
+          const resolved = await resolveSubTeamPartner(req.params.slug, campaign, ref, pid, subTeamTrackingId);
+          partner = resolved.partner;
+          subTeamLink = resolved.link;
+        } catch (error: any) {
+          res.status(error?.status || 400).json({ success: false, message: error?.message || 'Sub-team attribution is invalid.' }); return;
+        }
+      } else {
+        partner = await Partner.findOne({
+          referralCode: ref.toUpperCase(),
+          partnerId: pid.toUpperCase(),
+          accountStatus: 'ACTIVE',
+        }).select('partnerId referralCode payoutSettings').lean().exec();
+        if (!partner) {
+          res.status(400).json({ success: false, message: 'Partner attribution is invalid or inactive.' });
+          return;
+        }
       }
-
       const clickId = crypto.randomUUID();
-      await TrackingClick.create({
-        clickId,
-        partnerId: partner.partnerId,
-        campaignId: String(campaign._id),
-        campaignSlug: campaign.slug,
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings),
-        currency: campaign.currency || 'INR',
-        expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
-      });
+      if (subTeamLink) {
+        await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePartnerPayout(campaign, partner.payoutSettings), campaign.currency || 'INR');
+      } else {
+        await TrackingClick.create({
+          clickId,
+          partnerId: partner.partnerId,
+          campaignId: String(campaign._id),
+          campaignSlug: campaign.slug,
+          payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings),
+          currency: campaign.currency || 'INR',
+          expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        });
+      }
       const isWhatsApp = ['wa.me', 'www.whatsapp.com', 'api.whatsapp.com'].includes(target.hostname.toLowerCase());
       if (preserveVendorTrackingUrl(target)) {
         res.redirect(302, campaign.baseTrackingUrl);

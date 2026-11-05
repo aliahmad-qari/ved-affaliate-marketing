@@ -6,6 +6,7 @@ import {
   WalletData,
   ReferralsData,
   EarningsItem,
+  PartnerSubTeamLinkItem,
 } from '../types/partner.ts';
 import { getInMemoryToken } from './authApi.ts';
 
@@ -56,6 +57,22 @@ export async function submitPartnerLead(input: SubmitLeadInput): Promise<LeadIte
     body: JSON.stringify(input),
   });
   return res.data;
+}
+
+export async function fetchPartnerSubTeamLinks(): Promise<PartnerSubTeamLinkItem[]> {
+  return (await partnerFetch('/api/partner/sub-team-links')).data;
+}
+
+export async function createPartnerSubTeamLink(input: { name: string; campaignId: string }): Promise<PartnerSubTeamLinkItem> {
+  return (await partnerFetch('/api/partner/sub-team-links', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })).data;
+}
+
+export async function updatePartnerSubTeamLink(id: string, input: { name?: string; status?: 'ACTIVE' | 'ARCHIVED' }): Promise<PartnerSubTeamLinkItem> {
+  return (await partnerFetch(`/api/partner/sub-team-links/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  })).data;
 }
 
 export async function fetchPartnerLeads(params: {

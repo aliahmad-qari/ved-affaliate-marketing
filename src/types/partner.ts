@@ -81,6 +81,22 @@ export interface SubmitLeadInput {
   clientMobile: string;
   accountId: string;
   submittedNotes?: string;
+  subTeamLinkId?: string;
+}
+
+export interface PartnerSubTeamLinkItem {
+  _id: string;
+  campaignId: string;
+  campaignSlug: string;
+  campaignName: string;
+  name: string;
+  status: 'ACTIVE' | 'ARCHIVED';
+  clickCount: number;
+  leads: number;
+  approvedConversions: number;
+  attributedEarnings: number;
+  trackingUrl?: string;
+  createdAt?: string;
 }
 
 export interface WalletTransactionItem {

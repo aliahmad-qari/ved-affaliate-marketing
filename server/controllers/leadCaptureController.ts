@@ -13,12 +13,14 @@ import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
 import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { createSubTeamClick, resolveSubTeamPartner } from '../services/subTeamAttribution.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
   slug: string;
   ref: string;
   pid: string;
   clickId: string;
+  subteam?: string;
 }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
@@ -29,7 +31,7 @@ const secret = () => {
   return process.env.JWT_SECRET;
 };
 
-async function resolveTracking(slug: string, ref: string, pid: string) {
+async function resolveTracking(slug: string, ref: string, pid: string, subteam = '', allowArchivedSubTeam = false) {
   if (!getDbStatus().isConnected) throw Object.assign(new Error('This service is temporarily unavailable. Please try again.'), { status: 503 });
   if (!/^[A-Za-z0-9-]{3,40}$/.test(ref) || !/^[A-Za-z0-9-]{3,40}$/.test(pid)) {
     throw Object.assign(new Error('Partner attribution is invalid or inactive.'), { status: 400 });
@@ -40,10 +42,14 @@ async function resolveTracking(slug: string, ref: string, pid: string) {
   if (!target || !['http:', 'https:'].includes(target.protocol)) {
     throw Object.assign(new Error('This campaign link is not active yet.'), { status: 404 });
   }
+  if (subteam) {
+    const { partner, link } = await resolveSubTeamPartner(slug, campaign, ref, pid, subteam, allowArchivedSubTeam);
+    return { campaign, partner, target, subTeamLink: link };
+  }
   const partner: any = await Partner.findOne({ referralCode: ref.toUpperCase(), partnerId: pid.toUpperCase(), accountStatus: 'ACTIVE' })
     .select('partnerId referralCode payoutSettings').lean().exec();
   if (!partner) throw Object.assign(new Error('Partner attribution is invalid or inactive.'), { status: 400 });
-  return { campaign, partner, target };
+  return { campaign, partner, target, subTeamLink: undefined };
 }
 
 function destination(target: URL, campaign: any, partner: any, clickId: string) {
@@ -87,8 +93,10 @@ p{color:#9facbf;font-size:12px;line-height:1.75;margin:10px 0}
 </style></head><body><div class="shell"><header class="topbar"><div class="brand"><span class="brandmark">VED</span><div>VED <span style="color:#d4af37">AFFILIATE</span><small>PVT. LIMITED</small></div></div></header><main>${content}</main><footer class="page-footer"><span>VED AFFILIATE PVT. LIMITED</span></footer></div></body></html>`);
 }
 
-function captureLink(slug: string, ref: string, pid: string) {
-  return `/api/public/campaigns/${encodeURIComponent(slug)}/go?${new URLSearchParams({ ref, pid })}`;
+function captureLink(slug: string, ref: string, pid: string, subteam = '') {
+  const params = new URLSearchParams({ ref, pid });
+  if (subteam) params.set('subteam', subteam);
+  return `/api/public/campaigns/${encodeURIComponent(slug)}/go?${params}`;
 }
 
 function renderMessage(res: Response, message: string, retryLink = '', status = 400) {
@@ -109,7 +117,7 @@ function registrationResponse(res: Response, props: Parameters<typeof registrati
 
 const receiptName = 'ved_customer_capture';
 function rememberCapture(req: Request, res: Response, token: CaptureToken) {
-  const receipt = jwt.sign({ slug: token.slug, ref: token.ref, pid: token.pid, clickId: token.clickId }, secret(), {
+  const receipt = jwt.sign({ slug: token.slug, ref: token.ref, pid: token.pid, clickId: token.clickId, ...(token.subteam ? { subteam: token.subteam } : {}) }, secret(), {
     expiresIn: '7d', audience: 'ved-customer-receipt', issuer: 'ved-api', algorithm: 'HS256',
   });
   res.cookie(receiptName, receipt, { httpOnly: true, secure: req.secure || process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 86400000, path: '/api/public/campaigns/' + encodeURIComponent(token.slug) + '/go' });
@@ -124,16 +132,19 @@ export const showLeadCaptureForm = async (req: Request, res: Response, next: Nex
   try {
     const ref = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
     const pid = typeof req.query.pid === 'string' ? req.query.pid.trim() : '';
-    const { campaign, partner } = await resolveTracking(req.params.slug, ref, pid);
+    const subteam = typeof req.query.subteam === 'string' ? req.query.subteam.trim() : '';
+    const { campaign, partner, subTeamLink } = await resolveTracking(req.params.slug, ref, pid, subteam);
     let receipt: CaptureToken | undefined;
     try {
       receipt = jwt.verify(req.cookies?.[receiptName], secret(), { algorithms: ['HS256'], audience: 'ved-customer-receipt', issuer: 'ved-api' }) as CaptureToken;
     } catch { /* An absent, expired or forged receipt never identifies an existing application. */ }
-    if (receipt && receipt.slug === campaign.slug && receipt.ref === ref && receipt.pid === pid && typeof receipt.clickId === 'string') {
+    if (receipt && receipt.slug === campaign.slug && receipt.ref === ref && receipt.pid === pid && (receipt.subteam || '') === subteam && typeof receipt.clickId === 'string') {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + receipt.clickId }).lean().exec();
       if (existing) { registrationResponse(res, { registered: true }); return; }
     }
-    const token = jwt.sign({ slug: campaign.slug, ref, pid, clickId: crypto.randomUUID() }, secret(), {
+    const clickId = crypto.randomUUID();
+    if (subTeamLink) await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePartnerPayout(campaign, partner.payoutSettings), campaign.currency || 'INR');
+    const token = jwt.sign({ slug: campaign.slug, ref, pid, clickId, ...(subteam ? { subteam } : {}) }, secret(), {
       expiresIn: '30m', audience: 'ved-lead-capture', issuer: 'ved-api',
     });
     renderForm(res, campaign, token);
@@ -151,7 +162,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     token = jwt.verify(req.body?.captureToken, secret(), {
       algorithms: ['HS256'], audience: 'ved-lead-capture', issuer: 'ved-api',
     }) as CaptureToken;
-    if (token.slug !== req.params.slug || typeof token.clickId !== 'string' || typeof token.ref !== 'string' || typeof token.pid !== 'string') throw new Error('Invalid token.');
+    if (token.slug !== req.params.slug || typeof token.clickId !== 'string' || typeof token.ref !== 'string' || typeof token.pid !== 'string' || (token.subteam !== undefined && typeof token.subteam !== 'string')) throw new Error('Invalid token.');
   } catch {
     let retryLink = '';
     try {
@@ -159,7 +170,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         algorithms: ['HS256'], audience: 'ved-lead-capture', issuer: 'ved-api', ignoreExpiration: true,
       }) as CaptureToken;
       if (expired.slug === req.params.slug && typeof expired.ref === 'string' && typeof expired.pid === 'string') {
-        retryLink = captureLink(expired.slug, expired.ref, expired.pid);
+        retryLink = captureLink(expired.slug, expired.ref, expired.pid, typeof expired.subteam === 'string' ? expired.subteam : '');
       }
     } catch { /* Only recover attribution from a correctly signed token. */ }
     renderMessage(res, 'This form has expired or is invalid. Please reopen it and try again.', retryLink);
@@ -172,7 +183,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
   const rawMobile = typeof req.body.clientMobile === 'string' ? req.body.clientMobile.trim() : '';
   const consent = req.body.consent === 'yes';
   try {
-    const { campaign, partner, target } = tracking = await resolveTracking(token.slug, token.ref, token.pid);
+    const { campaign, partner, target, subTeamLink } = tracking = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
     const ownEnquiry = { partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + token.clickId };
     if (await Lead.findOne(ownEnquiry).lean().exec()) {
       rememberCapture(req, res, token);
@@ -195,15 +206,21 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
       if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
-      await TrackingClick.create([{
-        clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
-        expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
-      }], { session });
+      if (subTeamLink) {
+        const trackedClick = await TrackingClick.findOne({ clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), subTeamLinkId: String(subTeamLink._id) }).session(session!).exec();
+        if (!trackedClick) throw Object.assign(new Error('The original sub-team click is unavailable. Reopen the tracking link and try again.'), { status: 409 });
+      } else {
+        await TrackingClick.create([{
+          clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
+          payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
+          expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        }], { session });
+      }
       const [lead] = await Lead.create([{
         leadId: generateLeadId(), partnerId: partner.partnerId, campaignId: String(campaign._id),
         campaignName: campaign.name, campaignType: campaign.campaignType, clientName: name, clientMobile: mobile,
         accountId, action: campaign.requiredAction, vendorClickId: token.clickId, status: 'PENDING',
+        ...(subTeamLink ? { subTeamLinkId: String(subTeamLink._id) } : {}),
         payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
         submittedData: { source: 'CUSTOMER_FORM', processStatus: 'IN_PROCESS', consentAt: new Date().toISOString(), consentVersion: 'lead-capture-v1' },
       }], { session });
@@ -220,7 +237,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     // Concurrent submissions may race on the unique enquiry/click indexes.
     if (error?.code === 11000) {
       try {
-        const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid);
+        const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
         if (existing) { rememberCapture(req, res, token); registrationResponse(res, { registered: true }); return; }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
@@ -228,6 +245,6 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     const status = error?.status || 503;
     const message = status < 500 ? error.message : 'We could not save your enquiry. Please submit the form again to continue.';
     if (tracking) renderForm(res, tracking.campaign, req.body.captureToken, message, name.slice(0, 120), rawMobile.slice(0, 20), status, consent);
-    else renderMessage(res, message, captureLink(token.slug, token.ref, token.pid), status);
+    else renderMessage(res, message, captureLink(token.slug, token.ref, token.pid, token.subteam || ''), status);
   } finally { await session?.endSession(); }
 };

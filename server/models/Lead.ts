@@ -51,6 +51,7 @@ const LeadSchema: Schema = new Schema(
       trim: true,
     },
     vendorClickId: { type: String, default: '', index: true },
+    subTeamLinkId: { type: String, trim: true },
     vendorConversionKey: { type: String, unique: true, sparse: true },
     action: {
       type: String,
@@ -123,5 +124,6 @@ const LeadSchema: Schema = new Schema(
 // Prevent duplicate submission of the same account/reference ID for the same campaign by the same partner
 LeadSchema.index({ partnerId: 1, campaignId: 1, accountId: 1 }, { unique: true });
 LeadSchema.index({ status: 1, rejectedAt: 1, createdAt: -1 });
+LeadSchema.index({ subTeamLinkId: 1, status: 1, createdAt: -1 }, { name: 'lead_subteam_status_created' });
 
 export const Lead = mongoose.models.Lead || mongoose.model<LeadDocument>('Lead', LeadSchema);

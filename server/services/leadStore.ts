@@ -37,6 +37,7 @@ export const LeadStore = {
     action: string;
     submittedData?: Record<string, any>;
     payoutSnapshot: number;
+    subTeamLinkId?: string;
   }): Promise<ILead> {
     const cleanAccountId = data.accountId.trim();
 

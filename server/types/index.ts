@@ -105,6 +105,7 @@ export interface ILead {
   accountId: string;
   action: string;
   vendorClickId?: string;
+  subTeamLinkId?: string;
   vendorConversionKey?: string;
   submittedData?: Record<string, any>;
   status: LeadStatus;

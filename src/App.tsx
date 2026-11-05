@@ -158,6 +158,7 @@ function MainApp() {
       const query = new URLSearchParams();
       if (params.get('ref')) query.set('ref', params.get('ref')!);
       if (params.get('pid')) query.set('pid', params.get('pid')!);
+      if (params.get('subteam')) query.set('subteam', params.get('subteam')!);
       const hasPartnerAttribution = Boolean(params.get('ref') && params.get('pid'));
       setIsTrackingLanding(hasPartnerAttribution);
       setContinueUrl(hasPartnerAttribution ? `${API_BASE}/api/public/campaigns/${encodeURIComponent(found.slug)}/go?${query}` : undefined);

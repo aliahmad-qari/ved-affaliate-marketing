@@ -11,7 +11,7 @@ export function campaignCaptureUrl(pathname: string, search: string, apiBase = '
   const params = new URLSearchParams(search);
   if (!params.has('ref') && !params.has('pid')) return null;
   const query = new URLSearchParams();
-  for (const key of ['ref', 'pid']) {
+  for (const key of ['ref', 'pid', 'subteam']) {
     if (params.has(key)) query.set(key, params.get(key)!);
   }
   return `${apiBase.replace(/\/$/, '')}/api/public/campaigns/${encodeURIComponent(slug)}/go?${query}`;

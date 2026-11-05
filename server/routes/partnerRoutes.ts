@@ -20,6 +20,7 @@ import { requireAuth, requireRole } from '../middleware/authMiddleware.ts';
 import notificationRoutes from './notificationRoutes.ts';
 import { getPartnerReportCampaigns, downloadPartnerLeadReport } from '../controllers/partnerReportController.ts';
 import { uploadPartnerProfilePhoto, removePartnerProfilePhoto } from '../controllers/partnerPhotoController.ts';
+import { createPartnerSubTeamLink, listPartnerSubTeamLinks, updatePartnerSubTeamLink } from '../controllers/partnerSubTeamController.ts';
 import multer from 'multer';
 
 const router = Router();
@@ -31,6 +32,9 @@ router.use(requireAuth, requireRole('PARTNER'));
 // Milestone 3: Dashboard & Financial Endpoints
 router.get('/dashboard', getDashboard);
 router.get('/campaigns', getPartnerCampaigns);
+router.get('/sub-team-links', listPartnerSubTeamLinks);
+router.post('/sub-team-links', createPartnerSubTeamLink);
+router.patch('/sub-team-links/:id', updatePartnerSubTeamLink);
 router.post('/leads', submitLead);
 router.get('/leads', getPartnerLeads);
 router.get('/lead-campaigns', getPartnerReportCampaigns);

@@ -87,6 +87,9 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       if (lead && lead.partnerId !== partner.partnerId) {
         throw Object.assign(new Error('Conversion attribution does not match the original partner.'), { status: 409 });
       }
+      if (lead && click.subTeamLinkId && lead.subTeamLinkId && lead.subTeamLinkId !== click.subTeamLinkId) {
+        throw Object.assign(new Error('Conversion sub-team attribution does not match the original click.'), { status: 409 });
+      }
       if (lead && lead.status !== 'PENDING' && lead.status !== targetStatus) {
         response = { leadId: lead.leadId, status: lead.status, ignoredTerminalUpdate: true };
         return;
@@ -105,6 +108,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
           accountId,
           action: campaign.requiredAction,
           vendorClickId: clickId,
+          subTeamLinkId: click.subTeamLinkId,
           vendorConversionKey: conversionKey,
           status: targetStatus,
           payoutSnapshot: click.payoutSnapshot,
@@ -117,6 +121,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       } else {
         if (!lead.clientName && req.body?.customerName) lead.clientName = text(req.body.customerName, 120);
         if (!lead.clientMobile && req.body?.customerMobile) lead.clientMobile = text(req.body.customerMobile, 40);
+        if (!lead.subTeamLinkId && click.subTeamLinkId) lead.subTeamLinkId = click.subTeamLinkId;
         lead.status = targetStatus;
         lead.reviewedBy = 'VENDOR_WEBHOOK';
         if (targetStatus === 'APPROVED') lead.approvedAt = new Date();

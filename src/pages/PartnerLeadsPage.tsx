@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
 import { PartnerLeadReportControls } from '../components/partner/PartnerLeadReportControls.tsx';
-import { fetchPartnerLeads, fetchPartnerCampaigns, submitPartnerLead } from '../services/partnerApi.ts';
-import { LeadItem, PartnerCampaignItem, LeadStatus } from '../types/partner.ts';
+import { fetchPartnerLeads, fetchPartnerCampaigns, fetchPartnerSubTeamLinks, submitPartnerLead } from '../services/partnerApi.ts';
+import { LeadItem, PartnerCampaignItem, PartnerSubTeamLinkItem, LeadStatus } from '../types/partner.ts';
 import { LeadDateFilterControls } from '../components/ui/LeadDateFilterControls.tsx';
 import { emptyLeadDateFilters } from '../../shared/leadDateFilters.ts';
 
@@ -40,8 +40,10 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
   const loadVersion = useRef(0);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [liveCampaigns, setLiveCampaigns] = useState<PartnerCampaignItem[]>([]);
+  const [subTeamLinks, setSubTeamLinks] = useState<PartnerSubTeamLinkItem[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [selectedSubTeamLinkId, setSelectedSubTeamLinkId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientMobile, setClientMobile] = useState('');
   const [accountId, setAccountId] = useState('');
@@ -88,9 +90,11 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
       const version = ++refreshVersion;
       setCampaignsLoading(true);
       try {
-        const campaigns = (await fetchPartnerCampaigns()).filter(campaign => ['LIVE', 'PAUSED'].includes(campaign.status));
+        const [campaignResponse, linkResponse] = await Promise.all([fetchPartnerCampaigns(), fetchPartnerSubTeamLinks().catch(() => [])]);
+        const campaigns = campaignResponse.filter(campaign => ['LIVE', 'PAUSED'].includes(campaign.status));
         if (!active || version !== refreshVersion) return;
         setLiveCampaigns(campaigns);
+        setSubTeamLinks(linkResponse);
         setSelectedCampaignId(current => current || campaigns[0]?.slug || campaigns[0]?._id || '');
       } catch {
         if (active && version === refreshVersion) { setLiveCampaigns([]); setSubmitError('Unable to verify available campaigns. Please try again.'); }
@@ -121,11 +125,13 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
     setClientMobile('');
     setAccountId('');
     setSubmittedNotes('');
+    setSelectedSubTeamLinkId('');
     setSubmitError(null);
     setSubmitSuccess(null);
   };
 
   const selectedCampaign = liveCampaigns.find((campaign) => campaign.slug === selectedCampaignId || campaign._id === selectedCampaignId);
+  const selectedCampaignSubTeamLinks = subTeamLinks.filter(link => link.status === 'ACTIVE' && link.campaignId === selectedCampaign?._id);
   const campaignUnavailable = !selectedCampaign || !['LIVE', 'PAUSED'].includes(selectedCampaign.status);
   const campaignWarning = 'Reports can only be submitted for LIVE or PAUSED campaigns. This campaign is unavailable for report submission.';
 
@@ -144,7 +150,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
         setSubmitError(campaignWarning);
         return;
       }
-      await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: clientMobile.trim(), accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined });
+      await submitPartnerLead({ campaignId: selectedCampaignId, clientName: clientName.trim(), clientMobile: clientMobile.trim(), accountId: accountId.trim(), submittedNotes: submittedNotes.trim() || undefined, ...(selectedSubTeamLinkId ? { subTeamLinkId: selectedSubTeamLinkId } : {}) });
       setSubmitSuccess('Lead submitted for Admin verification.');
       window.setTimeout(() => {
         closeSubmitModal();
@@ -386,7 +392,8 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
             {submitSuccess ? <p role="status" className="py-6 text-center text-sm text-emerald-300">{submitSuccess}</p> : (
               <form onSubmit={handleSubmitLead} className="space-y-3">
                 {submitError && <p role="alert" className="border border-rose-800 bg-rose-950/50 p-3 text-xs text-rose-200">{submitError}</p>}
-                <label className="block text-xs text-[#AAB3C2]">Campaign (LIVE / PAUSED)<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => setSelectedCampaignId(event.target.value)} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · {campaign.status} · ₹{campaign.payout}</option>)}</select></label>
+                <label className="block text-xs text-[#AAB3C2]">Campaign (LIVE / PAUSED)<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting} value={selectedCampaignId} onChange={(event) => { setSelectedCampaignId(event.target.value); setSelectedSubTeamLinkId(''); }} required><option value="">Select campaign</option>{liveCampaigns.map((campaign) => <option key={campaign.slug || campaign._id} value={campaign.slug || campaign._id}>{campaign.name} · {campaign.status} · ₹{campaign.payout}</option>)}</select></label>
+                <label className="block text-xs text-[#AAB3C2]">Sub-team attribution (optional)<select className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" disabled={campaignsLoading || isSubmitting || !selectedCampaignSubTeamLinks.length} value={selectedSubTeamLinkId} onChange={event => setSelectedSubTeamLinkId(event.target.value)}><option value="">No sub-team attribution</option>{selectedCampaignSubTeamLinks.map(link => <option key={link._id} value={link._id}>{link.name}</option>)}</select><span className="mt-1 block text-[10px] text-slate-500">Only your active links for this campaign are available.</span></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer full name<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 text-sm text-white" value={clientName} onChange={(event) => setClientName(event.target.value)} minLength={2} required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Customer mobile<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" type="tel" inputMode="numeric" maxLength={10} value={clientMobile} onChange={(event) => setClientMobile(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile" required /></label>
                 <label className="block text-xs text-[#AAB3C2]">Account / application reference ID<input className="mt-1 w-full rounded border border-[#263650] bg-[#080D17] p-2 font-mono text-sm text-white" value={accountId} onChange={(event) => setAccountId(event.target.value)} required /></label>

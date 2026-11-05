@@ -8,6 +8,7 @@ import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
 import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePartnerOwnedSubTeamLink } from '../services/subTeamAttribution.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -160,6 +161,9 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
 
     // Snapshot payout directly from official campaign record
     const payoutSnapshot = resolvePartnerPayout(campaign, req.user.payoutSettings);
+    const subTeamLinkId = typeof req.body.subTeamLinkId === 'string' && req.body.subTeamLinkId.trim()
+      ? String((await resolvePartnerOwnedSubTeamLink(partnerId, req.body.subTeamLinkId.trim(), String(campaign._id)))._id)
+      : undefined;
 
     const lead = await LeadStore.createLead({
       partnerId,
@@ -175,6 +179,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
         submittedIp: req.ip || '',
       },
       payoutSnapshot,
+      ...(subTeamLinkId ? { subTeamLinkId } : {}),
     });
 
     res.status(201).json({
