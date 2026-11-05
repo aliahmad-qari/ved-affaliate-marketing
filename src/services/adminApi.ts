@@ -19,6 +19,7 @@ async function adminFetch(path: string, init: RequestInit = {}): Promise<any> {
 export const adminApi = {
   get: (path: string) => adminFetch(path),
   post: (path: string, body?: unknown) => adminFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
+  put: (path: string, body?: unknown) => adminFetch(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
   patch: (path: string, body?: unknown) => adminFetch(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
   delete: (path: string) => adminFetch(path, { method: 'DELETE' }),
   upload: (path: string, file: File) => {

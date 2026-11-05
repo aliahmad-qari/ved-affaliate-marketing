@@ -21,6 +21,7 @@ import notificationRoutes from './notificationRoutes.ts';
 import { getPartnerReportCampaigns, downloadPartnerLeadReport } from '../controllers/partnerReportController.ts';
 import { uploadPartnerProfilePhoto, removePartnerProfilePhoto } from '../controllers/partnerPhotoController.ts';
 import { createPartnerSubTeamLink, listPartnerSubTeamLinks, updatePartnerSubTeamLink } from '../controllers/partnerSubTeamController.ts';
+import { getPartnerMonthlyLeaderboard } from '../controllers/monthlyLeaderboardController.ts';
 import multer from 'multer';
 
 const router = Router();
@@ -33,6 +34,7 @@ router.use(requireAuth, requireRole('PARTNER'));
 router.get('/dashboard', getDashboard);
 router.get('/campaigns', getPartnerCampaigns);
 router.get('/sub-team-links', listPartnerSubTeamLinks);
+router.get('/monthly-leaderboard', getPartnerMonthlyLeaderboard);
 router.post('/sub-team-links', createPartnerSubTeamLink);
 router.patch('/sub-team-links/:id', updatePartnerSubTeamLink);
 router.post('/leads', submitLead);

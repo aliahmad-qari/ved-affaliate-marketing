@@ -1,10 +1,11 @@
 import React from 'react';
-import { Layers, Users, Link2, ListChecks, Headphones, Megaphone, Bell, BarChart3, Settings, FileText } from 'lucide-react';
+import { Layers, Users, Link2, ListChecks, Headphones, Megaphone, Bell, BarChart3, Settings, FileText, Trophy } from 'lucide-react';
 
 const sections = {
   campaigns: { icon: Layers, title: 'Campaigns', description: 'Manage campaign details, logos and publishing.' },
   partners: { icon: Users, title: 'Partners', description: 'Review partner accounts, performance and KYC details.' },
   referrals: { icon: Link2, title: 'Referrals', description: 'Review referred partners, qualifications and rewards.' },
+  leaderboard: { icon: Trophy, title: 'Monthly Leaderboard', description: 'Review approved conversion rankings and manage monthly reward decisions.' },
   leads: { icon: ListChecks, title: 'Leads', description: 'Review enquiries, application progress and commissions.' },
   support: { icon: Headphones, title: 'Support', description: 'Review partner requests and manage responses.' },
   announcements: { icon: Megaphone, title: 'Announcements', description: 'Publish updates and review previous announcements.' },

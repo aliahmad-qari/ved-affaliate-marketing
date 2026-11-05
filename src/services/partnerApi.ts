@@ -7,6 +7,7 @@ import {
   ReferralsData,
   EarningsItem,
   PartnerSubTeamLinkItem,
+  PartnerMonthlyLeaderboardData,
 } from '../types/partner.ts';
 import { getInMemoryToken } from './authApi.ts';
 
@@ -61,6 +62,10 @@ export async function submitPartnerLead(input: SubmitLeadInput): Promise<LeadIte
 
 export async function fetchPartnerSubTeamLinks(): Promise<PartnerSubTeamLinkItem[]> {
   return (await partnerFetch('/api/partner/sub-team-links')).data;
+}
+
+export async function fetchPartnerMonthlyLeaderboard(month: string): Promise<PartnerMonthlyLeaderboardData> {
+  return (await partnerFetch(`/api/partner/monthly-leaderboard?month=${encodeURIComponent(month)}`)).data;
 }
 
 export async function createPartnerSubTeamLink(input: { name: string; campaignId: string }): Promise<PartnerSubTeamLinkItem> {

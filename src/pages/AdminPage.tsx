@@ -7,6 +7,7 @@ import { adminApi } from '../services/adminApi.ts';
 import { Button } from '../components/ui/Button.tsx';
 import { AdminPartnerLeadLedger } from '../components/admin/AdminPartnerLeadLedger.tsx';
 import { AdminPartnerPayoutSettings } from '../components/admin/AdminPartnerPayoutSettings.tsx';
+import { AdminMonthlyLeaderboard } from '../components/admin/AdminMonthlyLeaderboard.tsx';
 import { AdminLeadCard } from '../components/admin/AdminLeadCard.tsx';
 import { AdminOverview } from '../components/admin/AdminOverview.tsx';
 import { AdminNotificationHistory } from '../components/admin/AdminNotificationHistory.tsx';
@@ -14,13 +15,14 @@ import { AdminSectionHeader } from '../components/admin/AdminSectionHeader.tsx';
 import '../components/admin/admin-theme.css';
 import { AdminWithdrawals, defaultWithdrawalFilters } from '../components/admin/AdminWithdrawals.tsx';
 import { VedLogo } from '../components/ui/VedLogo.tsx';
-import { LayoutDashboard, Layers, Users, Link2, ListChecks, Wallet, Headphones, Megaphone, Bell, BarChart3, Settings, FileText, LogOut } from 'lucide-react';
+import { monthKeyInTimeZone } from '../../shared/monthlyLeaderboard.ts';
+import { LayoutDashboard, Layers, Users, Link2, ListChecks, Wallet, Headphones, Megaphone, Bell, BarChart3, Settings, FileText, LogOut, Trophy } from 'lucide-react';
 
-type AdminTab = 'overview' | 'campaigns' | 'partners' | 'referrals' | 'leads' | 'withdrawals' | 'support' | 'announcements' | 'notifications' | 'reports' | 'settings' | 'audit';
+type AdminTab = 'overview' | 'campaigns' | 'partners' | 'referrals' | 'leaderboard' | 'leads' | 'withdrawals' | 'support' | 'announcements' | 'notifications' | 'reports' | 'settings' | 'audit';
 
 const tabs: { id: AdminTab; label: string }[] = [
   { id: 'overview', label: 'Overview' }, { id: 'campaigns', label: 'Campaigns' },
-  { id: 'partners', label: 'Partners' }, { id: 'referrals', label: 'Referrals' }, { id: 'leads', label: 'Leads' },
+  { id: 'partners', label: 'Partners' }, { id: 'referrals', label: 'Referrals' }, { id: 'leaderboard', label: 'Leaderboard' }, { id: 'leads', label: 'Leads' },
   { id: 'withdrawals', label: 'Withdrawals' }, { id: 'support', label: 'Support' },
   { id: 'announcements', label: 'Announcements' }, { id: 'notifications', label: 'Notifications' },
   { id: 'reports', label: 'Reports' }, { id: 'settings', label: 'Settings' }, { id: 'audit', label: 'Audit log' },
@@ -56,7 +58,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [notification, setNotification] = useState({ type: 'ANNOUNCEMENT', title: '', message: '', target: 'all', partnerId: '', partnerIds: '' });
   const [announcement, setAnnouncement] = useState({ title: '', message: '' });
-  const [pageNumbers, setPageNumbers] = useState<Record<AdminTab, number>>({ overview: 1, campaigns: 1, partners: 1, referrals: 1, leads: 1, withdrawals: 1, support: 1, announcements: 1, notifications: 1, reports: 1, settings: 1, audit: 1 });
+  const [pageNumbers, setPageNumbers] = useState<Record<AdminTab, number>>({ overview: 1, campaigns: 1, partners: 1, referrals: 1, leaderboard: 1, leads: 1, withdrawals: 1, support: 1, announcements: 1, notifications: 1, reports: 1, settings: 1, audit: 1 });
   const loadRequestId = useRef(0);
   const activeTab = useRef(tab);
   activeTab.current = tab;
@@ -84,7 +86,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
       }
       const suffix = query.size ? `?${query}` : '';
       const paths: Record<AdminTab, string> = {
-        overview: '/admin/dashboard', campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`,
+        overview: '/admin/dashboard', campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`, leaderboard: `/admin/monthly-leaderboard?month=${monthKeyInTimeZone()}`,
         leads: `/admin/leads${suffix}`, withdrawals: `/admin/withdrawals${suffix}`, support: `/admin/support${suffix}`,
         announcements: '/admin/announcements', notifications: '/admin/notifications', reports: '/admin/campaigns',
         settings: '/admin/settings', audit: '/admin/audit',
@@ -241,6 +243,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
 
   const content = () => {
     if (tab === 'overview') return <AdminOverview metrics={data} onSelect={(target) => selectTab(target as AdminTab)} />;
+    if (tab === 'leaderboard') return <AdminMonthlyLeaderboard />;
     if (tab === 'campaigns') return <div className="space-y-5">
       <form onSubmit={saveCampaign} className="grid gap-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/80 to-[#070B14]/80 p-5 sm:grid-cols-2 rounded-xl backdrop-blur-sm">
         <h2 className="sm:col-span-2 text-lg font-bold text-white">🚀 {editingCampaignId ? 'Edit Campaign' : 'Create New Campaign'}</h2>
@@ -384,7 +387,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         <Button variant="outline" size="sm" onClick={logout}><LogOut className="h-3.5 w-3.5" />Sign out</Button>
       </header>
       <nav className="mb-6 flex gap-2 overflow-x-auto rounded-xl border border-[#1b304b] bg-[#0b1525] p-2" aria-label="Admin sections">{tabs.map((item) => {
-        const icons = { overview: LayoutDashboard, campaigns: Layers, partners: Users, referrals: Link2, leads: ListChecks, withdrawals: Wallet, support: Headphones, announcements: Megaphone, notifications: Bell, reports: BarChart3, settings: Settings, audit: FileText };
+        const icons = { overview: LayoutDashboard, campaigns: Layers, partners: Users, referrals: Link2, leaderboard: Trophy, leads: ListChecks, withdrawals: Wallet, support: Headphones, announcements: Megaphone, notifications: Bell, reports: BarChart3, settings: Settings, audit: FileText };
         const Icon = icons[item.id];
         return <button key={item.id} aria-current={tab === item.id ? 'page' : undefined} onClick={() => selectTab(item.id)} className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition ${tab === item.id ? 'border-[#D4AF37] bg-[#D4AF37] text-[#07101d] shadow-lg shadow-amber-500/10' : 'border-transparent text-slate-400 hover:border-sky-900 hover:bg-sky-500/5 hover:text-sky-200'}`}><Icon className="h-3.5 w-3.5" />{item.label}</button>;
       })}</nav>

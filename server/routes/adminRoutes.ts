@@ -25,6 +25,10 @@ import { exportAdminCampaignWorkbook, exportAdminReport } from '../controllers/a
 import { updateEnquiryProcess } from '../controllers/adminEnquiryController.ts';
 import { getLeadCampaignOptions, getPartnerLeadLedger, getAdminLeadDetail } from '../controllers/adminPartnerLedgerController.ts';
 import { reverseLeadApproval, getPartnerBalanceAdjustments } from '../controllers/adminReversalController.ts';
+import {
+  approveMonthlyReward, approveMonthlyRewardPolicy, generateMonthlyRewards,
+  getAdminMonthlyLeaderboard, saveMonthlyRewardPolicy, updateMonthlyRewardPayment,
+} from '../controllers/monthlyLeaderboardController.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -44,6 +48,12 @@ router.delete('/campaigns/:id', archiveAdminCampaign);
 router.post('/campaigns/:id/logo', logoUpload.single('logo'), uploadCampaignLogo);
 router.get('/partners', listAdminPartners);
 router.get('/referrals', listAdminReferrals);
+router.get('/monthly-leaderboard', getAdminMonthlyLeaderboard);
+router.put('/monthly-leaderboard/reward-policy', saveMonthlyRewardPolicy);
+router.post('/monthly-leaderboard/reward-policy/client-approval', approveMonthlyRewardPolicy);
+router.post('/monthly-leaderboard/rewards/generate', generateMonthlyRewards);
+router.post('/monthly-leaderboard/rewards/:id/approve', approveMonthlyReward);
+router.patch('/monthly-leaderboard/rewards/:id/payment', updateMonthlyRewardPayment);
 router.get('/partners/:id/kyc', getAdminPartnerKyc);
 router.get('/partners/:id/leads', getPartnerLeadLedger);
 router.get('/partners/:id/balance-adjustments', getPartnerBalanceAdjustments);

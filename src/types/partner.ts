@@ -99,6 +99,13 @@ export interface PartnerSubTeamLinkItem {
   createdAt?: string;
 }
 
+export interface PartnerMonthlyLeaderboardData {
+  monthKey: string;
+  timeZone: string;
+  rankings: { rank: number; partnerId: string; fullName: string; approvedConversions: number }[];
+  rewards: { _id: string; rewardType: string; label: string; amount: number; currency: string; paymentStatus: 'PENDING' | 'PROCESSING' | 'PAID'; paidAt?: string }[];
+}
+
 export interface WalletTransactionItem {
   direction?: 'DEBIT' | 'CREDIT';
   reversedBy?: string;
