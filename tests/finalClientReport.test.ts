@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import test from 'node:test';
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { createApp } from '../server/app.ts';
 import { Partner } from '../server/models/Partner.ts';
+import { PartnerSignupChallenge } from '../server/models/PartnerSignupChallenge.ts';
 import { Campaign } from '../server/models/Campaign.ts';
 import { Lead } from '../server/models/Lead.ts';
 import { AdminUser } from '../server/models/AdminUser.ts';
@@ -28,6 +30,9 @@ const matches = (row: any, query: any): boolean => Object.entries(query).every((
   if (value && typeof value === 'object') {
     if ('$in' in value) return value.$in.includes(String(found));
     if ('$ne' in value) return found !== value.$ne;
+    if ('$exists' in value) return (found !== undefined) === value.$exists;
+    if ('$lt' in value) return found < value.$lt;
+    if ('$gt' in value) return found != null && new Date(found) > value.$gt;
     if (('$gte' in value || '$lte' in value) && found == null) return false;
     if ('$gte' in value && new Date(found) < value.$gte) return false;
     if ('$lte' in value && new Date(found) > value.$lte) return false;
@@ -38,13 +43,27 @@ const matches = (row: any, query: any): boolean => Object.entries(query).every((
 const startServer = async () => { const server = createApp().listen(0, '127.0.0.1'); await once(server, 'listening'); return { server, base: `http://127.0.0.1:${(server.address() as any).port}` }; };
 const closeServer = async (server: any) => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(resolve)); };
 const setupAdmin = (t: any) => {
-  process.env.NODE_ENV = 'test'; process.env.JWT_SECRET = 'final-report-test-secret-over-32-characters'; mongoose.connection.readyState = 1;
+  process.env.NODE_ENV = 'test'; process.env.JWT_SECRET = 'final-report-test-secret-over-32-characters'; process.env.BREVO_API_KEY = 'test-key'; process.env.EMAIL_FROM_ADDRESS = 'no-reply@vedaffiliatepvtltd.com'; process.env.EMAIL_FROM_NAME = 'VED Affiliate'; process.env.PUBLIC_APP_URL = 'https://vedaffiliatepvtltd.com'; mongoose.connection.readyState = 1;
   t.mock.method(AdminUser, 'findById', () => chain({ _id: 'admin-test', status: 'ACTIVE', toJSON: () => ({ email: 'admin@test.example' }) }));
   return signToken({ id: 'admin-test', email: 'admin@test.example', role: 'ADMIN' });
 };
 
 test('signup without KYC → login → submit/reject/resubmit/approve; withdrawals and existing data protected', async t => {
   const adminToken = setupAdmin(t);
+  const challenges = new Map<string, any>(); const sentOtp = new Map<string, string>();
+  t.mock.method(PartnerSignupChallenge.collection, 'indexes', async () => [{ name: '_id_', key: { _id: 1 } }, { name: 'partner_signup_challenge_purge', key: { purgeAt: 1 }, expireAfterSeconds: 0 }]);
+  t.mock.method(Partner.collection, 'indexes', async () => [{ name: 'email_1', key: { email: 1 }, unique: true }, { name: 'mobile_1', key: { mobile: 1 }, unique: true }]);
+  t.mock.method(PartnerSignupChallenge, 'findById', (id: string) => chain(() => challenges.get(id) || null));
+  t.mock.method(PartnerSignupChallenge, 'create', async (data: any) => { const row = structuredClone(data); challenges.set(data._id, row); return row; });
+  t.mock.method(PartnerSignupChallenge, 'findOneAndUpdate', (filter: any, changes: any) => chain(() => { const row = challenges.get(filter._id); if (!matches(row, filter)) return null; Object.assign(row, changes.$set || {}); for (const [key, amount] of Object.entries(changes.$inc || {})) row[key] = (row[key] || 0) + Number(amount); return row; }));
+  t.mock.method(PartnerSignupChallenge, 'updateOne', (filter: any, changes: any) => chain(() => { const row = challenges.get(filter._id); if (matches(row, filter)) { Object.assign(row, changes.$set || {}); for (const [key, amount] of Object.entries(changes.$inc || {})) row[key] = (row[key] || 0) + Number(amount); for (const key of Object.keys(changes.$unset || {})) delete row[key]; } return { acknowledged: true }; }));
+  t.mock.method(PartnerSignupChallenge, 'deleteOne', (filter: any) => chain(() => { const row = challenges.get(filter._id); if (matches(row, filter)) challenges.delete(filter._id); return { acknowledged: true }; }));
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, 'fetch', async (url: any, init?: any) => {
+    if (String(url) !== 'https://api.brevo.com/v3/smtp/email') return realFetch(url, init);
+    const message = JSON.parse(init.body); const code = message.textContent.match(/code to complete your partner signup: (\d{6})/)?.[1];
+    assert.ok(code); sentOtp.set(message.to[0].email, code); return new Response('{}', { status: 201 });
+  });
   const records = new Map<string, any>(); const audits: any[] = []; const withdrawals: any[] = [];
   let tick = Date.now();
   const doc = (record: any) => record ? new Partner(record) : null;
@@ -68,14 +87,20 @@ test('signup without KYC → login → submit/reject/resubmit/approve; withdrawa
   t.mock.method(AppSetting, 'findOne', () => chain({ minimumWithdrawalAmount: 200 }));
   t.mock.method(LeadStore, 'requestWithdrawal', async (...args: any[]) => { withdrawals.push(args); return { transactionId: 'TEST-WITHDRAWAL', status: 'PENDING' }; });
   const { server, base } = await startServer();
-  const request = (path: string, token?: string, body?: any, method = body === undefined ? 'GET' : 'POST') => fetch(`${base}/api${path}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const request = (path: string, token?: string, body?: any, method = body === undefined ? 'GET' : 'POST') => realFetch(`${base}/api${path}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const kyc = { pan: 'ABCDE1234F', upiId: 'test@upi', bankDetails: { accountHolderName: 'Test Partner', accountNumber: '123456789012', ifscCode: 'HDFC0001234', bankName: 'Test Bank' } };
   try {
     assert.equal((await request('/partner/kyc', undefined, kyc)).status, 401);
     assert.equal((await request('/partner/kyc', adminToken, kyc)).status, 403);
     const registration = { fullName: 'Test Partner', email: 'kyc-test@example.test', mobile: '9876543210', city: 'Delhi', state: 'Delhi', password: 'Test12345', confirmPassword: 'Test12345', role: 'ADMIN', kycStatus: 'VERIFIED' };
-    const signup = await request('/auth/register', undefined, registration); assert.equal(signup.status, 201);
-    const created = (await signup.json()).data;
+    const signup = await request('/auth/register', undefined, registration); assert.equal(signup.status, 202);
+    assert.equal((await signup.json()).data, undefined);
+    const signupChallenge = [...challenges.values()].find(row => row.email === registration.email);
+    assert.ok(signupChallenge);
+    assert.equal(signupChallenge.otpHash, crypto.createHmac('sha256', process.env.JWT_SECRET!).update(`partner-signup-otp:${registration.email}:${sentOtp.get(registration.email)}`).digest('hex'));
+    const verifiedSignup = await request('/auth/register/verify-otp', undefined, { email: registration.email, otp: sentOtp.get(registration.email) });
+    const verifiedBody = await verifiedSignup.json(); assert.equal(verifiedSignup.status, 200, JSON.stringify(verifiedBody));
+    const created = verifiedBody.data;
     assert.equal(created.partner.role, 'PARTNER'); assert.equal(created.partner.kycStatus, 'PENDING');
     assert.equal(created.partner.pan, undefined); assert.equal(created.partner.bankDetails, undefined);
     assert.ok(created.partner.partnerId.startsWith('VED-PTR-') && created.partner.referralCode.startsWith('VED'));
@@ -111,8 +136,12 @@ test('signup without KYC → login → submit/reject/resubmit/approve; withdrawa
     assert.equal((await withdraw()).status, 201); assert.equal(withdrawals[0][0], partnerId); assert.equal(withdrawals[0][3], 'test@upi');
     assert.equal((await request('/partner/wallet/withdraw', token, { amount: 250, paymentMethod: 'BANK_TRANSFER' })).status, 201);
     assert.ok(withdrawals[1][3].includes(kyc.bankDetails.accountNumber));
-    const legacy = await request('/auth/register', undefined, { ...registration, ...kyc, email: 'legacy@example.test', mobile: '9876543211', referralCodeInput: created.partner.referralCode });
-    assert.equal(legacy.status, 201); const preserved = (await legacy.json()).data.partner;
+    const legacyRegistration = { ...registration, ...kyc, email: 'legacy@example.test', mobile: '9876543211', referralCodeInput: created.partner.referralCode };
+    const legacy = await request('/auth/register', undefined, legacyRegistration); assert.equal(legacy.status, 202);
+    const pendingLegacy = [...challenges.values()].find(row => row.email === legacyRegistration.email);
+    assert.ok(pendingLegacy.encryptedKyc); assert.equal(pendingLegacy.pan, undefined); assert.equal(pendingLegacy.bankDetails, undefined);
+    const legacyVerified = await request('/auth/register/verify-otp', undefined, { email: legacyRegistration.email, otp: sentOtp.get(legacyRegistration.email) });
+    assert.equal(legacyVerified.status, 200); const preserved = (await legacyVerified.json()).data.partner;
     assert.equal(preserved.referredBy, partnerId); assert.equal(preserved.maskedPan, submitted.maskedPan); assert.equal(preserved.kycStatus, 'PENDING');
     assert.ok(!JSON.stringify(audits).includes(kyc.pan) && !JSON.stringify(audits).includes(kyc.bankDetails.accountNumber));
   } finally { await closeServer(server); mongoose.connection.readyState = 0; }

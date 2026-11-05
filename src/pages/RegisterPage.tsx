@@ -11,6 +11,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Gift,
+  Mail,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button.tsx';
 import { VedLogo } from '../components/ui/VedLogo.tsx';
@@ -21,7 +23,7 @@ interface RegisterPageProps {
 }
 
 export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
-  const { register, isAuthenticated } = useAuth();
+  const { register, verifySignupOtp, resendSignupOtp, isAuthenticated } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -40,6 +42,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [signupStep, setSignupStep] = useState<'details' | 'otp'>('details');
+  const [signupOtp, setSignupOtp] = useState('');
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [resendSeconds, setResendSeconds] = useState(0);
 
   // Parse referral code from URL if present (e.g. /register?ref=VED9X4K)
   useEffect(() => {
@@ -49,6 +55,12 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
       setFormData((prev) => ({ ...prev, referralCodeInput: ref.toUpperCase().trim() }));
     }
   }, []);
+
+  useEffect(() => {
+    if (signupStep !== 'otp' || resendSeconds <= 0) return;
+    const timer = window.setTimeout(() => setResendSeconds(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [signupStep, resendSeconds]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -112,11 +124,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
         confirmPassword: formData.confirmPassword,
         referralCodeInput: formData.referralCodeInput || undefined,
       });
-
-      setIsSuccess(true);
-      setTimeout(() => {
-        onNavigate('profile');
-      }, 1500);
+      setOtpMessage('If these details can be registered, a verification code has been sent. Check your inbox and spam folder.');
+      setSignupStep('otp');
+      setSignupOtp('');
+      setResendSeconds(60);
     } catch (err: any) {
       if (err.errors) {
         setFieldErrors(err.errors);
@@ -125,6 +136,36 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleVerifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setServerError(null);
+    if (!/^\d{6}$/.test(signupOtp)) {
+      setServerError('Enter the 6-digit code from your email.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await verifySignupOtp(formData.email.trim().toLowerCase(), signupOtp);
+      setIsSuccess(true);
+      setTimeout(() => onNavigate('profile'), 1000);
+    } catch (err: any) {
+      setServerError(err.message || 'The verification code is invalid or expired.');
+    } finally { setIsSubmitting(false); }
+  };
+
+  const handleResendOtp = async () => {
+    setServerError(null);
+    try {
+      setIsSubmitting(true);
+      const message = await resendSignupOtp(formData.email.trim().toLowerCase());
+      setOtpMessage(message);
+      setSignupOtp('');
+      setResendSeconds(60);
+    } catch (err: any) {
+      setServerError(err.message || 'We could not send the verification email. Please try again shortly.');
+    } finally { setIsSubmitting(false); }
   };
 
   return (
@@ -158,6 +199,25 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
             </Button>
           </div>
         </div>
+      ) : signupStep === 'otp' ? (
+        <form onSubmit={handleVerifyOtp} className="mx-auto max-w-lg bg-[#0B1325] border border-[#D4AF37]/30 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#D4AF37]/40 bg-[#121D36] text-[#D4AF37]"><Mail className="h-7 w-7" aria-hidden="true" /></div>
+          <div className="text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#D4AF37]">Email verification</p>
+            <h2 className="mt-2 text-xl sm:text-2xl font-bold text-[#F8FAFC]">Check your inbox</h2>
+            <p className="mt-2 text-sm text-[#AAB3C2]">Enter the 6-digit code sent to <span className="font-medium text-[#F8FAFC]">{formData.email.trim().toLowerCase()}</span>. It expires in 10 minutes.</p>
+          </div>
+          {otpMessage && <p role="status" className="rounded-lg border border-[#D4AF37]/20 bg-[#070B14] p-3 text-xs text-[#C5CDD9]">{otpMessage}</p>}
+          {serverError && <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/50 p-3 text-sm text-rose-200">{serverError}</div>}
+          <label htmlFor="partner-signup-otp" className="block text-sm font-medium text-[#AAB3C2]">Verification code</label>
+          <input id="partner-signup-otp" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={signupOtp} onChange={event => setSignupOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-xl border border-[#35435C] bg-[#070B14] px-4 py-4 text-center font-mono text-2xl tracking-[0.45em] text-white outline-none focus:border-[#D4AF37]" aria-describedby="partner-signup-otp-help" />
+          <p id="partner-signup-otp-help" className="text-center text-xs text-[#AAB3C2]">The code can be used once. Never share it with anyone.</p>
+          <Button type="submit" variant="primary" size="lg" fullWidth disabled={isSubmitting || signupOtp.length !== 6}>{isSubmitting ? 'Verifying…' : 'Verify Email & Create Account'} <ArrowRight className="ml-1.5 h-4 w-4" /></Button>
+          <div className="flex flex-col items-center gap-3 text-sm">
+            <button type="button" disabled={isSubmitting || resendSeconds > 0} onClick={() => void handleResendOtp()} className="inline-flex items-center gap-2 text-[#D4AF37] hover:underline disabled:cursor-not-allowed disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" />{resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend verification code'}</button>
+            <button type="button" disabled={isSubmitting} onClick={() => { setSignupStep('details'); setServerError(null); setSignupOtp(''); }} className="text-[#AAB3C2] hover:text-white disabled:opacity-50">Change signup details</button>
+          </div>
+        </form>
       ) : (
         <form onSubmit={handleSubmit} className="bg-[#0B1325] border border-[#1E2E4E] rounded-2xl p-5 sm:p-8 shadow-2xl space-y-6">
           
@@ -351,7 +411,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
               fullWidth
               disabled={isSubmitting}
             >
-              <span>{isSubmitting ? 'Creating Partner Account...' : 'Complete Partner Registration'}</span>
+              <span>{isSubmitting ? 'Sending Verification Code...' : 'Continue to Email Verification'}</span>
               <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
           </div>

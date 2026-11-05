@@ -13,6 +13,8 @@ import {
   getCurrentUser,
   getPartnerProfile,
   updatePartnerProfile,
+  verifyPartnerSignup as verifyPartnerSignupRequest,
+  resendPartnerSignupOtp as resendPartnerSignupOtpRequest,
   uploadPartnerProfilePhoto as uploadProfilePhotoRequest,
   removePartnerProfilePhoto as removeProfilePhotoRequest,
   changePartnerPassword,
@@ -24,6 +26,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  verifySignupOtp: (email: string, otp: string) => Promise<void>;
+  resendSignupOtp: (email: string) => Promise<string>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (input: UpdateProfileInput) => Promise<void>;
@@ -61,8 +65,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (input: RegisterInput) => {
-    const res = await registerPartner(input);
-    setPartner(res.partner);
+    await registerPartner(input);
+  };
+
+  const verifySignupOtp = async (email: string, otp: string) => {
+    const result = await verifyPartnerSignupRequest(email, otp);
+    setPartner(result.partner);
+  };
+
+  const resendSignupOtp = async (email: string) => {
+    return resendPartnerSignupOtpRequest(email);
   };
 
   const logout = async () => {
@@ -107,6 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         register,
+        verifySignupOtp,
+        resendSignupOtp,
         logout,
         refreshProfile,
         updateProfile,

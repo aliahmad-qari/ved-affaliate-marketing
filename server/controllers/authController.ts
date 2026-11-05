@@ -1,165 +1,58 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { validateKyc, normalizeKyc } from '../utils/kyc.ts';
 import { PartnerStore } from '../services/partnerStore.ts';
+import { beginPartnerSignup, resendPartnerSignupOtp, SIGNUP_OTP_GENERIC_MESSAGE, verifyPartnerSignupOtp } from '../services/partnerSignupOtp.ts';
 import { AdminUser } from '../models/AdminUser.ts';
 import { signToken, verifyToken, getAuthCookieOptions, AUTH_COOKIE_NAME } from '../utils/jwt.ts';
-import {
-  generatePartnerId,
-  generateReferralCode,
-  isValidMobile,
-} from '../utils/partnerIdGenerator.ts';
 
-export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      fullName,
-      mobile,
-      email,
-      city,
-      state,
-      pan,
-      bankDetails,
-      upiId,
-      password,
-      confirmPassword,
-      referralCodeInput,
-    } = req.body;
-
-    // Field validations
-    const errors: Record<string, string> = {};
-
-    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 3) {
-      errors.fullName = 'Full Name must be at least 3 characters.';
-    }
-
-    if (!mobile || !isValidMobile(mobile)) {
-      errors.mobile = 'Enter a valid 10-digit Indian mobile number (e.g. 9876543210).';
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email.trim().toLowerCase())) {
-      errors.email = 'Please provide a valid email address.';
-    }
-
-    if (!city || typeof city !== 'string' || city.trim().length < 2) {
-      errors.city = 'City is required.';
-    }
-
-    if (!state || typeof state !== 'string' || state.trim().length < 2) {
-      errors.state = 'State is required.';
-    }
-
-    if (!password || password.length < 8) {
-      errors.password = 'Password must be at least 8 characters long.';
-    } else if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
-      errors.password = 'Password must contain at least one letter and one number.';
-    }
-
-    if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match.';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Validation failed. Please correct the highlighted fields.',
-        errors,
-      });
+    res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+    const result = await beginPartnerSignup(req.body || {});
+    if (result.errors) {
+      res.status(400).json({ success: false, message: 'Validation failed. Please correct the highlighted fields.', errors: result.errors });
       return;
     }
-
-    // Legacy clients may still include complete KYC; new signup does not require it.
-    const includesKyc = pan !== undefined || bankDetails !== undefined || upiId !== undefined;
-    if (includesKyc) {
-      const kycErrors = validateKyc({ pan, bankDetails, upiId });
-      if (Object.keys(kycErrors).length) {
-        res.status(400).json({ success: false, message: 'Please correct the KYC details.', errors: kycErrors });
-        return;
-      }
-    }
-
-    // Check for duplicate email or mobile
-    const { duplicateEmail, duplicateMobile } = await PartnerStore.checkDuplicates(email, mobile);
-    if (duplicateEmail) {
-      res.status(409).json({
-        success: false,
-        message: 'An account with this email address already exists. Please log in or use password reset.',
-        field: 'email',
-      });
+    if (result.deliveryFailed) {
+      res.status(503).json({ success: false, message: 'We could not send the verification email. Please try again shortly.' });
       return;
     }
-    if (duplicateMobile) {
-      res.status(409).json({
-        success: false,
-        message: 'An account with this mobile number already exists. Please log in.',
-        field: 'mobile',
-      });
-      return;
-    }
-
-    // Hash password with bcrypt salt 12
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    // Generate unique Partner ID & Referral Code
-    let partnerId = generatePartnerId();
-    let referralCode = generateReferralCode();
-
-    // Ensure referral code is not duplicate
-    let existingRef = await PartnerStore.findByReferralCode(referralCode);
-    while (existingRef) {
-      referralCode = generateReferralCode();
-      existingRef = await PartnerStore.findByReferralCode(referralCode);
-    }
-
-    // Handle referral tracking (if referred by another partner)
-    let referredBy = '';
-    if (referralCodeInput && typeof referralCodeInput === 'string' && referralCodeInput.trim()) {
-      const referrer = await PartnerStore.findByReferralCode(referralCodeInput.trim());
-      if (referrer) {
-        referredBy = referrer.partnerId;
-      }
-    }
-
-    // Create partner
-    const newPartner = await PartnerStore.create({
-      partnerId,
-      fullName: fullName.trim(),
-      mobile: mobile.trim(),
-      email: email.trim().toLowerCase(),
-      city: city.trim(),
-      state: state.trim(),
-      ...(includesKyc ? normalizeKyc({ pan, bankDetails, upiId }) : {}),
-      passwordHash,
-      role: 'PARTNER',
-      accountStatus: 'ACTIVE',
-      kycStatus: 'PENDING', // Manual KYC verification only
-      kycRejectionReason: '',
-      referralCode,
-      referredBy,
-    });
-
-    // Generate JWT token
-    const token = signToken({
-      id: newPartner._id || newPartner.id,
-      partnerId: newPartner.partnerId,
-      email: newPartner.email,
-      role: newPartner.role,
-    });
-
-    // Set secure HTTP-only cookie
-    res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
-
-    res.status(201).json({
-      success: true,
-      message: 'Partner registration successful. Welcome to VED AFFILIATE PVT. LIMITED.',
-      data: {
-        partner: newPartner,
-        token,
-      },
-    });
+    res.status(202).json({ success: true, message: SIGNUP_OTP_GENERIC_MESSAGE });
   } catch (error) {
-    next(error);
+    // Do not expose provider, email, or database details in a public signup response.
+    console.error('[VED SIGNUP] Verification request could not be completed.');
+    res.status(503).json({ success: false, message: 'Email verification is temporarily unavailable. Please try again later.' });
+  }
+};
+
+export const resendSignupOtp = async (req: Request, res: Response): Promise<void> => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  try {
+    const deliveryFailed = await resendPartnerSignupOtp(req.body?.email);
+    if (deliveryFailed) {
+      res.status(503).json({ success: false, message: 'We could not send the verification email. Please try again shortly.' });
+      return;
+    }
+    res.status(202).json({ success: true, message: SIGNUP_OTP_GENERIC_MESSAGE });
+  } catch {
+    console.error('[VED SIGNUP] Verification request could not be completed.');
+    res.status(503).json({ success: false, message: 'Email verification is temporarily unavailable. Please try again later.' });
+  }
+};
+
+export const verifySignupOtp = async (req: Request, res: Response): Promise<void> => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  try {
+    const result = await verifyPartnerSignupOtp(req.body?.email, req.body?.otp);
+    if (!result) {
+      res.status(400).json({ success: false, message: 'The verification code is invalid or expired. Request a new code and try again.' });
+      return;
+    }
+    res.cookie(AUTH_COOKIE_NAME, result.token, getAuthCookieOptions());
+    res.status(200).json({ success: true, message: 'Email verified. Your partner account is ready.', data: result });
+  } catch {
+    console.error('[VED SIGNUP] Verification request could not be completed.');
+    res.status(503).json({ success: false, message: 'Email verification is temporarily unavailable. Please try again later.' });
   }
 };
 

@@ -5,6 +5,8 @@ import {
   login,
   logout,
   getMe,
+  resendSignupOtp,
+  verifySignupOtp,
 } from '../controllers/authController.ts';
 import { forgotPassword, resetPassword } from '../controllers/passwordRecoveryController.ts';
 import { requireAuth } from '../middleware/authMiddleware.ts';
@@ -22,6 +24,8 @@ const createAuthLimiter = (limit: number) => rateLimit({
 });
 
 router.post('/register', createAuthLimiter(5), register);
+router.post('/register/resend-otp', createAuthLimiter(3), resendSignupOtp);
+router.post('/register/verify-otp', createAuthLimiter(10), verifySignupOtp);
 router.post('/login', createAuthLimiter(10), login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, getMe);

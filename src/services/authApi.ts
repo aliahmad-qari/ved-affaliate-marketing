@@ -47,17 +47,28 @@ async function authFetch(endpoint: string, options: RequestInit = {}): Promise<a
   return data;
 }
 
-export async function registerPartner(input: RegisterInput): Promise<{ partner: Partner; token: string }> {
+export async function registerPartner(input: RegisterInput): Promise<string> {
   const res = await authFetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
+  return res.message;
+}
 
-  if (res.data && res.data.token) {
-    setInMemoryToken(res.data.token);
-  }
+export async function verifyPartnerSignup(email: string, otp: string): Promise<{ partner: Partner; token: string }> {
+  const res = await authFetch('/api/auth/register/verify-otp', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, otp }),
+  });
+  if (res.data?.token) setInMemoryToken(res.data.token);
   return res.data;
+}
+
+export async function resendPartnerSignupOtp(email: string): Promise<string> {
+  const res = await authFetch('/api/auth/register/resend-otp', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+  });
+  return res.message;
 }
 
 export async function loginPartner(input: LoginInput): Promise<{ partner: Partner; token: string }> {

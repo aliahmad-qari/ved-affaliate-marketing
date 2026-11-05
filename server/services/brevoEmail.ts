@@ -20,19 +20,34 @@ export function passwordResetEmail(resetUrl: string) {
   return { subject: 'Reset Your Password — VED Affiliate', htmlContent, textContent };
 }
 
+export function partnerSignupOtpEmail(otp: string) {
+  const textContent = `VED AFFILIATE PVT. LIMITED\n\nUse this verification code to complete your partner signup: ${otp}\n\nThis code expires in 10 minutes. If you did not request this code, ignore this email. Do not share the code with anyone.\n\nVED Affiliate`;
+  const htmlContent = `<!doctype html><html><body style="margin:0;background:#070b14;font-family:Arial,sans-serif;color:#e2e8f0"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:560px;background:#0b1325;border:1px solid #263650;border-radius:16px"><tr><td style="padding:32px"><p style="color:#e5c35a;font-weight:bold;letter-spacing:2px">VED AFFILIATE</p><p style="font-size:11px;color:#aab3c2">PVT. LIMITED</p><h1 style="font-size:24px;color:#ffffff">Verify your email</h1><p style="line-height:1.7">Enter this code to complete your partner signup:</p><p style="display:inline-block;background:#070b14;border:1px solid #d4af37;border-radius:10px;padding:16px 24px;color:#f5d56a;font-size:28px;font-weight:bold;letter-spacing:8px">${otp}</p><p style="line-height:1.7">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p><p style="color:#aab3c2;line-height:1.7">If you did not request this code, ignore this email.</p></td></tr></table></td></tr></table></body></html>`;
+  return { subject: 'Verify Your Email — VED Affiliate', htmlContent, textContent };
+}
+
+async function sendBrevoEmail(email: string, message: { subject: string; htmlContent: string; textContent: string }, failureMessage: string): Promise<void> {
+  const config = recoveryEmailConfig();
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
+      headers: { 'api-key': config.key, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ sender: { email: config.sender, name: config.name }, to: [{ email }], ...message }),
+    });
+    // Never log provider bodies: they may contain recipients, links or credentials.
+    if (response.status !== 201) { await response.body?.cancel(); throw new Error('Provider rejected email.'); }
+    await response.body?.cancel();
+  } catch { throw new Error(failureMessage); }
+}
+
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
   const config = recoveryEmailConfig();
   const url = new URL('/reset-password', config.origin);
   // Fragment tokens never reach Nginx access logs or HTTP Referer headers.
   url.hash = new URLSearchParams({ token }).toString();
-  try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: { 'api-key': config.key, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ sender: { email: config.sender, name: config.name }, to: [{ email }], ...passwordResetEmail(url.toString()) }),
-    });
-    // Never log provider bodies: they may contain recipients, links or credentials.
-    if (response.status !== 201) { await response.body?.cancel(); throw new Error('Provider rejected email.'); }
-    await response.body?.cancel();
-  } catch { throw new Error('Password reset email could not be submitted.'); }
+  return sendBrevoEmail(email, passwordResetEmail(url.toString()), 'Password reset email could not be submitted.');
+}
+
+export async function sendPartnerSignupOtpEmail(email: string, otp: string): Promise<void> {
+  return sendBrevoEmail(email, partnerSignupOtpEmail(otp), 'Signup verification email could not be submitted.');
 }
