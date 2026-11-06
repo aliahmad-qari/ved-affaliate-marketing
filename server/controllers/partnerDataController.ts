@@ -7,7 +7,7 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePartnerPayout, resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -82,7 +82,8 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
       return {
         ...camp,
-        payout: resolvePartnerPayout(camp, partner.payoutSettings),
+        payout: camp.payoutType === 'PERCENTAGE' ? null : resolvePartnerPayout(camp, partner.payoutSettings),
+        ...resolvePayoutSnapshot(camp, partner.payoutSettings),
         trackingUrl,
         whatsappShareUrl,
         isLive: camp.status === 'LIVE',
@@ -159,7 +160,8 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
     }
 
     // Snapshot payout directly from official campaign record
-    const payoutSnapshot = resolvePartnerPayout(campaign, req.user.payoutSettings);
+    const payoutConfig = resolvePayoutSnapshot(campaign, req.user.payoutSettings);
+    const payoutSnapshot = payoutConfig.payoutSnapshot;
 
     const lead = await LeadStore.createLead({
       partnerId,
@@ -175,6 +177,11 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
         submittedIp: req.ip || '',
       },
       payoutSnapshot,
+      payoutTypeSnapshot: payoutConfig.payoutTypeSnapshot,
+      payoutBasisSnapshot: 'payoutBasisSnapshot' in payoutConfig ? payoutConfig.payoutBasisSnapshot : undefined,
+      payoutRateSnapshot: 'payoutRateSnapshot' in payoutConfig ? payoutConfig.payoutRateSnapshot : undefined,
+      payoutTermsSnapshot: 'payoutTermsSnapshot' in payoutConfig ? payoutConfig.payoutTermsSnapshot : undefined,
+      payoutEligibilitySnapshot: 'payoutEligibilitySnapshot' in payoutConfig ? payoutConfig.payoutEligibilitySnapshot : undefined,
     });
 
     res.status(201).json({

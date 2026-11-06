@@ -48,9 +48,16 @@ const PartnerCampaignPayoutOverrideSchema = new Schema({
   payout: { type: Number, required: true, min: 0 },
 }, { _id: false });
 
+const PartnerCampaignPercentageOverrideSchema = new Schema({
+  campaignId: { type: String, required: true, trim: true },
+  percentage: { type: Number, required: true, min: 0, max: 100 },
+}, { _id: false });
+
 const PartnerPayoutSettingsSchema = new Schema({
   defaultPayout: { type: Number, min: 0 },
   campaignOverrides: { type: [PartnerCampaignPayoutOverrideSchema], default: [] },
+  defaultPayoutPercentage: { type: Number, min: 0, max: 100 },
+  campaignPercentageOverrides: { type: [PartnerCampaignPercentageOverrideSchema], default: [] },
 }, { _id: false });
 
 const PartnerSchema: Schema = new Schema(

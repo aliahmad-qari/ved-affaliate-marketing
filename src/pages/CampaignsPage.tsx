@@ -24,6 +24,7 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { copyText } from '../lib/clipboard.ts';
 import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
 import { resolvePartnerPayoutAmount } from '../../shared/partnerPayout.ts';
+import { payoutBasisLabel, resolvePayoutRate } from '../../shared/percentagePayout.ts';
 
 interface CampaignsPageProps {
   campaigns: Campaign[];
@@ -232,9 +233,14 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
             {filteredCampaigns.map((campaign) => {
               const partnerPayoutSettings = isAuthenticated ? partner?.payoutSettings : undefined;
               const campaignId = String(campaign._id || '');
+              const isPercentage = campaign.payoutType === 'PERCENTAGE';
               const hasPartnerOverride = partnerPayoutSettings?.defaultPayout !== undefined
                 || partnerPayoutSettings?.campaignOverrides?.some(item => item.campaignId === campaignId) === true;
               const applicablePayout = resolvePartnerPayoutAmount(campaignId, campaign.payout, partnerPayoutSettings);
+              const applicableRate = isPercentage ? resolvePayoutRate(campaign, partnerPayoutSettings) : null;
+              const payoutText = isPercentage
+                ? applicableRate && campaign.payoutBasis ? `${applicableRate}% of ${payoutBasisLabel(campaign.payoutBasis)} · pending advertiser receipt` : 'Not configured · non-payable'
+                : applicablePayout > 0 || hasPartnerOverride || (campaign.payout !== null && campaign.payout !== undefined) ? `₹${applicablePayout}` : 'Admin Configured';
               return (
               <div
                 key={campaign.slug}
@@ -280,7 +286,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <div>
                         <span className="text-[#AAB3C2]">Potential Payout: </span>
                         <span className="text-[#D4AF37] font-bold">
-                          {applicablePayout > 0 || hasPartnerOverride || (campaign.payout !== null && campaign.payout !== undefined) ? `₹${applicablePayout}` : 'Admin Configured'}
+                          {payoutText}
                         </span>
                       </div>
                     </div>

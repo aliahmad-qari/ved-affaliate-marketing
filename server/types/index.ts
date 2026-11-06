@@ -10,6 +10,9 @@ export interface ICampaign {
   description: string;
   requiredAction: string;
   payout: number | null;
+  payoutType?: 'FIXED' | 'PERCENTAGE';
+  payoutBasis?: 'LOAN_DISBURSED_AMOUNT' | 'INSURANCE_ELIGIBLE_PREMIUM';
+  payoutPercentage?: number | null;
   currency: string;
   payoutTerms: string;
   rules: string[];
@@ -73,6 +76,8 @@ export interface IPartner {
   payoutSettings?: {
     defaultPayout?: number;
     campaignOverrides?: Array<{ campaignId: string; payout: number }>;
+    defaultPayoutPercentage?: number;
+    campaignPercentageOverrides?: Array<{ campaignId: string; percentage: number }>;
   };
   referredBy?: string;
   resetPasswordToken?: string;
@@ -109,6 +114,37 @@ export interface ILead {
   submittedData?: Record<string, any>;
   status: LeadStatus;
   payoutSnapshot: number;
+  payoutTypeSnapshot?: 'FIXED' | 'PERCENTAGE';
+  payoutBasisSnapshot?: 'LOAN_DISBURSED_AMOUNT' | 'INSURANCE_ELIGIBLE_PREMIUM';
+  payoutRateSnapshot?: number | null;
+  payoutTermsSnapshot?: string;
+  payoutEligibilitySnapshot?: Record<string, string>;
+  payoutCommission?: {
+    state: 'AWAITING_REVIEW' | 'REPORT_REJECTED' | 'PENDING' | 'AVAILABLE' | 'REVERSED';
+    verifiedBaseAmount?: number;
+    calculatedAmount?: number;
+    source?: 'APPROVED_MIS';
+    reportedBaseAmount?: number;
+    advertiserReference?: string;
+    advertiserName?: string;
+    reportReference?: string;
+    reportDate?: Date;
+    reportKey?: string;
+    earningIdempotencyKey?: string;
+    eventKeys?: string[];
+    evidenceReference?: string;
+    verificationDetails?: string;
+    enteredBy?: string;
+    enteredAt?: Date;
+    verifiedBy?: string;
+    verifiedAt?: Date;
+    receiptReference?: string;
+    receiptEvidenceReference?: string;
+    receiptDetails?: string;
+    receiptConfirmedBy?: string;
+    receiptConfirmedAt?: Date;
+  };
+  commissionSummary?: { state: string; verifiedBaseAmount?: number; calculatedAmount?: number; receiptConfirmed?: boolean };
   currency: string;
   rejectionReason?: string;
   rejectionReasonCode?: 'NO_LEAD_FOUND' | 'DUPLICATE_LEAD' | 'OTHER';

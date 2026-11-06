@@ -6,7 +6,7 @@ import { TrackingClick } from '../models/TrackingClick.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 
 // Helper to sanitize public campaign output
 const sanitizeCampaign = (campaign: any) => {
@@ -179,7 +179,7 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
         partnerId: partner.partnerId,
         campaignId: String(campaign._id),
         campaignSlug: campaign.slug,
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings),
+        ...resolvePayoutSnapshot(campaign, partner.payoutSettings),
         currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });

@@ -12,7 +12,7 @@ import { getDbStatus } from '../config/db.ts';
 import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePartnerPayout, resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
   slug: string;
@@ -195,16 +195,17 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
       if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
+      const payoutConfig = resolvePayoutSnapshot(campaign, partner.payoutSettings);
       await TrackingClick.create([{
         clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
+        ...payoutConfig, currency: campaign.currency || 'INR',
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       }], { session });
       const [lead] = await Lead.create([{
         leadId: generateLeadId(), partnerId: partner.partnerId, campaignId: String(campaign._id),
         campaignName: campaign.name, campaignType: campaign.campaignType, clientName: name, clientMobile: mobile,
         accountId, action: campaign.requiredAction, vendorClickId: token.clickId, status: 'PENDING',
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
+        ...payoutConfig, currency: campaign.currency || 'INR',
         submittedData: { source: 'CUSTOMER_FORM', processStatus: 'IN_PROCESS', consentAt: new Date().toISOString(), consentVersion: 'lead-capture-v1' },
       }], { session });
       await Notification.create([{

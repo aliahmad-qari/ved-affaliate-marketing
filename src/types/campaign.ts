@@ -18,6 +18,15 @@ export interface Campaign {
   description: string;
   requiredAction: string;
   payout: number | null;
+  payoutType?: 'FIXED' | 'PERCENTAGE';
+  payoutBasis?: 'LOAN_DISBURSED_AMOUNT' | 'INSURANCE_ELIGIBLE_PREMIUM';
+  payoutPercentage?: number | null;
+  payoutSnapshot?: number;
+  payoutTypeSnapshot?: 'FIXED' | 'PERCENTAGE';
+  payoutBasisSnapshot?: 'LOAN_DISBURSED_AMOUNT' | 'INSURANCE_ELIGIBLE_PREMIUM';
+  payoutRateSnapshot?: number | null;
+  payoutTermsSnapshot?: string;
+  payoutEligibilitySnapshot?: Record<string, string>;
   currency: string;
   payoutTerms: string;
   rules: string[];

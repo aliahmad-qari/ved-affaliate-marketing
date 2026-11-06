@@ -32,6 +32,8 @@ export interface Partner {
   payoutSettings?: {
     defaultPayout?: number;
     campaignOverrides?: Array<{ campaignId: string; payout: number }>;
+    defaultPayoutPercentage?: number;
+    campaignPercentageOverrides?: Array<{ campaignId: string; percentage: number }>;
   };
   referredBy?: string;
   createdAt?: string;

@@ -108,6 +108,11 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
           vendorConversionKey: conversionKey,
           status: targetStatus,
           payoutSnapshot: click.payoutSnapshot,
+          payoutTypeSnapshot: click.payoutTypeSnapshot || 'FIXED',
+          payoutBasisSnapshot: click.payoutBasisSnapshot,
+          payoutRateSnapshot: click.payoutRateSnapshot,
+          payoutTermsSnapshot: click.payoutTermsSnapshot,
+          payoutEligibilitySnapshot: click.payoutEligibilitySnapshot,
           currency: click.currency,
           rejectionReason: targetStatus === 'REJECTED' ? text(req.body?.rejectionReason, 1000) : '',
           approvedAt: targetStatus === 'APPROVED' ? new Date() : undefined,
@@ -128,17 +133,20 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       }
 
       if (targetStatus === 'APPROVED') {
-        await WalletTransaction.updateOne(
-          { idempotencyKey: `LEAD_EARNING:${lead._id}` },
-          { $setOnInsert: {
-            transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
-            amount: lead.payoutSnapshot, status: 'AVAILABLE', referenceType: 'LEAD',
-            referenceId: String(lead._id), description: `Vendor-approved earning for ${lead.leadId}`,
-            idempotencyKey: `LEAD_EARNING:${lead._id}`, processedBy: 'VENDOR_WEBHOOK',
-          } },
-          { upsert: true, session, runValidators: true },
-        );
+        if (lead.payoutTypeSnapshot !== 'PERCENTAGE') {
+          await WalletTransaction.updateOne(
+            { idempotencyKey: `LEAD_EARNING:${lead._id}` },
+            { $setOnInsert: {
+              transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
+              amount: lead.payoutSnapshot, status: 'AVAILABLE', referenceType: 'LEAD',
+              referenceId: String(lead._id), description: `Vendor-approved earning for ${lead.leadId}`,
+              idempotencyKey: `LEAD_EARNING:${lead._id}`, processedBy: 'VENDOR_WEBHOOK',
+            } },
+            { upsert: true, session, runValidators: true },
+          );
+        }
 
+        // Keep the existing referral reward independent of fixed vs percentage commission.
         const referredPartner: any = await Partner.findOne({ partnerId: lead.partnerId }).select('referredBy').session(session).exec();
         const approvedCount = await Lead.countDocuments({ partnerId: lead.partnerId, status: { $in: ['APPROVED', 'PAID'] } }).session(session);
         if (referredPartner?.referredBy && approvedCount === 1) {
