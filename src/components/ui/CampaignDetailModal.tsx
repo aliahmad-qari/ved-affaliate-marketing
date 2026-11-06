@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, CheckCircle2, ShieldCheck, ArrowRight, Building, Award } from 'lucide-react';
 import { Campaign } from '../../types/campaign.ts';
+import { payoutBasisLabel } from '../../../shared/percentagePayout.ts';
 import { StatusBadge } from './StatusBadge.tsx';
 import { Button } from './Button.tsx';
 import { VedLogo } from './VedLogo.tsx';
@@ -82,7 +83,9 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
                 Potential Payout
               </div>
               <p className="text-xs sm:text-sm font-semibold text-[#D4AF37]">
-                {campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
+                {campaign.payoutType === 'PERCENTAGE' && campaign.payoutBasis
+                  ? `${campaign.payoutRateSnapshot ?? campaign.payoutPercentage ?? 'Not configured'}% of ${payoutBasisLabel(campaign.payoutBasis)}`
+                  : campaign.payout ? `₹${campaign.payout}` : 'Admin Configured'}
               </p>
               <p className="text-[10px] text-[#AAB3C2] mt-0.5">{campaign.payoutTerms}</p>
             </div>}
@@ -114,7 +117,9 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
               {[
                 ['Eligibility', campaign.terms?.eligibility || 'New customers only, as defined by the campaign provider.'],
                 ['Required Action', campaign.requiredAction],
-                ['Potential Payout', campaign.payout ? `₹${campaign.payout} per eligible, verified lead. ${campaign.payoutTerms}` : campaign.payoutTerms],
+                ['Potential Payout', campaign.payoutType === 'PERCENTAGE' && campaign.payoutBasis
+                  ? `${campaign.payoutRateSnapshot ?? campaign.payoutPercentage ?? 'Not configured'}% of ${payoutBasisLabel(campaign.payoutBasis)} after advertiser validation and VED receipt confirmation. ${campaign.payoutTerms}`
+                  : campaign.payout ? `₹${campaign.payout} per eligible, verified lead. ${campaign.payoutTerms}` : campaign.payoutTerms],
                 ['Validation / Rejection', campaign.terms?.validationRejection || 'Leads that fail provider validation, are incomplete, or are ineligible will be rejected.'],
                 ['Payout Timeline', campaign.terms?.payoutTimeline || 'Payout is credited after Admin verification and provider validation.'],
                 ['Duplicate / Fraud Rules', campaign.terms?.duplicateFraudRules || 'Duplicate, self-referred, or fraudulent submissions are rejected and may lead to account suspension.'],

@@ -89,6 +89,10 @@ const WalletTransactionSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+    // Financial idempotency indexes must be prepared and verified explicitly;
+    // API startup must not create the unique wallet index as a side effect.
+    autoIndex: false,
+    autoCreate: false,
     toJSON: {
       transform: function (_doc, ret: Record<string, any>) {
         delete ret.__v;

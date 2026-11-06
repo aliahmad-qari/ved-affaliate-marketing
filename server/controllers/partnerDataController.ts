@@ -7,7 +7,7 @@ import { PartnerStore } from '../services/partnerStore.ts';
 import { isValidMobile } from '../utils/partnerIdGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 import { resolvePartnerOwnedSubTeamLink } from '../services/subTeamAttribution.ts';
 import { adminApprovedReferralLeadCriteria, isAdminApprovedReferralLead } from '../services/referralReward.ts';
 import { REFERRAL_REWARD_AMOUNT_INR, REFERRAL_REWARD_REQUIRED_LEADS } from '../../shared/referralReward.ts';
@@ -85,7 +85,8 @@ export const getPartnerCampaigns = async (req: Request, res: Response, next: Nex
 
       return {
         ...camp,
-        payout: resolvePartnerPayout(camp, partner.payoutSettings),
+        payout: camp.payoutType === 'PERCENTAGE' ? null : resolvePayoutSnapshot(camp, partner.payoutSettings).payoutSnapshot,
+        ...resolvePayoutSnapshot(camp, partner.payoutSettings),
         trackingUrl,
         whatsappShareUrl,
         isLive: camp.status === 'LIVE',
@@ -162,7 +163,8 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
     }
 
     // Snapshot payout directly from official campaign record
-    const payoutSnapshot = resolvePartnerPayout(campaign, req.user.payoutSettings);
+    const payoutConfig = resolvePayoutSnapshot(campaign, req.user.payoutSettings);
+    const payoutSnapshot = payoutConfig.payoutSnapshot;
     const subTeamLinkId = typeof req.body.subTeamLinkId === 'string' && req.body.subTeamLinkId.trim()
       ? String((await resolvePartnerOwnedSubTeamLink(partnerId, req.body.subTeamLinkId.trim(), String(campaign._id)))._id)
       : undefined;
@@ -182,6 +184,11 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       },
       payoutSnapshot,
       ...(subTeamLinkId ? { subTeamLinkId } : {}),
+      payoutTypeSnapshot: payoutConfig.payoutTypeSnapshot,
+      payoutBasisSnapshot: 'payoutBasisSnapshot' in payoutConfig ? payoutConfig.payoutBasisSnapshot : undefined,
+      payoutRateSnapshot: 'payoutRateSnapshot' in payoutConfig ? payoutConfig.payoutRateSnapshot : undefined,
+      payoutTermsSnapshot: 'payoutTermsSnapshot' in payoutConfig ? payoutConfig.payoutTermsSnapshot : undefined,
+      payoutEligibilitySnapshot: 'payoutEligibilitySnapshot' in payoutConfig ? payoutConfig.payoutEligibilitySnapshot : undefined,
     });
 
     res.status(201).json({

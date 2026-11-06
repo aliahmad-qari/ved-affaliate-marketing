@@ -25,7 +25,7 @@ export const getAdminDashboard = async (_req: Request, res: Response, next: Next
       Lead.countDocuments({ status: { $in: ['APPROVED', 'PAID'] } }),
       Lead.countDocuments({ status: { $in: ['PENDING', 'VERIFIED'] } }),
       Lead.aggregate([
-        { $match: { status: { $in: ['APPROVED', 'PAID'] } } },
+        { $match: { status: { $in: ['APPROVED', 'PAID'] }, $or: [{ payoutTypeSnapshot: { $ne: 'PERCENTAGE' } }, { payoutTypeSnapshot: 'PERCENTAGE', 'payoutCommission.state': 'AVAILABLE' }] } },
         { $group: { _id: '$status', amount: { $sum: '$payoutSnapshot' } } },
       ]),
       WalletTransaction.countDocuments({ type: 'WITHDRAWAL', status: { $in: ['PENDING', 'PROCESSING', 'APPROVED'] } }),
@@ -61,7 +61,7 @@ export const listAdminLeads = async (req: Request, res: Response, next: NextFunc
     const { page, limit, skip } = listOptions(req);
     const query = await buildAdminLeadQuery(req.query, undefined, { hideOldRejected: true });
     const [data, total] = await Promise.all([
-      Lead.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+      Lead.find(query).select('+payoutCommission.reportKey +payoutCommission.receiptKey').sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
       Lead.countDocuments(query),
     ]);
     const partnerIds = [...new Set(data.map(lead => lead.partnerId))];
@@ -94,7 +94,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
   try {
     let updated: any;
     await session.withTransaction(async () => {
-      const lead: any = await Lead.findById(req.params.id).session(session).exec();
+      const lead: any = await Lead.findById(req.params.id).select('+payoutCommission.earningIdempotencyKey').session(session).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
       if (lead.submittedData?.source === 'CUSTOMER_FORM' && lead.submittedData.processStatus === 'NOT_SUBMITTED' && target !== 'REJECTED') {
         throw Object.assign(new Error('Mark this enquiry In Process before verifying or approving it.'), { status: 409 });
@@ -118,16 +118,18 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       await lead.save({ session });
 
       if (target === 'APPROVED') {
-        await WalletTransaction.updateOne(
-          { idempotencyKey: `LEAD_EARNING:${lead._id}` },
-          { $setOnInsert: {
-            transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
-            amount: lead.payoutSnapshot, status: 'AVAILABLE', referenceType: 'LEAD',
-            referenceId: String(lead._id), description: `Approved lead earning for ${lead.leadId}`,
-            idempotencyKey: `LEAD_EARNING:${lead._id}`, processedBy: String(req.user._id),
-          } },
-          { upsert: true, session, runValidators: true },
-        );
+        if (lead.payoutTypeSnapshot !== 'PERCENTAGE') {
+          await WalletTransaction.updateOne(
+            { idempotencyKey: `LEAD_EARNING:${lead._id}` },
+            { $setOnInsert: {
+              transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
+              amount: lead.payoutSnapshot, status: 'AVAILABLE', referenceType: 'LEAD',
+              referenceId: String(lead._id), description: `Approved lead earning for ${lead.leadId}`,
+              idempotencyKey: `LEAD_EARNING:${lead._id}`, processedBy: String(req.user._id),
+            } },
+            { upsert: true, session, runValidators: true },
+          );
+        }
 
         const referrerPartnerId = await findReferrer(lead.partnerId, session);
         if (referrerPartnerId) {
@@ -166,6 +168,9 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
 
 export const adjustAdminLeadPayout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const existing: any = await Lead.findById(req.params.id).select('payoutTypeSnapshot status').lean().exec();
+    if (!existing) { res.status(404).json({ success: false, message: 'Lead not found.' }); return; }
+    if (existing.payoutTypeSnapshot === 'PERCENTAGE') { res.status(409).json({ success: false, message: 'Percentage payouts must use the verified advertiser report workflow; manual payout adjustment is disabled.' }); return; }
     const payout = Number(req.body.payoutSnapshot);
     if (!Number.isFinite(payout) || payout < 0 || Math.abs(payout * 100 - Math.round(payout * 100)) >= 1e-6) {
       res.status(400).json({ success: false, message: 'Payout must be a non-negative amount with at most two decimals.' });
@@ -199,11 +204,12 @@ export const markAdminLeadPaid = async (req: Request, res: Response, next: NextF
   try {
     let result: any;
     await session.withTransaction(async () => {
-      const lead: any = await Lead.findById(req.params.id).session(session).exec();
+      const lead: any = await Lead.findById(req.params.id).select('+payoutCommission.earningIdempotencyKey').session(session).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
       if (lead.status !== 'APPROVED') throw Object.assign(new Error('Only an approved lead earning can be marked Paid.'), { status: 409 });
       await Partner.updateOne({ partnerId: lead.partnerId }, { $inc: { walletRevision: 1 } }, { session });
-      const earning: any = await WalletTransaction.findOne({ idempotencyKey: `LEAD_EARNING:${lead._id}` }).session(session).exec();
+      const earningKey = lead.payoutTypeSnapshot === 'PERCENTAGE' ? (lead.payoutCommission?.earningIdempotencyKey || `LEAD_EARNING:${lead._id}`) : `LEAD_EARNING:${lead._id}`;
+      const earning: any = earningKey ? await WalletTransaction.findOne({ idempotencyKey: earningKey }).session(session).exec() : null;
       if (!earning || earning.status !== 'AVAILABLE') throw Object.assign(new Error('Available earning ledger entry was not found.'), { status: 409 });
       const [partnerLeads, partnerTransactions] = await Promise.all([
         Lead.find({ partnerId: lead.partnerId }).session(session).exec(),

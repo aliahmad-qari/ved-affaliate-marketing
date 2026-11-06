@@ -61,7 +61,7 @@ export function escapeRegex(value: string): string {
 
 export function availableBalanceCents(leads: any[], transactions: any[]): number {
   const cents = (value: number) => Math.round(Number(value) * 100);
-  const approved = leads.filter((lead) => lead.status === 'APPROVED').reduce((sum, lead) => sum + cents(lead.payoutSnapshot), 0);
+  const approved = leads.filter((lead) => lead.status === 'APPROVED' && (lead.payoutTypeSnapshot !== 'PERCENTAGE' || lead.payoutCommission?.state === 'AVAILABLE')).reduce((sum, lead) => sum + cents(lead.payoutSnapshot), 0);
   const referrals = transactions.filter((tx) => tx.type === 'REFERRAL_REWARD' && tx.status === 'AVAILABLE').reduce((sum, tx) => sum + cents(tx.amount), 0);
   const withdrawn = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PAID', 'PROCESSED'].includes(tx.status)).reduce((sum, tx) => sum + cents(tx.amount), 0);
   const reserved = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PENDING', 'PROCESSING', 'APPROVED'].includes(tx.status)).reduce((sum, tx) => sum + cents(tx.amount), 0);

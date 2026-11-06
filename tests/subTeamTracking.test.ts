@@ -69,7 +69,7 @@ test('manual attribution cannot select another partner’s sub-team link', async
   );
 });
 
-test('sub-team clicks and persistent counts are committed together', async (t) => {
+test('sub-team clicks retain fixed or percentage payout snapshots and commit counts together', async (t) => {
   const rows: any[] = [];
   let count = 0;
   let commits = 0;
@@ -90,8 +90,25 @@ test('sub-team clicks and persistent counts are committed together', async (t) =
   await createSubTeamClick(
     { _id: 'link-1' }, { _id: 'campaign-1', slug: 'campaign' }, { partnerId: 'VED-PTR-123' }, 'click-1', 250, 'INR',
   );
-  assert.equal(rows.length, 1);
+  await createSubTeamClick(
+    { _id: 'link-1' }, { _id: 'campaign-1', slug: 'campaign' }, { partnerId: 'VED-PTR-123' }, 'click-2', {
+      payoutSnapshot: 0,
+      payoutTypeSnapshot: 'PERCENTAGE',
+      payoutBasisSnapshot: 'LOAN_DISBURSED_AMOUNT',
+      payoutRateSnapshot: 2.5,
+      payoutTermsSnapshot: 'Actual disbursement only',
+      payoutEligibilitySnapshot: { eligibility: 'Verified lender report' },
+    }, 'INR',
+  );
+  assert.equal(rows.length, 2);
   assert.equal(rows[0].subTeamLinkId, 'link-1');
-  assert.equal(count, 1);
-  assert.equal(commits, 1);
+  assert.equal(rows[0].payoutSnapshot, 250);
+  assert.equal(rows[0].payoutTypeSnapshot, 'FIXED');
+  assert.equal(rows[1].subTeamLinkId, 'link-1');
+  assert.equal(rows[1].payoutSnapshot, 0);
+  assert.equal(rows[1].payoutTypeSnapshot, 'PERCENTAGE');
+  assert.equal(rows[1].payoutBasisSnapshot, 'LOAN_DISBURSED_AMOUNT');
+  assert.equal(rows[1].payoutRateSnapshot, 2.5);
+  assert.equal(count, 2);
+  assert.equal(commits, 2);
 });

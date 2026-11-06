@@ -270,7 +270,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(ledger.length, existingCreditCount + 1, 'concurrent approval attempts create one wallet credit');
 
     // Legacy vendor conversions without a customer-form enquiry still get processed automatically.
-    clicks.push({ ...clicks[0], clickId: 'legacy-click' });
+    clicks.push({ ...clicks[0], clickId: 'legacy-click', subTeamLinkId: 'team-link-abc' });
     const legacyCallback = await fetch(`${base}/api/webhooks/vendor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-vendor-secret' },
       body: JSON.stringify({ eventId: 'legacy-event', clickId: 'legacy-click', conversionId: 'legacy-conversion', status: 'approved', customerName: 'Vendor Customer', customerMobile: '9876543210' }),
@@ -278,6 +278,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(legacyCallback.status, 200);
     assert.equal((await legacyCallback.json()).data.status, 'APPROVED');
     assert.equal(leads.find((lead) => lead.vendorClickId === 'legacy-click')?.clientName, 'Vendor Customer');
+    assert.equal(leads.find((lead) => lead.vendorClickId === 'legacy-click')?.subTeamLinkId, 'team-link-abc', 'vendor callbacks retain the original sub-team attribution');
     assert.equal(ledger.length, 3, 'Captured, manual, and legacy vendor leads each earn only one ledger entry');
 
     const partnerGet = (path: string) => fetch(`${base}/api/partner${path}`, { headers: { Authorization: `Bearer ${partnerToken}` } });

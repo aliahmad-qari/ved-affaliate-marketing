@@ -12,7 +12,7 @@ import { getDbStatus } from '../config/db.ts';
 import { generateLeadId } from '../utils/idGenerator.ts';
 import { redirectToCampaignTracking } from './campaignController.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 import { createSubTeamClick, resolveSubTeamPartner } from '../services/subTeamAttribution.ts';
 
 interface CaptureToken extends jwt.JwtPayload {
@@ -143,7 +143,7 @@ export const showLeadCaptureForm = async (req: Request, res: Response, next: Nex
       if (existing) { registrationResponse(res, { registered: true }); return; }
     }
     const clickId = crypto.randomUUID();
-    if (subTeamLink) await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePartnerPayout(campaign, partner.payoutSettings), campaign.currency || 'INR');
+    if (subTeamLink) await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePayoutSnapshot(campaign, partner.payoutSettings), campaign.currency || 'INR');
     const token = jwt.sign({ slug: campaign.slug, ref, pid, clickId, ...(subteam ? { subteam } : {}) }, secret(), {
       expiresIn: '30m', audience: 'ved-lead-capture', issuer: 'ved-api',
     });
@@ -206,13 +206,22 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
       if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
+      let payoutConfig = resolvePayoutSnapshot(campaign, partner.payoutSettings);
       if (subTeamLink) {
         const trackedClick = await TrackingClick.findOne({ clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), subTeamLinkId: String(subTeamLink._id) }).session(session!).exec();
         if (!trackedClick) throw Object.assign(new Error('The original sub-team click is unavailable. Reopen the tracking link and try again.'), { status: 409 });
+        payoutConfig = {
+          payoutSnapshot: trackedClick.payoutSnapshot,
+          payoutTypeSnapshot: trackedClick.payoutTypeSnapshot || 'FIXED',
+          payoutBasisSnapshot: trackedClick.payoutBasisSnapshot,
+          payoutRateSnapshot: trackedClick.payoutRateSnapshot,
+          payoutTermsSnapshot: trackedClick.payoutTermsSnapshot,
+          payoutEligibilitySnapshot: trackedClick.payoutEligibilitySnapshot,
+        };
       } else {
         await TrackingClick.create([{
           clickId: token.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
-          payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
+          ...payoutConfig, currency: campaign.currency || 'INR',
           expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
         }], { session });
       }
@@ -221,7 +230,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         campaignName: campaign.name, campaignType: campaign.campaignType, clientName: name, clientMobile: mobile,
         accountId, action: campaign.requiredAction, vendorClickId: token.clickId, status: 'PENDING',
         ...(subTeamLink ? { subTeamLinkId: String(subTeamLink._id) } : {}),
-        payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings), currency: campaign.currency || 'INR',
+        ...payoutConfig, currency: campaign.currency || 'INR',
         submittedData: { source: 'CUSTOMER_FORM', processStatus: 'IN_PROCESS', consentAt: new Date().toISOString(), consentVersion: 'lead-capture-v1' },
       }], { session });
       await Notification.create([{

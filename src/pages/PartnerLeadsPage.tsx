@@ -274,7 +274,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                     <th className="py-3 px-4">Campaign</th>
                     <th className="py-3 px-4">Client Details</th>
                     <th className="py-3 px-4">Account / Ref ID</th>
-                    <th className="py-3 px-4">Payout Snapshot</th>
+                    <th className="py-3 px-4">Payout Snapshot / State</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Date</th>
                   </tr>
@@ -297,7 +297,7 @@ export const PartnerLeadsPage: React.FC<PartnerLeadsPageProps> = ({ onNavigate }
                         {lead.accountId}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 text-sm">
-                        ₹{lead.payoutSnapshot}
+                        ₹{lead.payoutSnapshot}{lead.commissionSummary && <span className="ml-2 text-[10px] text-amber-300">{lead.commissionSummary.state.replaceAll('_', ' ')}</span>}
                       </td>
                       <td className="py-3.5 px-4">
                         <span

@@ -43,6 +43,9 @@ const CampaignSchema: Schema = new Schema(
       type: Number,
       default: null, // Admin-configured, null by default in milestone 1
     },
+    payoutType: { type: String, enum: ['FIXED', 'PERCENTAGE'], default: 'FIXED' },
+    payoutBasis: { type: String, enum: ['LOAN_DISBURSED_AMOUNT', 'INSURANCE_ELIGIBLE_PREMIUM'] },
+    payoutPercentage: { type: Number, min: 0, max: 100 },
     currency: {
       type: String,
       default: 'INR',

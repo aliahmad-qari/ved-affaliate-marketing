@@ -29,6 +29,8 @@ import {
   approveMonthlyReward, approveMonthlyRewardPolicy, generateMonthlyRewards,
   getAdminMonthlyLeaderboard, saveMonthlyRewardPolicy, updateMonthlyRewardPayment,
 } from '../controllers/monthlyLeaderboardController.ts';
+import { confirmAdvertiserReceipt, rejectPercentagePayoutEvidence, submitPercentagePayoutEvidence, verifyPercentagePayoutEvidence } from '../controllers/percentagePayoutController.ts';
+import { requirePercentagePayoutReadiness } from '../middleware/percentagePayoutReadiness.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -67,6 +69,10 @@ router.patch('/leads/:id/review', reviewAdminLead);
 router.patch('/leads/:id/reverse-approval', reverseLeadApproval);
 router.patch('/leads/:id/payout', adjustAdminLeadPayout);
 router.patch('/leads/:id/paid', markAdminLeadPaid);
+router.patch('/leads/:id/percentage-payout/evidence', requirePercentagePayoutReadiness, submitPercentagePayoutEvidence);
+router.patch('/leads/:id/percentage-payout/verify', requirePercentagePayoutReadiness, verifyPercentagePayoutEvidence);
+router.patch('/leads/:id/percentage-payout/reject', requirePercentagePayoutReadiness, rejectPercentagePayoutEvidence);
+router.patch('/leads/:id/percentage-payout/confirm-receipt', requirePercentagePayoutReadiness, confirmAdvertiserReceipt);
 router.get('/withdrawals', listWithdrawals);
 router.patch('/withdrawals/:id', updateWithdrawal);
 router.get('/settings', getBusinessSettings);

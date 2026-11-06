@@ -17,13 +17,14 @@ export const reverseLeadApproval = async (req: Request, res: Response, next: Nex
   try {
     session = await mongoose.startSession(); let result: any;
     await session.withTransaction(async () => {
-      const lead: any = await Lead.findById(req.params.id).session(session!).exec();
+      const lead: any = await Lead.findById(req.params.id).select('+payoutCommission.earningIdempotencyKey').session(session!).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
       if (lead.status !== 'APPROVED' || lead.approvalReversal) throw Object.assign(new Error('Only an approved, unpaid lead can be reversed once.'), { status: 409 });
       const key = `LEAD_APPROVAL_REVERSAL:${lead._id}`;
       const existing = await WalletTransaction.findOne({ idempotencyKey: key }).session(session!).exec();
       if (existing) throw Object.assign(new Error('This approval has already been reversed.'), { status: 409 });
-      const earning: any = await WalletTransaction.findOne({ idempotencyKey: `LEAD_EARNING:${lead._id}`, partnerId: lead.partnerId, type: 'LEAD_EARNING', referenceId: String(lead._id) }).session(session!).exec();
+      const earningKey = lead.payoutTypeSnapshot === 'PERCENTAGE' ? (lead.payoutCommission?.earningIdempotencyKey || `LEAD_EARNING:${lead._id}`) : `LEAD_EARNING:${lead._id}`;
+      const earning: any = earningKey ? await WalletTransaction.findOne({ idempotencyKey: earningKey, partnerId: lead.partnerId, type: 'LEAD_EARNING', referenceId: String(lead._id) }).session(session!).exec() : null;
       const amount = Number(earning?.amount);
       if (!earning || earning.status !== 'AVAILABLE' || !Number.isFinite(amount) || amount < 0 || Math.round(amount * 100) !== Math.round(Number(lead.payoutSnapshot) * 100)) throw Object.assign(new Error('The original available earning must match this lead before it can be reversed.'), { status: 409 });
       // Shared write lock with withdrawal requests and direct lead payments.
@@ -48,6 +49,10 @@ export const reverseLeadApproval = async (req: Request, res: Response, next: Nex
       lead.status = 'REJECTED'; lead.rejectedAt = now; lead.rejectionReason = `Approval reversed: ${reason}`;
       lead.rejectionReasonCode = 'OTHER'; lead.reviewedBy = String(req.user._id);
       lead.approvalReversal = { transactionId, amount, reason, adminId: String(req.user._id), at: now };
+      if (lead.payoutTypeSnapshot === 'PERCENTAGE' && lead.payoutCommission) {
+        lead.payoutCommission.history.push({ action: 'PERCENTAGE_COMMISSION_REVERSED', adminId: String(req.user._id), at: now, reason, snapshot: { state: lead.payoutCommission.state, calculatedAmount: lead.payoutCommission.calculatedAmount, receiptReference: lead.payoutCommission.receiptReference }, reportKey: lead.payoutCommission.reportKey });
+        lead.payoutCommission.state = 'REVERSED';
+      }
       await lead.save({ session });
       await AuditLog.create([{
         adminId: String(req.user._id), adminEmail: req.user.email, action: 'LEAD_APPROVAL_REVERSED', entityType: 'Lead', entityId: String(lead._id),

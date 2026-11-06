@@ -17,8 +17,9 @@ import { validateKyc } from '../utils/kyc.ts';
 import { isValidPayoutAmount } from '../services/partnerPayout.ts';
 import { adminApprovedReferralLeadCriteria } from '../services/referralReward.ts';
 import { REFERRAL_REWARD_AMOUNT_INR, REFERRAL_REWARD_REQUIRED_LEADS } from '../../shared/referralReward.ts';
+import { isEligiblePercentageCampaign, isValidPercentageRate } from '../services/percentagePayout.ts';
 
-const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
+const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'payoutType', 'payoutBasis', 'payoutPercentage', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
 const termFields = ['eligibility', 'validationRejection', 'payoutTimeline', 'duplicateFraudRules'] as const;
 const cleanCampaignInput = (body: Record<string, any>) => {
   const input: Record<string, any> = Object.fromEntries(
@@ -52,6 +53,22 @@ const validHttpUrl = (value: string): boolean => {
 // Seeded campaigns store site-relative logo paths such as /logos/angelone.svg.
 const validLogoUrl = (value: string): boolean => /^\/(?!\/)[\w./-]*$/.test(value) || validHttpUrl(value);
 
+function validateCampaignPayout(input: Record<string, any>, fallback?: any): string | null {
+  const type = input.payoutType ?? fallback?.payoutType ?? 'FIXED';
+  if (type === 'FIXED') {
+    if (input.payoutPercentage != null && input.payoutPercentage !== '' || input.payoutBasis) return 'Fixed campaigns cannot include percentage payout settings.';
+    return null;
+  }
+  if (type !== 'PERCENTAGE') return 'Choose a supported payout type.';
+  const config = { ...fallback, ...input, payoutType: type };
+  if (!isEligiblePercentageCampaign(config)) return 'Percentage payouts are supported only for matching Loan or Insurance campaigns and their verified basis.';
+  if (!isValidPercentageRate(Number(config.payoutPercentage))) return 'Enter a percentage greater than 0 and no greater than 100, with up to four decimal places.';
+  if (input.payout !== undefined && input.payout !== null && Number(input.payout) !== 0) return 'Percentage campaigns do not use a fixed rupee payout.';
+  input.payout = null;
+  input.payoutPercentage = Number(config.payoutPercentage);
+  return null;
+}
+
 const serializeAdminCampaign = (campaign: any) => {
   const serialized = campaign.toObject({ transform: false });
   delete serialized.__v;
@@ -75,6 +92,8 @@ const validCategory = async (value: unknown) => {
 export const createAdminCampaign = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const input = cleanCampaignInput(req.body);
+    const payoutError = validateCampaignPayout(input);
+    if (payoutError) { res.status(400).json({ success: false, message: payoutError }); return; }
     if (input.payout !== undefined && input.payout !== null) {
       const payout = Number(input.payout);
       if (!validPayoutAmount(payout)) {
@@ -131,6 +150,9 @@ export const updateAdminCampaign = async (req: Request, res: Response, next: Nex
     if (updates.campaignType !== undefined && updates.campaignType !== before.campaignType && !(await validCategory(updates.campaignType))) {
       res.status(400).json({ success: false, message: 'Choose a configured campaign category from Settings.' }); return;
     }
+    if (updates.payoutType === 'FIXED') { updates.payoutBasis = null; updates.payoutPercentage = null; }
+    const payoutError = validateCampaignPayout(updates, before);
+    if (payoutError) { res.status(400).json({ success: false, message: payoutError }); return; }
     const oldPayout = before.payout;
     const campaign: any = await Campaign.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true }).select('+baseTrackingUrl').exec();
     await writeAudit(req, 'CAMPAIGN_UPDATED', 'Campaign', String(campaign._id), { name: before.name, payout: oldPayout, status: before.status }, { name: campaign.name, payout: campaign.payout, status: campaign.status });
@@ -212,7 +234,7 @@ export const listAdminPartners = async (req: Request, res: Response, next: NextF
     const [docs, total] = await Promise.all([Partner.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).exec(), Partner.countDocuments(query)]);
     const performanceRows = await Lead.aggregate([
       { $match: { partnerId: { $in: docs.map((doc) => doc.partnerId) } } },
-      { $group: { _id: '$partnerId', totalLeads: { $sum: 1 }, approvedLeads: { $sum: { $cond: [{ $in: ['$status', ['APPROVED', 'PAID']] }, 1, 0] } }, pendingLeads: { $sum: { $cond: [{ $in: ['$status', ['PENDING', 'VERIFIED']] }, 1, 0] } }, earnings: { $sum: { $cond: [{ $in: ['$status', ['APPROVED', 'PAID']] }, '$payoutSnapshot', 0] } } } },
+      { $group: { _id: '$partnerId', totalLeads: { $sum: 1 }, approvedLeads: { $sum: { $cond: [{ $in: ['$status', ['APPROVED', 'PAID']] }, 1, 0] } }, pendingLeads: { $sum: { $cond: [{ $in: ['$status', ['PENDING', 'VERIFIED']] }, 1, 0] } }, earnings: { $sum: { $cond: [{ $and: [{ $in: ['$status', ['APPROVED', 'PAID']] }, { $or: [{ $ne: ['$payoutTypeSnapshot', 'PERCENTAGE'] }, { $eq: ['$payoutCommission.state', 'AVAILABLE'] }] }] }, '$payoutSnapshot', 0] } } } },
     ]).exec();
     const performance = new Map(performanceRows.map((row: any) => [row._id, row]));
     res.json({ success: true, data: docs.map((doc) => ({ ...doc.toJSON(), performance: performance.get(doc.partnerId) || { totalLeads: 0, approvedLeads: 0, pendingLeads: 0, earnings: 0 } })), total, page, totalPages: Math.ceil(total / limit) || 1 });
@@ -282,10 +304,12 @@ export const updateAdminPartner = async (req: Request, res: Response, next: Next
 };
 
 export const updateAdminPartnerPayoutSettings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const { defaultPayout, campaignOverrides, expectedUpdatedAt } = req.body || {};
+  const { defaultPayout, campaignOverrides, defaultPayoutPercentage, campaignPercentageOverrides, expectedUpdatedAt } = req.body || {};
   if ((defaultPayout !== null && !isValidPayoutAmount(defaultPayout))
     || !Array.isArray(campaignOverrides)
     || campaignOverrides.length > 100
+    || (defaultPayoutPercentage !== undefined && defaultPayoutPercentage !== null && !isValidPercentageRate(defaultPayoutPercentage))
+    || (campaignPercentageOverrides !== undefined && (!Array.isArray(campaignPercentageOverrides) || campaignPercentageOverrides.length > 100))
     || typeof expectedUpdatedAt !== 'string'
     || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
     res.status(400).json({ success: false, message: 'Provide valid payout settings and the partner version being edited.' });
@@ -304,6 +328,17 @@ export const updateAdminPartnerPayoutSettings = async (req: Request, res: Respon
     normalizedOverrides.push({ campaignId: entry.campaignId, payout: Math.round(entry.payout * 100) / 100 });
   }
 
+  const percentageIds = new Set<string>();
+  const normalizedPercentageOverrides: Array<{ campaignId: string; percentage: number }> = [];
+  for (const entry of campaignPercentageOverrides || []) {
+    if (!entry || typeof entry.campaignId !== 'string' || !mongoose.Types.ObjectId.isValid(entry.campaignId)
+      || !isValidPercentageRate(entry.percentage) || percentageIds.has(entry.campaignId)) {
+      res.status(400).json({ success: false, message: 'Percentage overrides must use unique campaign IDs and rates greater than 0 and no greater than 100.' }); return;
+    }
+    percentageIds.add(entry.campaignId);
+    normalizedPercentageOverrides.push({ campaignId: entry.campaignId, percentage: entry.percentage });
+  }
+
   try {
     if (ids.size) {
       const matching = await Campaign.countDocuments({ _id: { $in: [...ids] } }).exec();
@@ -312,10 +347,18 @@ export const updateAdminPartnerPayoutSettings = async (req: Request, res: Respon
         return;
       }
     }
+    if (percentageIds.size) {
+      const matches: any[] = await Campaign.find({ _id: { $in: [...percentageIds] } }).select('_id campaignType payoutType payoutBasis').lean().exec();
+      if (matches.length !== percentageIds.size || matches.some(campaign => campaign.payoutType !== 'PERCENTAGE' || !isEligiblePercentageCampaign(campaign))) {
+        res.status(400).json({ success: false, message: 'Percentage overrides may only target configured eligible Loan or Insurance percentage campaigns.' }); return;
+      }
+    }
 
     const payoutSettings = {
       ...(defaultPayout === null ? {} : { defaultPayout: Math.round(defaultPayout * 100) / 100 }),
       campaignOverrides: normalizedOverrides,
+      ...(defaultPayoutPercentage === undefined ? {} : defaultPayoutPercentage === null ? {} : { defaultPayoutPercentage }),
+      campaignPercentageOverrides: campaignPercentageOverrides === undefined ? undefined : normalizedPercentageOverrides,
     };
     const expectedVersion = new Date(expectedUpdatedAt);
     const session = await mongoose.startSession();
@@ -327,6 +370,11 @@ export const updateAdminPartnerPayoutSettings = async (req: Request, res: Respon
         if (!before.updatedAt || new Date(before.updatedAt).getTime() !== expectedVersion.getTime()) {
           throw Object.assign(new Error('Partner data changed while editing. Reload the partner and try again.'), { status: 409 });
         }
+        if (payoutSettings.campaignPercentageOverrides === undefined) delete payoutSettings.campaignPercentageOverrides;
+        if (payoutSettings.defaultPayoutPercentage === undefined) {
+          if (before.payoutSettings?.defaultPayoutPercentage !== undefined) payoutSettings.defaultPayoutPercentage = before.payoutSettings.defaultPayoutPercentage;
+        }
+        if (payoutSettings.campaignPercentageOverrides === undefined && before.payoutSettings?.campaignPercentageOverrides) payoutSettings.campaignPercentageOverrides = before.payoutSettings.campaignPercentageOverrides;
         const updated: any = await Partner.findOneAndUpdate(
           { _id: before._id, updatedAt: before.updatedAt },
           { $set: { payoutSettings } },

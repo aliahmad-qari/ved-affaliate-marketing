@@ -49,6 +49,11 @@ export const LeadStore = {
     submittedData?: Record<string, any>;
     payoutSnapshot: number;
     subTeamLinkId?: string;
+    payoutTypeSnapshot?: 'FIXED' | 'PERCENTAGE';
+    payoutBasisSnapshot?: 'LOAN_DISBURSED_AMOUNT' | 'INSURANCE_ELIGIBLE_PREMIUM';
+    payoutRateSnapshot?: number | null;
+    payoutTermsSnapshot?: string;
+    payoutEligibilitySnapshot?: Record<string, string>;
   }): Promise<ILead> {
     const cleanAccountId = data.accountId.trim();
 
@@ -220,6 +225,15 @@ export const LeadStore = {
 
     for (const lead of leads) {
       const payout = Number(lead.payoutSnapshot) || 0;
+      if (lead.payoutTypeSnapshot === 'PERCENTAGE') {
+        if (lead.payoutCommission?.state === 'PENDING') pendingEarnings += payout;
+        if (['APPROVED', 'PAID'].includes(lead.status)) successfulLeads++;
+        if (lead.payoutCommission?.state === 'AVAILABLE' && lead.status === 'APPROVED') approvedEarnings += payout;
+        else if (lead.payoutCommission?.state === 'AVAILABLE' && lead.status === 'PAID') paidEarnings += payout;
+        if (lead.status === 'REJECTED') rejectedLeads++;
+        if (['PENDING', 'VERIFIED'].includes(lead.status)) pendingLeads++;
+        continue;
+      }
       switch (lead.status) {
         case 'PENDING':
         case 'VERIFIED':
@@ -261,6 +275,9 @@ export const LeadStore = {
     }
 
     // Available Wallet Balance = (Approved Earnings + Referral Rewards) - (Total Withdrawn + Pending Withdrawals)
+    // Preserve the existing total-earned definition: only approved/paid earnings
+    // and available referral rewards count. Percentage PENDING remains separately
+    // visible as pendingEarnings and never enters this total or available balance.
     const totalEarned = approvedEarnings + paidEarnings + referralRewards;
     const availableWalletBalance = Math.max(0, approvedEarnings + availableReferralRewards - (totalWithdrawn + pendingWithdrawals));
 
@@ -329,6 +346,11 @@ export const LeadStore = {
       accountId: l.accountId,
       action: l.action,
       payoutSnapshot: l.payoutSnapshot,
+      commissionSummary: l.payoutCommission ? {
+        state: l.payoutCommission.state,
+        verifiedBaseAmount: l.payoutCommission.verifiedBaseAmount,
+        calculatedAmount: l.payoutCommission.calculatedAmount,
+      } : undefined,
       currency: l.currency,
       status: l.status,
       date: l.createdAt,
@@ -401,7 +423,7 @@ export const LeadStore = {
             mongoose.model('Partner').findOne({ partnerId: pId }).select('_id').session(session).exec(),
           ]);
           if (!partner) throw Object.assign(new Error('Partner not found.'), { status: 404 });
-          const approvedEarnings = leads.filter((lead) => lead.status === 'APPROVED').reduce((sum, lead) => sum + Math.round(lead.payoutSnapshot * 100), 0);
+          const approvedEarnings = leads.filter((lead) => lead.status === 'APPROVED' && (lead.payoutTypeSnapshot !== 'PERCENTAGE' || lead.payoutCommission?.state === 'AVAILABLE')).reduce((sum, lead) => sum + Math.round(lead.payoutSnapshot * 100), 0);
           const referralCredits = transactions.filter((tx) => tx.type === 'REFERRAL_REWARD' && tx.status === 'AVAILABLE').reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);
           const withdrawn = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PAID', 'PROCESSED'].includes(tx.status)).reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);
           const reserved = transactions.filter((tx) => tx.type === 'WITHDRAWAL' && ['PENDING', 'PROCESSING', 'APPROVED'].includes(tx.status)).reduce((sum, tx) => sum + Math.round(tx.amount * 100), 0);

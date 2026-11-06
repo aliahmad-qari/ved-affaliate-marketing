@@ -167,7 +167,7 @@ export const PartnerEarningsPage: React.FC<PartnerEarningsPageProps> = ({ onNavi
                   <th className="py-3 px-3">Account ID</th>
                   <th className="py-3 px-3">Action</th>
                   <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3 text-right">Payout Snapshot</th>
+                  <th className="py-3 px-3 text-right">Payout Snapshot / State</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1C273C]/60 text-[#F8FAFC]">
@@ -202,7 +202,7 @@ export const PartnerEarningsPage: React.FC<PartnerEarningsPageProps> = ({ onNavi
                       </span>
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
-                      ₹{it.payoutSnapshot}
+                      ₹{it.payoutSnapshot}{it.commissionSummary && <span className="ml-2 text-[10px] text-amber-300">{it.commissionSummary.state.replaceAll('_', ' ')}</span>}
                     </td>
                   </tr>
                 ))}

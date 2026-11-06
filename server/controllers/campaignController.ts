@@ -6,7 +6,7 @@ import { TrackingClick } from '../models/TrackingClick.ts';
 import { initialCampaignSeeds } from '../seeds/campaignSeeds.ts';
 import { getDbStatus } from '../config/db.ts';
 import { preserveVendorTrackingUrl } from '../utils/vendorTracking.ts';
-import { resolvePartnerPayout } from '../services/partnerPayout.ts';
+import { resolvePayoutSnapshot } from '../services/partnerPayout.ts';
 import { createSubTeamClick, resolveSubTeamPartner } from '../services/subTeamAttribution.ts';
 
 // Helper to sanitize public campaign output
@@ -191,14 +191,14 @@ export const redirectToCampaignTracking = async (req: Request, res: Response, ne
       }
       const clickId = crypto.randomUUID();
       if (subTeamLink) {
-        await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePartnerPayout(campaign, partner.payoutSettings), campaign.currency || 'INR');
+        await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePayoutSnapshot(campaign, partner.payoutSettings), campaign.currency || 'INR');
       } else {
         await TrackingClick.create({
           clickId,
           partnerId: partner.partnerId,
           campaignId: String(campaign._id),
           campaignSlug: campaign.slug,
-          payoutSnapshot: resolvePartnerPayout(campaign, partner.payoutSettings),
+          ...resolvePayoutSnapshot(campaign, partner.payoutSettings),
           currency: campaign.currency || 'INR',
           expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
         });
