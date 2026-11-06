@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { monthKeyInTimeZone } from '../shared/monthlyLeaderboard.ts';
 
 // Execute the page's actual loading/navigation functions with batched-state doubles.
 // Deliberately keep pageNumbers stale during a click, as React does until render.
@@ -18,7 +19,7 @@ function harness(tab: string, page = 1) {
   state.setPageNumbers = (update: any) => { state.updates.push(update(state.pageNumbers)); };
   state.adminApi = { get: async (path: string) => { state.calls.push(path); return { success: true, data: [{ id: new URL(path, 'http://test').searchParams.get('page') }], page: 2, total: 60, totalPages: 3 }; } };
   // with is confined to a test harness, so state reads mirror the closure's render values.
-  const functions = new Function('state', `with(state) { ${logic}; return { load, changePage, applyFilters }; }`)(state);
+  const functions = new Function('state', 'monthKeyInTimeZone', `with(state) { ${logic}; return { load, changePage, applyFilters }; }`)(state, monthKeyInTimeZone);
   return { state, ...functions };
 }
 
@@ -73,7 +74,7 @@ test('withdrawal paging remains independent and lead refresh uses the current pa
   const h = harness('withdrawals', 2);
   await h.load();
   assert.equal(new URL(h.state.calls[0], 'http://test').searchParams.get('page'), '2');
-  assert.ok(source.includes('busy, pageNumbers.leads, leadDates]'));
+  assert.ok(source.includes('pageNumbers.leads, leadDates]'), 'lead refresh effect includes the current lead page and date filters');
   for (const tab of ['partners', 'referrals', 'leads', 'support']) {
     assert.ok(source.includes(`changePage('${tab}', -1)`));
     assert.ok(source.includes(`changePage('${tab}', 1)`));

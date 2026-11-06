@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import mongoose from 'mongoose';
+import { databaseConnectionOptions } from '../server/config/db.ts';
 import { developmentSeedTarget, seedEmptyDevelopmentDatabase } from '../server/seeds/developmentSafety.ts';
 
 test('production start connects and opens its listener without business-data reads or writes', async t => {
@@ -27,8 +28,22 @@ test('production start connects and opens its listener without business-data rea
   }
   assert.equal(await startServer(), listener);
   assert.equal(connect.mock.callCount(), 1);
+  assert.equal(connect.mock.calls[0].arguments[1]?.autoIndex, false);
+  assert.equal(connect.mock.calls[0].arguments[1]?.autoCreate, false);
   assert.equal(listen.mock.callCount(), 1);
   for (const operation of calls) assert.equal(operation.mock.callCount(), 0);
+});
+
+test('database startup disables automatic indexes and collections only in production', () => {
+  assert.deepEqual(databaseConnectionOptions('production'), {
+    serverSelectionTimeoutMS: 5000, connectTimeoutMS: 10000, autoIndex: false, autoCreate: false,
+  });
+  assert.deepEqual(databaseConnectionOptions('development'), {
+    serverSelectionTimeoutMS: 5000, connectTimeoutMS: 10000, autoIndex: true, autoCreate: true,
+  });
+  assert.deepEqual(databaseConnectionOptions('test'), {
+    serverSelectionTimeoutMS: 5000, connectTimeoutMS: 10000, autoIndex: true, autoCreate: true,
+  });
 });
 
 test('API and Vite startup have no seeding entry point; explicit command is separate', () => {

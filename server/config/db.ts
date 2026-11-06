@@ -2,6 +2,18 @@ import mongoose from 'mongoose';
 
 let isConnected = false;
 
+export function databaseConnectionOptions(environment = process.env.NODE_ENV) {
+  const production = environment === 'production';
+  return {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000,
+    // Production indexes and collections are prepared through reviewed operations, not app startup.
+    // Preserve Mongoose's existing development/test initialization behavior.
+    autoIndex: !production,
+    autoCreate: !production,
+  };
+}
+
 export const connectDatabase = async (): Promise<boolean> => {
   const mongoUri = process.env.MONGODB_URI;
 
@@ -15,10 +27,7 @@ export const connectDatabase = async (): Promise<boolean> => {
   }
 
   try {
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-    });
+    const conn = await mongoose.connect(mongoUri, databaseConnectionOptions());
 
     isConnected = conn.connection.readyState === 1;
     console.log(`[VED DB SUCCESS] Connected to MongoDB Atlas host: ${conn.connection.host}`);
