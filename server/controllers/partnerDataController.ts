@@ -9,6 +9,8 @@ import { AppSetting } from '../models/AppSetting.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
 import { resolvePartnerPayout } from '../services/partnerPayout.ts';
 import { resolvePartnerOwnedSubTeamLink } from '../services/subTeamAttribution.ts';
+import { adminApprovedReferralLeadCriteria, isAdminApprovedReferralLead } from '../services/referralReward.ts';
+import { REFERRAL_REWARD_AMOUNT_INR, REFERRAL_REWARD_REQUIRED_LEADS } from '../../shared/referralReward.ts';
 
 // Manual reports are accepted for LIVE and PAUSED campaigns.
 async function getReportCampaigns(): Promise<any[]> {
@@ -439,42 +441,63 @@ export const requestWithdrawal = async (req: Request, res: Response, next: NextF
   }
 };
 
-/**
- * GET /api/partner/referrals
- * Displays referral statistics and referred partner status.
- * ₹50 reward is eligible ONLY after referred partner completes their first approved task.
- */
+/** GET /api/partner/referrals: referral progress and actual ledger rewards for the authenticated referrer. */
 export const getPartnerReferrals = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const partner = req.user;
     const referredPartners = await PartnerStore.findReferredPartners(partner.partnerId);
+    const referredIds = referredPartners.map((rp: any) => String(rp.partnerId).toUpperCase());
+    let qualifiedById = new Map<string, number>();
+    if (referredIds.length && getDbStatus().isConnected) {
+      const qualificationRows = await Lead.aggregate([
+        { $match: { ...adminApprovedReferralLeadCriteria(), partnerId: { $in: referredIds } } },
+        { $group: { _id: '$partnerId', approvedLeadCount: { $sum: 1 } } },
+      ]).exec();
+      qualifiedById = new Map(qualificationRows.map((row: any) => [String(row._id).toUpperCase(), Number(row.approvedLeadCount) || 0]));
+    } else {
+      const fallbackRows = await Promise.all(referredIds.map(async partnerId => {
+        const { leads } = await LeadStore.findLeadsByPartner(partnerId, { limit: 100000 });
+        return [partnerId, leads.filter(isAdminApprovedReferralLead).length] as const;
+      }));
+      qualifiedById = new Map(fallbackRows);
+    }
+    const rewardTransactions = await LeadStore.findReferralRewardsForReferredPartners(partner.partnerId, referredIds);
+    const rewardById = new Map<string, any>();
+    for (const tx of rewardTransactions) {
+      const refId = String(tx.referenceId || '').toUpperCase();
+      if (!rewardById.has(refId)) rewardById.set(refId, tx);
+    }
+    const processedReferred = referredPartners.map((rp: any) => {
+      const partnerId = String(rp.partnerId).toUpperCase();
+      const approvedLeadCount = qualifiedById.get(partnerId) || 0;
+      const reward = rewardById.get(partnerId);
+      const hasPriorReward = Boolean(reward);
+      const rewardWasCredited = hasPriorReward && ['AVAILABLE', 'PROCESSING', 'APPROVED', 'PROCESSED', 'PAID'].includes(String(reward.status || '').toUpperCase());
+      const taskStatus = hasPriorReward
+        ? (rewardWasCredited ? 'REWARDED' : 'REVIEW_REQUIRED')
+        : approvedLeadCount < REFERRAL_REWARD_REQUIRED_LEADS ? 'IN_PROGRESS' : 'REVIEW_REQUIRED';
+      const phone = rp.mobile || '';
+      const maskedMobile = phone.length >= 10 ? `${phone.substring(0, 2)}*****${phone.substring(7)}` : '**********';
+      return {
+        partnerId: rp.partnerId,
+        fullName: rp.fullName,
+        maskedMobile,
+        joinDate: rp.createdAt,
+        approvedLeadCount,
+        requiredApprovedLeads: REFERRAL_REWARD_REQUIRED_LEADS,
+        taskStatus,
+        rewardAmount: reward ? Number(reward.amount) || 0 : 0,
+        rewardStatus: reward?.status || (taskStatus === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'REVIEW_REQUIRED'),
+        rewardEarned: rewardWasCredited,
+        priorRewardExists: hasPriorReward,
+      };
+    });
 
-    // Check for each referred partner whether they have completed at least one APPROVED or PAID lead
-    const processedReferred = await Promise.all(
-      referredPartners.map(async (rp) => {
-        const { leads } = await LeadStore.findLeadsByPartner(rp.partnerId);
-        const hasApprovedTask = leads.some((l) => l.status === 'APPROVED' || l.status === 'PAID');
-
-        // Mask phone: 9876543210 -> 98*****210
-        const phone = rp.mobile || '';
-        const maskedPhone =
-          phone.length >= 10 ? `${phone.substring(0, 2)}*****${phone.substring(7)}` : '**********';
-
-        return {
-          partnerId: rp.partnerId,
-          fullName: rp.fullName,
-          maskedMobile: maskedPhone,
-          joinDate: rp.createdAt,
-          taskStatus: hasApprovedTask ? 'COMPLETED' : 'PENDING_FIRST_TASK',
-          rewardAmount: 50,
-          rewardEarned: hasApprovedTask,
-        };
-      })
-    );
-
-    const qualifiedCount = processedReferred.filter((rp) => rp.rewardEarned).length;
-    const totalEarned = qualifiedCount * 50;
-    const pendingEarned = (processedReferred.length - qualifiedCount) * 50;
+    const qualifiedCount = processedReferred.filter((rp) => rp.approvedLeadCount >= REFERRAL_REWARD_REQUIRED_LEADS).length;
+    const totalEarned = rewardTransactions.filter((tx: any) => ['AVAILABLE', 'PROCESSING', 'APPROVED', 'PROCESSED', 'PAID'].includes(String(tx.status || '').toUpperCase()))
+      .reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0);
+    const pendingEarned = processedReferred.filter((rp) => rp.taskStatus === 'IN_PROGRESS')
+      .reduce((sum, rp) => sum + REFERRAL_REWARD_AMOUNT_INR, 0);
 
     const host = req.get('host') || 'localhost:3000';
     const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
@@ -487,7 +510,7 @@ export const getPartnerReferrals = async (req: Request, res: Response, next: Nex
       data: {
         referralCode: partner.referralCode,
         referralLink,
-        rewardPerActiveReferral: 50,
+        rewardPerActiveReferral: REFERRAL_REWARD_AMOUNT_INR,
         totalReferred: processedReferred.length,
         qualifiedReferred: qualifiedCount,
         pendingReferred: processedReferred.length - qualifiedCount,

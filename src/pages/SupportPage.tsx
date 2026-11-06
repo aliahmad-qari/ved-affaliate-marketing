@@ -60,8 +60,8 @@ export const SupportPage: React.FC = () => {
       a: 'The minimum withdrawal is ₹200. Payouts are manually processed via UPI or direct Bank Transfer by Admin.',
     },
     {
-      q: 'When is the ₹50 referral credited?',
-      a: 'The ₹50 referral bonus may be credited once your referred partner completes their first eligible verified task, subject to eligibility and campaign terms.',
+      q: 'When can a referral reward be issued?',
+      a: 'A one-time ₹100 reward may be issued after your referred partner completes five valid Admin-approved leads. Previously recorded referral rewards are preserved and do not receive a second reward.',
     },
   ];
 

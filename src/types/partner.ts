@@ -138,9 +138,13 @@ export interface ReferredPartnerItem {
   fullName: string;
   maskedMobile: string;
   joinDate: string;
-  taskStatus: 'COMPLETED' | 'PENDING_FIRST_TASK';
+  approvedLeadCount: number;
+  requiredApprovedLeads: number;
+  taskStatus: 'REWARDED' | 'IN_PROGRESS' | 'REVIEW_REQUIRED';
   rewardAmount: number;
+  rewardStatus: string;
   rewardEarned: boolean;
+  priorRewardExists: boolean;
 }
 
 export interface ReferralsData {

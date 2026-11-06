@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { PartnerAvatar } from '../components/profile/PartnerAvatar.tsx';
 import { PartnerSubTeamLinks } from '../components/partner/PartnerSubTeamLinks.tsx';
 import { PartnerMonthlyLeaderboard } from '../components/partner/PartnerMonthlyLeaderboard.tsx';
+import { PartnerReferralProgress } from '../components/partner/PartnerReferralProgress.tsx';
 
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
@@ -232,6 +233,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
       <PartnerLeadReportControls campaignId={reportCampaignId} status="ALL" search="" onCampaign={setReportCampaignId} />
       <PartnerMonthlyLeaderboard />
+      <PartnerReferralProgress onNavigate={onNavigate} />
       <PartnerSubTeamLinks />
       {/* Quick Action Navigation Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -277,7 +279,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             <Share2 className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <p className="text-xs text-[#AAB3C2] mt-1">
-            ₹50 referral bonus, subject to eligibility and campaign terms.
+            One-time ₹100 reward after five valid Admin-approved leads.
           </p>
         </div>
 

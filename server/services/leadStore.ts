@@ -26,6 +26,17 @@ function walletHistory(transactions: any[]) {
 }
 
 export const LeadStore = {
+  async findReferralRewardsForReferredPartners(referrerPartnerId: string, referredPartnerIds: string[]): Promise<any[]> {
+    const pId = referrerPartnerId.toUpperCase();
+    const ids = referredPartnerIds.map(id => id.toUpperCase());
+    if (!ids.length) return [];
+    if (isMongooseReady()) {
+      return WalletTransaction.find({ partnerId: pId, type: 'REFERRAL_REWARD', referenceId: { $in: ids } })
+        .sort({ createdAt: -1 }).lean().exec();
+    }
+    return memoryTransactions.filter(tx => tx.partnerId.toUpperCase() === pId && tx.type === 'REFERRAL_REWARD' && ids.includes(tx.referenceId.toUpperCase()));
+  },
+
   async createLead(data: {
     partnerId: string;
     campaignId: string;

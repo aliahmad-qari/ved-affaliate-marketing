@@ -280,7 +280,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
                     <th className="py-4 px-4">Referred By</th>
                     <th className="py-4 px-4">Joined Date</th>
                     <th className="py-4 px-4">Referral Code</th>
-                    <th className="py-4 px-4">Qualified Leads</th>
+                    <th className="py-4 px-4">Valid Admin-Approved Leads</th>
                     <th className="py-4 px-4">Status</th>
                     <th className="py-4 px-4 text-right">Reward</th>
                   </tr>
@@ -317,12 +317,12 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
                       <td className="py-4 px-4">
                         <span
                           className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                            item.qualificationStatus === 'QUALIFIED'
+                            item.qualificationStatus === 'THRESHOLD_REACHED'
                               ? 'border-emerald-700/50 bg-emerald-500/10 text-emerald-300'
                               : 'border-amber-700/50 bg-amber-500/10 text-amber-300'
                           }`}
                         >
-                          {item.qualificationStatus}
+                          {item.qualificationStatus === 'THRESHOLD_REACHED' ? '5+ LEADS' : 'IN PROGRESS'}
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">

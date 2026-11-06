@@ -285,7 +285,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               {partner.referralCode}
             </span>
             <span className="text-[11px] text-[#AAB3C2] hidden md:inline">
-              (₹50 referral bonus, subject to eligibility and campaign terms)
+              (One-time ₹100 referral reward after five valid Admin-approved leads)
             </span>
           </div>
 

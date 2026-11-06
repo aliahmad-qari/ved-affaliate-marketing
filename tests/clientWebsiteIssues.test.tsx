@@ -27,9 +27,9 @@ test('homepage exact copy, compact benefits, LIVE featured data and existing nav
   const metadata = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(metadata.includes(`content="${description.replace('&', '&amp;')}"`));
   const benefits = renderToStaticMarkup(<WhyChooseSection />);
-  for (const title of ['Top Brokerage Network', 'Real-Time Tracking', 'Partner Dashboard', 'Verified Partner KYC', 'Easy Withdrawals', '₹50 Referral Reward']) assert.ok(benefits.includes(title));
+  for (const title of ['Top Brokerage Network', 'Real-Time Tracking', 'Partner Dashboard', 'Verified Partner KYC', 'Easy Withdrawals', 'Referral Reward']) assert.ok(benefits.includes(title));
   assert.ok(benefits.includes('More Opportunities • Better Tools • Bigger Earnings'));
-  assert.ok(benefits.includes('approved first-task rule'));
+  assert.ok(benefits.includes('five valid Admin-approved leads'));
   const campaigns: any[] = ['LIVE', 'PAUSED', 'DRAFT', 'ENDED'].map(status => ({ slug: status, name: `${status} test broker`, companyName: 'Broker', status, isFeatured: true, payout: 0, description: 'Test description' }));
   campaigns.push({ ...campaigns[0], slug: 'non-featured', name: 'Not featured', isFeatured: false });
   const markup = renderToStaticMarkup(<FeaturedCampaignsSection campaigns={campaigns} onSelectCampaign={() => {}} onNavigate={() => {}} />);

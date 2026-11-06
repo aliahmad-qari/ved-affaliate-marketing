@@ -15,6 +15,8 @@ import { notifyPartners, writeAudit } from '../services/adminServices.ts';
 import { campaignCategories, DEFAULT_TICKER_MESSAGE } from '../../shared/campaignCategories.ts';
 import { validateKyc } from '../utils/kyc.ts';
 import { isValidPayoutAmount } from '../services/partnerPayout.ts';
+import { adminApprovedReferralLeadCriteria } from '../services/referralReward.ts';
+import { REFERRAL_REWARD_AMOUNT_INR, REFERRAL_REWARD_REQUIRED_LEADS } from '../../shared/referralReward.ts';
 
 const campaignFields = ['name', 'slug', 'companyName', 'campaignType', 'description', 'requiredAction', 'payout', 'currency', 'payoutTerms', 'rules', 'terms', 'status', 'logoUrl', 'baseTrackingUrl', 'startDate', 'endDate', 'isFeatured', 'sortOrder'];
 const termFields = ['eligibility', 'validationRejection', 'payoutTimeline', 'duplicateFraudRules'] as const;
@@ -436,7 +438,7 @@ export const listAdminReferrals = async (req: Request, res: Response, next: Next
     const [referrers, qualificationRows, rewards] = await Promise.all([
       Partner.find({ partnerId: { $in: referrerIds } }).select('partnerId fullName email mobile').lean().exec(),
       Lead.aggregate([
-        { $match: { partnerId: { $in: referredIds }, status: { $in: ['APPROVED', 'PAID'] } } },
+        { $match: { ...adminApprovedReferralLeadCriteria(), partnerId: { $in: referredIds } } },
         { $group: { _id: '$partnerId', qualifiedLeads: { $sum: 1 } } },
       ]).exec(),
       WalletTransaction.find({ type: 'REFERRAL_REWARD', referenceId: { $in: referredIds } })
@@ -466,9 +468,10 @@ export const listAdminReferrals = async (req: Request, res: Response, next: Next
         referrerEmail: referrer?.email || '',
         referrerMobile: referrer?.mobile || '',
         qualifiedLeads,
-        qualificationStatus: qualifiedLeads > 0 ? 'QUALIFIED' : 'PENDING',
-        rewardAmount: reward?.amount ?? (qualifiedLeads > 0 ? 50 : 0),
-        rewardStatus: reward?.status || (qualifiedLeads > 0 ? 'PROCESSING' : 'NOT_QUALIFIED'),
+        requiredApprovedLeads: REFERRAL_REWARD_REQUIRED_LEADS,
+        qualificationStatus: qualifiedLeads >= REFERRAL_REWARD_REQUIRED_LEADS ? 'THRESHOLD_REACHED' : 'IN_PROGRESS',
+        rewardAmount: Number(reward?.amount) || (qualifiedLeads < REFERRAL_REWARD_REQUIRED_LEADS ? REFERRAL_REWARD_AMOUNT_INR : 0),
+        rewardStatus: reward?.status || (qualifiedLeads < REFERRAL_REWARD_REQUIRED_LEADS ? 'IN_PROGRESS' : 'REVIEW_REQUIRED'),
         rewardTransactionId: reward?.transactionId || '',
       };
     }).filter((item) => {

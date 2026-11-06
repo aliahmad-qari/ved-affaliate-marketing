@@ -29,8 +29,8 @@ export const WhyChooseSection: React.FC = () => {
       icon: IndianRupee,
     },
     {
-      title: '₹50 Referral Reward',
-      desc: 'Earn an additional ₹50 for eligible partner referrals, subject to the approved first-task rule.',
+      title: '₹100 Referral Reward',
+      desc: 'A one-time ₹100 reward may be issued after a referred partner completes five valid Admin-approved leads.',
       icon: Gift,
     },
   ];

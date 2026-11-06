@@ -90,7 +90,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
               Referral Program
             </h1>
             <p className="text-xs text-[#AAB3C2] mt-1 max-w-lg">
-              Invite affiliates to VED. A <span className="text-[#D4AF37] font-semibold">₹50</span> referral bonus may apply when your referred partner completes their first approved campaign task, subject to eligibility and campaign terms.
+              A one-time <span className="text-[#D4AF37] font-semibold">₹100</span> reward may be issued after a referred partner completes five valid Admin-approved leads. Existing referral rewards are preserved and do not earn a second reward.
             </p>
           </div>
 
@@ -182,11 +182,11 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
         </div>
 
         <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-xl p-4">
-          <span className="text-xs text-emerald-400 block">Task Completed</span>
+          <span className="text-xs text-emerald-400 block">Reached 5-lead threshold</span>
           <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
             {data?.qualifiedReferred || 0}
           </div>
-          <span className="text-[10px] text-[#AAB3C2] mt-1 block">Eligible for ₹50 bonus</span>
+          <span className="text-[10px] text-[#AAB3C2] mt-1 block">Valid Admin-approved leads</span>
         </div>
 
         <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-xl p-4">
@@ -194,7 +194,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
           <div className="text-2xl font-extrabold text-[#F8FAFC] font-mono mt-1">
             ₹{data?.earnedRewards || 0}
           </div>
-          <span className="text-[10px] text-[#AAB3C2] mt-1 block">From verified tasks</span>
+          <span className="text-[10px] text-[#AAB3C2] mt-1 block">Recorded referral rewards</span>
         </div>
 
         <div className="bg-[#0B1325] border border-[#1E2E4E] rounded-xl p-4">
@@ -202,7 +202,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
           <div className="text-2xl font-extrabold text-[#F8FAFC] font-mono mt-1">
             ₹{data?.potentialRewards || 0}
           </div>
-          <span className="text-[10px] text-[#AAB3C2] mt-1 block">Awaiting first approved task</span>
+          <span className="text-[10px] text-[#AAB3C2] mt-1 block">Potential rewards for referrals below five leads</span>
         </div>
       </div>
 
@@ -238,7 +238,7 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
                   <th className="py-3 px-3">Name</th>
                   <th className="py-3 px-3">Contact</th>
                   <th className="py-3 px-3">Joined Date</th>
-                  <th className="py-3 px-3">Task Status</th>
+                  <th className="py-3 px-3">Valid Approved Leads</th>
                   <th className="py-3 px-3 text-right">Referral Reward</th>
                 </tr>
               </thead>
@@ -260,17 +260,23 @@ export const PartnerReferralsPage: React.FC<PartnerReferralsPageProps> = ({ onNa
                     <td className="py-3 px-3">
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          rp.rewardEarned
+                          rp.taskStatus === 'REWARDED'
                             ? 'bg-emerald-950/60 border border-emerald-700 text-emerald-300'
-                            : 'bg-amber-950/60 border border-amber-700 text-amber-300'
+                            : rp.taskStatus === 'REVIEW_REQUIRED'
+                              ? 'bg-sky-950/60 border border-sky-700 text-sky-300'
+                              : 'bg-amber-950/60 border border-amber-700 text-amber-300'
                         }`}
                       >
-                        {rp.rewardEarned ? 'Task Completed' : 'Awaiting First Task'}
+                        {rp.approvedLeadCount}/{rp.requiredApprovedLeads} leads
                       </span>
+                      <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[#1C273C]" aria-label={`${rp.approvedLeadCount} of ${rp.requiredApprovedLeads} valid approved leads`}>
+                        <div className="h-full bg-[#D4AF37]" style={{ width: `${Math.min(100, rp.approvedLeadCount / rp.requiredApprovedLeads * 100)}%` }} />
+                      </div>
+                      <span className="mt-1 block text-[10px] text-[#AAB3C2]">{rp.taskStatus === 'REWARDED' ? `Reward recorded: ${rp.rewardStatus}` : rp.priorRewardExists ? 'Prior reward record exists; no second credit without review' : rp.taskStatus === 'REVIEW_REQUIRED' ? 'Threshold was already reached; review required before any reward' : 'In progress'}</span>
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold">
                       <span className={rp.rewardEarned ? 'text-emerald-400' : 'text-[#AAB3C2]'}>
-                        {rp.rewardEarned ? '+₹50' : '₹50 (Pending)'}
+                        {rp.priorRewardExists ? `₹${rp.rewardAmount} (${rp.rewardStatus})` : rp.taskStatus === 'IN_PROGRESS' ? '₹100 potential' : 'Review required'}
                       </span>
                     </td>
                   </tr>

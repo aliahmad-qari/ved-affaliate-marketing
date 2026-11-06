@@ -8,6 +8,7 @@ import { AuditLog } from '../models/AuditLog.ts';
 import { Notification } from '../models/Notification.ts';
 import { generateTransactionId } from '../utils/idGenerator.ts';
 import { availableBalanceCents } from '../services/adminServices.ts';
+import { countAdminApprovedReferralLeads, findReferrer, issueReferralRewardAtThreshold } from '../services/referralReward.ts';
 
 const listOptions = (req: Request) => {
   const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
@@ -128,20 +129,18 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
           { upsert: true, session, runValidators: true },
         );
 
-        const partner: any = await Partner.findOne({ partnerId: lead.partnerId }).select('referredBy').session(session).exec();
-        const approvedCount = await Lead.countDocuments({ partnerId: lead.partnerId, status: { $in: ['APPROVED', 'PAID'] } }).session(session);
-        if (partner?.referredBy && approvedCount === 1) {
-          const referralKey = `REFERRAL_REWARD:${lead.partnerId}`;
-          await WalletTransaction.updateOne(
-            { idempotencyKey: referralKey },
-            { $setOnInsert: {
-              transactionId: generateTransactionId(), partnerId: partner.referredBy, type: 'REFERRAL_REWARD',
-              amount: 50, status: 'AVAILABLE', referenceType: 'REFERRAL', referenceId: lead.partnerId,
-              description: `First eligible approved task by referral ${lead.partnerId}`,
-              idempotencyKey: referralKey, processedBy: 'SYSTEM',
-            } },
-            { upsert: true, session, runValidators: true },
-          );
+        const referrerPartnerId = await findReferrer(lead.partnerId, session);
+        if (referrerPartnerId) {
+          const approvedCount = await countAdminApprovedReferralLeads(lead.partnerId, session);
+          await issueReferralRewardAtThreshold({
+            referredPartnerId: lead.partnerId,
+            referrerPartnerId,
+            approvedLeadCount: approvedCount,
+            adminId: String(req.user._id),
+            adminEmail: String(req.user.email || ''),
+            ipAddress: req.ip,
+            session,
+          });
         }
       }
 

@@ -8,6 +8,7 @@ import { Notification } from '../models/Notification.ts';
 import { generateTransactionId } from '../utils/idGenerator.ts';
 import { availableBalanceCents } from '../services/adminServices.ts';
 import { LeadStore } from '../services/leadStore.ts';
+import { flagReferralRewardReviewAfterLeadReversal } from '../services/referralReward.ts';
 
 export const reverseLeadApproval = async (req: Request, res: Response, next: NextFunction) => {
   const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
@@ -52,6 +53,15 @@ export const reverseLeadApproval = async (req: Request, res: Response, next: Nex
         adminId: String(req.user._id), adminEmail: req.user.email, action: 'LEAD_APPROVAL_REVERSED', entityType: 'Lead', entityId: String(lead._id),
         before, after: { status: 'REJECTED', payoutSnapshot: lead.payoutSnapshot, adjustmentAmount: -amount, reason, transactionId, availableBalance: (beforeCents - amountCents) / 100 }, ipAddress: req.ip,
       }], { session });
+      await flagReferralRewardReviewAfterLeadReversal({
+        referredPartnerId: lead.partnerId,
+        leadId: lead.leadId,
+        reason,
+        adminId: String(req.user._id),
+        adminEmail: String(req.user.email || ''),
+        ipAddress: req.ip,
+        session: session!,
+      });
       await Notification.create([{ partnerId: lead.partnerId, type: 'PAYMENT_UPDATE', title: 'Lead approval reversed', message: `Approval for ${lead.leadId} was reversed: ${reason}`, referenceType: 'LEAD', referenceId: String(lead._id), dedupeKey: key }], { session });
       result = { lead: lead.toJSON(), adjustment: adjustment.toJSON(), previousBalance: beforeCents / 100, availableBalance: (beforeCents - amountCents) / 100 };
     });

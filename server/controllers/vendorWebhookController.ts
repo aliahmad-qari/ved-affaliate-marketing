@@ -144,21 +144,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
           { upsert: true, session, runValidators: true },
         );
 
-        const referredPartner: any = await Partner.findOne({ partnerId: lead.partnerId }).select('referredBy').session(session).exec();
-        const approvedCount = await Lead.countDocuments({ partnerId: lead.partnerId, status: { $in: ['APPROVED', 'PAID'] } }).session(session);
-        if (referredPartner?.referredBy && approvedCount === 1) {
-          const referralKey = `REFERRAL_REWARD:${lead.partnerId}`;
-          await WalletTransaction.updateOne(
-            { idempotencyKey: referralKey },
-            { $setOnInsert: {
-              transactionId: generateTransactionId(), partnerId: referredPartner.referredBy, type: 'REFERRAL_REWARD',
-              amount: 50, status: 'AVAILABLE', referenceType: 'REFERRAL', referenceId: lead.partnerId,
-              description: `First eligible approved task by referral ${lead.partnerId}`,
-              idempotencyKey: referralKey, processedBy: 'VENDOR_WEBHOOK',
-            } },
-            { upsert: true, session, runValidators: true },
-          );
-        }
+        // Vendor status alone is not an Admin approval and cannot qualify a referral reward.
       }
 
       await Notification.create([{

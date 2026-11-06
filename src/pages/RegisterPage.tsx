@@ -397,7 +397,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
                 className="w-full sm:w-1/2 bg-[#070B14] border border-[#1C273C] focus:border-[#D4AF37] rounded-lg px-3 py-2 text-xs sm:text-sm text-[#F8FAFC] outline-none font-mono uppercase"
               />
               <p className="text-[11px] text-[#AAB3C2] mt-1">
-                Your referrer may earn a ₹50 referral bonus, subject to eligibility and campaign terms.
+                Your referrer may earn a one-time ₹100 reward after you complete five valid Admin-approved leads.
               </p>
             </div>
           </div>
