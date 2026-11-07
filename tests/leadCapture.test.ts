@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import test from 'node:test';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
@@ -109,6 +110,13 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   const server = createApp().listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
+  const mockVendor = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end('synthetic vendor destination');
+  });
+  mockVendor.listen(0, '127.0.0.1');
+  await once(mockVendor, 'listening');
+  const mockVendorOrigin = `http://127.0.0.1:${(mockVendor.address() as any).port}`;
   const link = '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123';
   const getForm = async () => {
     const response = await fetch(`${base}${link}`);
@@ -151,15 +159,21 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(expiredResponse.status, 400);
     assert.ok((await expiredResponse.text()).includes('Reopen the form'), 'Expired forms offer a safe way to resume');
 
+    campaign.baseTrackingUrl = `${mockVendorOrigin}/apply?offer=original`;
     const saved = await post(token, {}, renderOrigin);
     assert.equal(saved.status, 303);
     const target = new URL(saved.headers.get('location')!);
-    assert.equal(target.origin, 'https://vendor.example');
+    assert.equal(target.origin, mockVendorOrigin);
     assert.equal(target.searchParams.get('offer'), 'original');
     assert.equal(target.searchParams.get('ref'), 'REF-123');
     assert.equal(target.searchParams.get('pid'), 'VED-PTR-123');
+    assert.equal(target.searchParams.get('partner_id'), partner.partnerId);
+    assert.equal(target.searchParams.get('campaign_id'), campaign._id);
     assert.equal(target.searchParams.get('clickid'), clicks[0].clickId);
     assert.ok(!target.toString().includes('9876543210') && !target.toString().includes('Customer'));
+    const followedHandoff = await fetch(saved.headers.get('location')!);
+    assert.equal(followedHandoff.status, 200);
+    assert.equal(await followedHandoff.text(), 'synthetic vendor destination');
     assert.equal(leads[0].clientMobile, '9876543210');
     assert.equal(leads[0].status, 'PENDING');
     assert.equal(leads[0].submittedData.processStatus, 'IN_PROCESS');
@@ -374,6 +388,8 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    mockVendor.closeAllConnections();
+    await new Promise<void>((resolve, reject) => mockVendor.close((error) => error ? reject(error) : resolve()));
     mongoose.connection.readyState = 0;
   }
 });
