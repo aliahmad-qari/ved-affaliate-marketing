@@ -211,6 +211,15 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const forgedContinuation = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: 'forged', destination: 'https://attacker.example' }) });
     assert.equal(forgedContinuation.status, 410);
     assert.notEqual(forgedContinuation.headers.get('location'), 'https://attacker.example');
+    const expiredContinuationToken = jwt.sign({ slug: 'sample', ref: 'REF-123', pid: 'VED-PTR-123', clickId: 'old-click', subteam: 'SUB-TRACK' }, process.env.JWT_SECRET, {
+      expiresIn: -1, audience: 'ved-campaign-continuation', issuer: 'ved-api',
+    });
+    const expiredContinuation = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: expiredContinuationToken }) });
+    assert.equal(expiredContinuation.status, 410);
+    assert.equal(expiredContinuation.headers.get('location'), null);
+    const expiredContinuationHtml = await expiredContinuation.text();
+    assert.ok(expiredContinuationHtml.includes('Reopen the campaign form to continue.'));
+    assert.ok(expiredContinuationHtml.includes('ref=REF-123&amp;pid=VED-PTR-123&amp;subteam=SUB-TRACK'), 'An expired but validly signed continuation preserves original attribution for a safe retry');
     const receipt = saved.headers.get('set-cookie')!.split(';')[0];
     const remembered = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: receipt } });
     assert.ok((await remembered.text()).includes('NUMBER ALREADY REGISTERED'));

@@ -11,6 +11,8 @@ test('new registration has accessible native controls and consent; no database d
   assert.ok(html.includes('for="customer-mobile"'));
   assert.ok(html.includes('&lt;unsafe&gt;'));
   assert.ok(html.includes("form.dataset.submitting"));
+  assert.ok(html.includes("button.querySelector('span').textContent='SUBMITTING...'"));
+  assert.ok(!html.includes('â€¦'));
 });
 
 test('already registered view uses a signed same-origin campaign continuation without customer details', () => {

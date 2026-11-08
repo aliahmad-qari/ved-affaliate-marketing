@@ -311,7 +311,22 @@ export const continueCapturedCampaign = async (req: Request, res: Response, next
     res.redirect(303, destination(target, campaign, partner, token.clickId));
   } catch (error: any) {
     if (error?.name === 'JsonWebTokenError' || error?.name === 'TokenExpiredError') {
-      renderMessage(res, 'This campaign continuation has expired. Please reopen the original campaign link.', '', 410);
+      let retryLink = '';
+      if (error.name === 'TokenExpiredError') {
+        try {
+          const expired = jwt.verify(req.body?.captureToken, secret(), {
+            algorithms: ['HS256'], audience: 'ved-campaign-continuation', issuer: 'ved-api', ignoreExpiration: true,
+          }) as CaptureToken;
+          if (expired.slug === req.params.slug && typeof expired.ref === 'string' && typeof expired.pid === 'string'
+            && typeof expired.clickId === 'string' && (expired.subteam === undefined || typeof expired.subteam === 'string')) {
+            retryLink = captureLink(expired.slug, expired.ref, expired.pid, expired.subteam || '');
+          }
+        } catch { /* Only recover campaign context from a correctly signed continuation. */ }
+      }
+      const message = error.name === 'TokenExpiredError'
+        ? 'This campaign continuation has expired. Reopen the campaign form to continue.'
+        : 'This campaign continuation is invalid. Reopen the original campaign link to continue.';
+      renderMessage(res, message, retryLink, 410);
       return;
     }
     next(error);
