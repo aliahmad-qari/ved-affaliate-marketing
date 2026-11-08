@@ -25,16 +25,19 @@ export const LeadDuplicateProtection = {
     }
     try {
       const state = await db.collection('leadDeduplicationState').findOne({ _id: 'campaign-mobile-v1' as any });
-      if (!state?.ready || state.version !== 1 || state.coverageVerified !== true || state.unidentifiedHistoryCount !== 0) {
+      if (!state?.ready || state.version !== 1 || state.coverageVerified !== true || state.unidentifiedHistoryCount !== 0 || state.transactionTopologyVerified !== true) {
         throw new Error('not-ready');
       }
       const indexes = await db.collection('campaignmobileclaims').indexes();
       const fullUniqueIndex = indexes.some(index => index.name === 'unique_campaign_mobile'
         && index.unique === true
+        && Object.keys(index.key || {})[0] === 'canonicalCampaignId'
         && index.key?.canonicalCampaignId === 1
+        && Object.keys(index.key || {})[1] === 'normalizedMobile'
         && index.key?.normalizedMobile === 1
         && Object.keys(index.key).length === 2
-        && !index.partialFilterExpression && !index.sparse && index.expireAfterSeconds == null);
+        && !index.partialFilterExpression && !index.sparse && index.expireAfterSeconds == null
+        && !index.collation && index.hidden !== true);
       if (!fullUniqueIndex) throw new Error('not-ready');
     } catch {
       throw Object.assign(new Error('Campaign duplicate protection is not prepared; submissions are temporarily unavailable.'), { status: 503, code: 'CAMPAIGN_MOBILE_REGISTRY_NOT_READY' });
