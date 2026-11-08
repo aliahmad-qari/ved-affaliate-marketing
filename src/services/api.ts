@@ -10,6 +10,22 @@ export interface PublicStats {
   totalPayouts: number;
 }
 
+export interface PublicSuccessfulLeadPartner {
+  partnerName: string;
+  partnerId: string;
+  successfulLeads: number;
+}
+
+export async function fetchPublicSuccessfulLeads(signal?: AbortSignal): Promise<PublicSuccessfulLeadPartner[]> {
+  const response = await safeFetch(`${API_BASE}/api/public/successful-leads`, { headers: { Accept: 'application/json' }, signal });
+  if (!response.ok) throw new Error('Unable to fetch public successful leads.');
+  const result = await response.json();
+  if (!result.success || !Array.isArray(result.data?.partners) || result.data.partners.some((row: any) =>
+    typeof row.partnerName !== 'string' || typeof row.partnerId !== 'string' || !Number.isInteger(row.successfulLeads) || row.successfulLeads < 0
+  )) throw new Error('Invalid public successful leads response.');
+  return result.data.partners as PublicSuccessfulLeadPartner[];
+}
+
 export async function fetchPublicStats(signal?: AbortSignal): Promise<PublicStats> {
   const response = await safeFetch(`${API_BASE}/api/public/stats`, {
     headers: { Accept: 'application/json' },

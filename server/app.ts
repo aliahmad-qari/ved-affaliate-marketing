@@ -13,6 +13,8 @@ import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.t
 import { getDbStatus } from './config/db.ts';
 import { getPublicStats } from './controllers/publicStatsController.ts';
 import { publicSiteSettings } from './controllers/siteSettingsController.ts';
+import rateLimit from 'express-rate-limit';
+import { getPublicSuccessfulLeads } from './controllers/publicLeaderboardController.ts';
 
 const getAllowedOrigins = (): Set<string> => {
   const configuredOrigins = (process.env.FRONTEND_URL || '')
@@ -67,7 +69,7 @@ export const createApp = (): Express => {
       if (['http:', 'https:'].includes(renderUrl.protocol)) renderOrigin = renderUrl.origin;
     } catch { /* Local development and other hosts may not define a Render URL. */ }
     // The public capture form is served by this API, including when the frontend is hosted separately.
-    const isCaptureFormPost = req.method === 'POST' && /^\/api\/public\/campaigns\/[^/]+\/go$/.test(req.path)
+    const isCaptureFormPost = req.method === 'POST' && /^\/api\/public\/campaigns\/[^/]+\/(?:go|continue)$/.test(req.path)
       && (origin === `${req.protocol}://${req.get('host')}` || (renderOrigin !== undefined && origin === renderOrigin));
     if (isMutation && origin && !getAllowedOrigins().has(origin) && !isCaptureFormPost) {
       res.status(403).json({ success: false, message: 'Request origin is not allowed.' });
@@ -99,6 +101,7 @@ export const createApp = (): Express => {
 
   // Public Routes
   app.get('/api/public/stats', getPublicStats);
+  app.get('/api/public/successful-leads', rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false }), getPublicSuccessfulLeads);
   app.get('/api/public/site-settings', publicSiteSettings);
   app.use('/api/public/campaigns', campaignRoutes);
   app.use('/api/public/support', supportRoutes);

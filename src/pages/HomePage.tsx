@@ -9,6 +9,7 @@ import { WhyChooseSection } from '../components/home/WhyChooseSection.tsx';
 import { Campaign } from '../types/campaign.ts';
 import { Button } from '../components/ui/Button.tsx';
 import tradingBackground from '../assets/images/hero-trading-workstation.webp';
+import { PublicSuccessfulLeadsSection } from '../components/home/PublicSuccessfulLeadsSection.tsx';
 import { ArrowRight, MessageSquare } from 'lucide-react';
 
 interface HomePageProps {
@@ -38,6 +39,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <HeroSection onNavigate={onNavigate} />
       
       <StatsSection />
+      <PublicSuccessfulLeadsSection />
       <CampaignCategoriesSection onNavigate={onNavigate} />
 
       <FeaturedCampaignsSection

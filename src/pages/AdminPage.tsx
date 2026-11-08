@@ -53,6 +53,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [kycDetails, setKycDetails] = useState<any>(null);
   const [supportResponses, setSupportResponses] = useState<Record<string, string>>({});
   const [reportFilters, setReportFilters] = useState({ startDate: '', endDate: '', status: '', campaignId: '', partnerId: '', search: '' });
+  const [clickReportFilters, setClickReportFilters] = useState({ startDate: '', endDate: '', partnerId: '', campaign: '', clickId: '', leadStatus: '' });
   const [campaign, setCampaign] = useState({ ...emptyCampaign });
   const [configuredCategories, setConfiguredCategories] = useState(campaignCategories([]));
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
@@ -241,6 +242,19 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
     } catch (err: any) { setError(err.message || 'Unable to download campaign report.'); }
   };
 
+  const downloadClickReport = async (format: 'csv' | 'xlsx') => {
+    try {
+      const query = new URLSearchParams(Object.entries(clickReportFilters).filter(([, value]) => Boolean(value)));
+      const blob = await adminApi.get(`/admin/reports/clicks.${format}${query.size ? `?${query}` : ''}`);
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = `ved-click-report.${format}`;
+      anchor.click();
+      URL.revokeObjectURL(href);
+    } catch (err: any) { setError(err.message || 'Unable to download click report.'); }
+  };
+
   const content = () => {
     if (tab === 'overview') return <AdminOverview metrics={data} onSelect={(target) => selectTab(target as AdminTab)} />;
     if (tab === 'leaderboard') return <AdminMonthlyLeaderboard />;
@@ -375,6 +389,18 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
           {records.map((item) => <Button key={item._id} variant="outline" onClick={() => void downloadCampaignWorkbook({ _id: item._id, slug: item.slug })}>{item.name}</Button>)}
           {records.length === 0 && <p className="text-sm text-slate-400">Campaign list unavailable.</p>}
         </div>
+      </section>
+      <section className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-5">
+        <div><h2 className="text-lg font-bold text-white">Click Tracking Report</h2><p className="mt-1 text-xs text-slate-400">Customer details are included only in this authenticated admin export. Dates use India Standard Time.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="text-xs text-slate-400">From date (IST)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.startDate} onChange={event => setClickReportFilters({ ...clickReportFilters, startDate: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">To date (IST)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.endDate} onChange={event => setClickReportFilters({ ...clickReportFilters, endDate: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">Partner ID<input className={`${inputClass} mt-2`} value={clickReportFilters.partnerId} onChange={event => setClickReportFilters({ ...clickReportFilters, partnerId: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">Campaign ID or slug<input className={`${inputClass} mt-2`} value={clickReportFilters.campaign} onChange={event => setClickReportFilters({ ...clickReportFilters, campaign: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">Click ID<input className={`${inputClass} mt-2`} value={clickReportFilters.clickId} onChange={event => setClickReportFilters({ ...clickReportFilters, clickId: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">Lead status<select className={`${inputClass} mt-2`} value={clickReportFilters.leadStatus} onChange={event => setClickReportFilters({ ...clickReportFilters, leadStatus: event.target.value })}><option value="">All</option>{['NOT_SUBMITTED','PENDING','VERIFIED','APPROVED','REJECTED','PAID','AMBIGUOUS_MULTIPLE_LEADS'].map(value => <option key={value}>{value}</option>)}</select></label>
+        </div>
+        <div className="flex flex-wrap gap-3"><Button variant="primary" onClick={() => void downloadClickReport('xlsx')}>Download Click Excel</Button><Button variant="outline" onClick={() => void downloadClickReport('csv')}>Download Click CSV</Button></div>
       </section>
       <section className="space-y-4">
         <h2 className="text-lg font-bold text-white">📄 Raw CSV Exports</h2>

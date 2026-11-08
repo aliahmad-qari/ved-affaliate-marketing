@@ -31,6 +31,7 @@ import {
 } from '../controllers/monthlyLeaderboardController.ts';
 import { confirmAdvertiserReceipt, rejectPercentagePayoutEvidence, submitPercentagePayoutEvidence, verifyPercentagePayoutEvidence } from '../controllers/percentagePayoutController.ts';
 import { requirePercentagePayoutReadiness } from '../middleware/percentagePayoutReadiness.ts';
+import { exportAdminClickReport } from '../controllers/adminClickReportController.ts';
 
 const router = Router();
 const logoUpload = multer({
@@ -81,6 +82,8 @@ router.get('/support', listAdminSupportTickets);
 router.patch('/support/:id', updateAdminSupportTicket);
 router.get('/audit', getAuditLogs);
 router.get('/reports/campaign-report.xlsx', exportAdminCampaignWorkbook);
+router.get('/reports/clicks.csv', (req, res, next) => exportAdminClickReport(req, res, next, 'csv'));
+router.get('/reports/clicks.xlsx', (req, res, next) => exportAdminClickReport(req, res, next, 'xlsx'));
 router.get('/reports/:type.csv', exportAdminReport);
 router.get('/announcements', listAdminAnnouncements);
 router.post('/announcements', saveAdminAnnouncement);
