@@ -1,22 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
-import { getMonthlyLeaderboard } from '../services/monthlyLeaderboard.ts';
-import { monthKeyInTimeZone, LEADERBOARD_TIME_ZONE } from '../../shared/monthlyLeaderboard.ts';
+import { Lead } from '../models/Lead.ts';
+import { Partner } from '../models/Partner.ts';
+import { adminApprovedReferralLeadCriteria } from '../services/referralReward.ts';
 import { maskPublicPartnerId, maskPublicPartnerName } from '../utils/publicPartnerMasking.ts';
 
 export async function getPublicSuccessfulLeads(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const month = typeof req.query.month === 'string' ? req.query.month : monthKeyInTimeZone();
-    const board = await getMonthlyLeaderboard(month);
+    const groups = await Lead.aggregate([
+      { $match: adminApprovedReferralLeadCriteria() },
+      { $group: { _id: '$partnerId', approvedCount: { $sum: 1 } } },
+    ]).exec();
+    const partnerIds = groups.map(group => String(group._id)).filter(Boolean);
+    const partners: any[] = partnerIds.length
+      ? await Partner.find({ partnerId: { $in: partnerIds } }).select('partnerId fullName').lean().exec()
+      : [];
+    const names = new Map(partners.map(partner => [String(partner.partnerId).toUpperCase(), String(partner.fullName || '')]));
     res.set({ 'Cache-Control': 'public, max-age=60', 'Referrer-Policy': 'no-referrer' });
     res.json({
       success: true,
       data: {
-        month: board.monthKey,
-        timeZone: LEADERBOARD_TIME_ZONE,
-        partners: board.rankings.map(row => ({
-          partnerName: maskPublicPartnerName(row.fullName),
-          partnerId: maskPublicPartnerId(row.partnerId),
-          successfulLeads: row.approvedConversions,
+        partners: groups.map(group => ({
+          partnerName: maskPublicPartnerName(names.get(String(group._id).toUpperCase())),
+          partnerId: maskPublicPartnerId(group._id),
+          successfulLeads: Number(group.approvedCount) || 0,
         })),
       },
     });
