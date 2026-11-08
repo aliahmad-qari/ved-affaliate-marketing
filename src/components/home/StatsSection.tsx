@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Megaphone, Users, ShieldCheck, Wallet } from 'lucide-react';
+import { Megaphone, Users, ShieldCheck } from 'lucide-react';
 import { fetchPublicStats, type PublicStats } from '../../services/api.ts';
 
 export const StatsSection: React.FC = () => {
@@ -33,18 +33,12 @@ export const StatsSection: React.FC = () => {
       detail: 'Verified campaign conversions',
       icon: ShieldCheck,
     },
-    {
-      label: 'Total Payouts',
-      value: data ? `₹${data.totalPayouts.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '₹—',
-      detail: 'Direct Bank & UPI',
-      icon: Wallet,
-    },
   ];
 
   return (
     <section className="py-8 sm:py-10 bg-[#030b14] border-b border-[#173247]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           {stats.map((stat, idx) => {
             const Icon = stat.icon;
             return (

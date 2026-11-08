@@ -8,7 +8,6 @@ export const ActivityTicker: React.FC<{ stats: PublicStats | null; announcement?
   const count = (value: number) => value.toLocaleString('en-IN');
   const updates = stats ? [
     `${count(stats.activePartners)} active partners on VED Affiliate`,
-    `₹${stats.totalPayouts.toLocaleString('en-IN', { maximumFractionDigits: 2 })} paid to partners`,
     `${count(stats.approvedLeads)} approved leads across the platform`,
     `${count(stats.liveCampaigns)} campaigns currently LIVE`,
   ] : [

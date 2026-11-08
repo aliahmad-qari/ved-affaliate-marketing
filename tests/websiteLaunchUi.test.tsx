@@ -28,9 +28,10 @@ test('launch UI renders all categories, editable settings, exact wallet wording 
     const categories=renderToStaticMarkup(React.createElement(CampaignCategoriesSection,{ onNavigate:()=>{} }));
     for(const category of DEFAULT_CAMPAIGN_CATEGORIES) assert.ok(categories.includes(category.replaceAll('&','&amp;')));
     assert.ok(categories.includes('grid-cols-2') && categories.includes('lg:grid-cols-6'));
-    const ticker=renderToStaticMarkup(React.createElement(ActivityTicker,{ stats:{ liveCampaigns:0,activePartners:2,approvedLeads:3,totalPayouts:400 },announcement:'Updated <message>' }));
-    for(const text of ['Updated &lt;message&gt;','0 campaigns currently LIVE','2 active partners','Pause scrolling updates','₹400']) assert.ok(ticker.includes(text));
-    const noStats=renderToStaticMarkup(React.createElement(StatsSection)); assert.ok(noStats.includes('₹—')); assert.ok(!noStats.includes('10,440'));
+    const ticker=renderToStaticMarkup(React.createElement(ActivityTicker,{ stats:{ liveCampaigns:0,activePartners:2,approvedLeads:3 },announcement:'Updated <message>' }));
+    assert.doesNotMatch(ticker,/paid to partners|₹400/);
+    for(const text of ['Updated &lt;message&gt;','0 campaigns currently LIVE','2 active partners','Pause scrolling updates']) assert.ok(ticker.includes(text));
+    const noStats=renderToStaticMarkup(React.createElement(StatsSection)); assert.ok(!noStats.includes('Total Payouts'));
     const settings=renderToStaticMarkup(React.createElement(AdminBusinessSettings,{ settings:{ tickerMessage:'Admin <text>', campaignCategories:[...DEFAULT_CAMPAIGN_CATEGORIES,'Custom Product'],minimumWithdrawalAmount:200 }, busy:false,onSave:()=>{} }));
     assert.ok(settings.includes('Admin &lt;text&gt;') && settings.includes('Custom Product') && settings.includes('min="200"'));
     for(const category of DEFAULT_CAMPAIGN_CATEGORIES) assert.ok(settings.includes(category.replaceAll('&','&amp;')));

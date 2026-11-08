@@ -97,7 +97,7 @@ test('partner CSV privacy, historical campaigns, complete exports, categories, s
       const created=await fetch(base+'/admin/campaigns',{ method:'POST',headers:{ Authorization:`Bearer ${adminToken}`,'Content-Type':'application/json' },body:JSON.stringify({ name:'Category test',slug:`category-test-${i}`,companyName:'Test',campaignType:category,description:'Test description',requiredAction:'Test action',status:'DRAFT' }) }); assert.equal(created.status,201);
     }
     const invalidCategory=await fetch(base+'/admin/campaigns',{ method:'POST',headers:{ Authorization:`Bearer ${adminToken}`,'Content-Type':'application/json' },body:JSON.stringify({ campaignType:'Unconfigured category' }) }); assert.equal(invalidCategory.status,400);
-    const stats=(await (await request('/public/stats')).json()).data; assert.equal(stats.liveCampaigns,3); assert.equal(stats.activePartners,7); assert.equal(stats.totalPayouts,7250);
+    const stats=(await (await request('/public/stats')).json()).data; assert.equal(stats.liveCampaigns,3); assert.equal(stats.activePartners,7); assert.ok(Number.isInteger(stats.approvedLeads)); assert.equal('totalPayouts' in stats, false);
     const wallet=(await (await request('/partner/wallet',ownerToken)).json()).data; assert.equal(wallet.pendingBalance,12500); assert.equal(wallet.totalEarned,12750); assert.equal(wallet.availableBalance,5300); assert.equal(wallet.totalWithdrawn,1000); assert.equal(wallet.totalDisbursed,7250); assert.equal(wallet.minimumWithdrawal,200);
     assert.equal(JSON.stringify(leads),original); assert.ok(audits.some(row=>row.action==='BUSINESS_SETTINGS_UPDATED'));
     mongoose.connection.readyState=0; assert.equal((await request('/public/site-settings')).status,503);

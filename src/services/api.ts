@@ -7,7 +7,6 @@ export interface PublicStats {
   liveCampaigns: number;
   activePartners: number;
   approvedLeads: number;
-  totalPayouts: number;
 }
 
 export interface PublicSuccessfulLeadPartner {
@@ -33,7 +32,7 @@ export async function fetchPublicStats(signal?: AbortSignal): Promise<PublicStat
   });
   if (!response.ok) throw new Error('Unable to fetch homepage statistics.');
   const result = await response.json();
-  const fields: (keyof PublicStats)[] = ['liveCampaigns', 'activePartners', 'approvedLeads', 'totalPayouts'];
+  const fields: (keyof PublicStats)[] = ['liveCampaigns', 'activePartners', 'approvedLeads'];
   if (!result.success || !result.data || fields.some((field) =>
     typeof result.data[field] !== 'number' || !Number.isFinite(result.data[field]) || result.data[field] < 0
   )) throw new Error('Invalid homepage statistics response.');

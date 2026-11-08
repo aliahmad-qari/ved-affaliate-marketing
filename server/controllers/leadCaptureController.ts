@@ -273,7 +273,11 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
       try {
         const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
-        if (existing) { rememberCapture(req, res, token); registrationResponse(res, { registered: true }); return; }
+        if (existing) {
+          rememberCapture(req, res, token, true);
+          registeredResponse(res, campaign.slug, token);
+          return;
+        }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
     }
     if (error?.code === 'DUPLICATE_CAMPAIGN_MOBILE' && tracking) {

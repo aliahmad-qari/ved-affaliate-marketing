@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import mongoose from 'mongoose';
 import { CampaignMobileClaim } from '../server/models/CampaignMobileClaim.ts';
-import { LeadDuplicateProtection, duplicateMobileError } from '../server/services/leadDuplicateProtection.ts';
+import { campaignMobileRegistryEnforcementEnabled, LeadDuplicateProtection, duplicateMobileError } from '../server/services/leadDuplicateProtection.ts';
 import { normalizeCustomerMobile } from '../shared/customerMobile.ts';
 
 const chain = (run: () => any) => {
@@ -15,7 +16,41 @@ test('Indian mobile normalization accepts supported format variants only', () =>
   for (const value of ['+1 9876543210', '09876543210', '1234567890', '9876543210 ext 1', 9876543210]) assert.equal(normalizeCustomerMobile(value), null);
 });
 
+test('Requirement #7 registry is off by default and does not block lead writes before preparation', async t => {
+  const previous = process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  t.after(() => {
+    if (previous === undefined) delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+    else process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = previous;
+  });
+
+  assert.equal(campaignMobileRegistryEnforcementEnabled(), false);
+  await LeadDuplicateProtection.assertReady();
+  assert.equal(await LeadDuplicateProtection.claim('campaign-a', '+91 98765 43210', 'lead-a', 'PARTNER-A', {} as any), '9876543210');
+});
+
+test('explicitly enabling Requirement #7 keeps readiness fail-closed', async t => {
+  const previousFlag = process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  const previousReadyState = mongoose.connection.readyState;
+  process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = 'true';
+  mongoose.connection.readyState = 0;
+  t.after(() => {
+    if (previousFlag === undefined) delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+    else process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = previousFlag;
+    mongoose.connection.readyState = previousReadyState;
+  });
+
+  assert.equal(campaignMobileRegistryEnforcementEnabled(), true);
+  await assert.rejects(LeadDuplicateProtection.assertReady(), (error: any) => error.status === 503);
+});
+
 test('claim uniqueness is campaign/mobile scoped, partner independent and concurrency safe', async t => {
+  const previousFlag = process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = 'true';
+  t.after(() => {
+    if (previousFlag === undefined) delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+    else process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = previousFlag;
+  });
   const rows: any[] = [];
   t.mock.method(CampaignMobileClaim, 'findOne', (filter: any) => chain(() => rows.find(row => row.canonicalCampaignId === filter.canonicalCampaignId && row.normalizedMobile === filter.normalizedMobile) || null));
   t.mock.method(CampaignMobileClaim, 'create', async ([row]: any[]) => {
