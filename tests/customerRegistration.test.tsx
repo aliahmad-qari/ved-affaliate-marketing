@@ -30,4 +30,6 @@ test('registration styling keeps the campaign form compact and mobile placeholde
   assert.ok(html.includes('.registration-input input{height:43px;font-size:13px;padding-left:9px;padding-right:29px}'));
   assert.ok(html.includes('.registration-hero{min-height:184px'));
   assert.ok(html.includes('registration-card{margin-right:5%;margin-left:5%;padding:36px 14px 16px;border-radius:18px}'));
+  assert.ok(html.includes('.registration-hero h1{font-size:clamp(58px,8vw,82px)'));
+  assert.ok(html.includes('.registration-field label{font-size:clamp(21px,2.4vw,26px)}'));
 });
