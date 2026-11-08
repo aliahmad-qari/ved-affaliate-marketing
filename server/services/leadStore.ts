@@ -6,6 +6,7 @@ import { isMongooseReady } from './partnerStore.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
 import { AppSetting } from '../models/AppSetting.ts';
 import { escapeRegex } from './adminServices.ts';
+import { LeadDuplicateProtection } from './leadDuplicateProtection.ts';
 
 // In-memory fallback stores
 const memoryLeads: ILead[] = [];
@@ -56,24 +57,10 @@ export const LeadStore = {
     payoutEligibilitySnapshot?: Record<string, string>;
   }): Promise<ILead> {
     const cleanAccountId = data.accountId.trim();
+    await LeadDuplicateProtection.assertReady();
 
     // Check for duplicate account submission by same partner for same campaign
     if (isMongooseReady()) {
-      const existing = await Lead.findOne({
-        partnerId: data.partnerId.toUpperCase(),
-        campaignId: data.campaignId,
-        accountId: cleanAccountId,
-      }).exec();
-
-      if (existing) {
-        const error: any = new Error(
-          `A lead with Account/Reference ID '${cleanAccountId}' has already been submitted for this campaign.`
-        );
-        error.code = 'DUPLICATE_LEAD';
-        error.status = 409;
-        throw error;
-      }
-
       const leadId = generateLeadId();
       const newLead = new Lead({
         ...data,
@@ -84,8 +71,20 @@ export const LeadStore = {
         rejectionReason: '',
         currency: 'INR',
       });
-
-      await newLead.save();
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const existing = await Lead.findOne({
+            partnerId: data.partnerId.toUpperCase(), campaignId: data.campaignId, accountId: cleanAccountId,
+          }).session(session).exec();
+          if (existing) {
+            throw Object.assign(new Error(`A lead with Account/Reference ID '${cleanAccountId}' has already been submitted for this campaign.`), { code: 'DUPLICATE_LEAD', status: 409 });
+          }
+          const normalizedMobile = await LeadDuplicateProtection.claim(data.campaignId, data.clientMobile, leadId, data.partnerId, session);
+          newLead.clientMobile = normalizedMobile;
+          await newLead.save({ session });
+        });
+      } finally { await session.endSession(); }
       return newLead.toJSON();
     }
 

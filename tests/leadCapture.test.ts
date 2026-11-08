@@ -17,6 +17,7 @@ import { WalletTransaction } from '../server/models/WalletTransaction.ts';
 import { AppSetting } from '../server/models/AppSetting.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { redirectToCampaignTracking } from '../server/controllers/campaignController.ts';
+import { LeadDuplicateProtection, duplicateMobileError } from '../server/services/leadDuplicateProtection.ts';
 
 // Exercise real HTTP routes with isolated database doubles; no live database or vendor calls.
 test('customer capture, redirect, admin progress and existing tracking compatibility', async (t) => {
@@ -28,7 +29,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   mongoose.connection.readyState = 1;
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
-  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [];
+  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [], claims: any[] = [];
   let failSave = false, financialWrites = 0, transactionQueue = Promise.resolve();
   const chain = (value: any): any => {
     const query: any = { exec: async () => typeof value === 'function' ? value() : value };
@@ -51,14 +52,21 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
       let release!: () => void;
       transactionQueue = new Promise<void>(resolve => { release = resolve; });
       await preceding;
-      const sizes = [leads.length, clicks.length, notices.length];
+      const sizes = [leads.length, clicks.length, notices.length, claims.length];
       try { await operation(); } catch (error) {
-        [leads.length, clicks.length, notices.length] = sizes;
+        [leads.length, clicks.length, notices.length, claims.length] = sizes;
         throw error;
       } finally { release(); }
     }, endSession: async () => {},
   }) as any);
   t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && campaign.status === 'LIVE' ? campaign : null));
+  t.mock.method(LeadDuplicateProtection, 'assertReady', async () => {});
+  t.mock.method(LeadDuplicateProtection, 'claim', async (campaignId: string, rawMobile: unknown, leadId: string, partnerId: string) => {
+    const mobile = LeadDuplicateProtection.normalize(rawMobile)!;
+    if (claims.some(claim => claim.canonicalCampaignId === campaignId && claim.normalizedMobile === mobile)) throw duplicateMobileError();
+    claims.push({ canonicalCampaignId: campaignId, normalizedMobile: mobile, leadId, partnerId });
+    return mobile;
+  });
   t.mock.method(Campaign, 'findById', () => chain(campaign));
   t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
   t.mock.method(Partner, 'findOne', (query: any) => {
@@ -127,7 +135,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(html.includes('action="/api/public/campaigns/sample/go"'));
     assert.ok(html.includes('name="clientName"') && html.includes('name="clientMobile"'));
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    assert.equal(response.headers.get('referrer-policy'), 'same-origin', 'Native forms must preserve their same-origin Origin header');
+    assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
     return html.match(/name="captureToken" value="([^"]+)"/)![1];
   };
   const post = (token: string, fields: Record<string, string> = {}, origin = base) => fetch(`${base}/api/public/campaigns/sample/go`, {
@@ -140,7 +148,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   });
   try {
     const token = await getForm();
-    assert.equal(clicks.length, 0, 'Viewing the form must not create a started lead');
+    assert.equal(clicks.length, 1, 'A legitimate tracking-link visit is recorded without creating a lead');
     assert.equal((await post(token, { clientMobile: 'invalid' })).status, 400);
     assert.equal((await post(token, { clientName: '<script>alert(1)</script>' })).status, 400);
     assert.equal((await post(token, { consent: '' })).status, 400);
@@ -184,15 +192,32 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(replay.status, 200);
     const replayHtml = await replay.text();
     assert.ok(replayHtml.includes('NUMBER ALREADY REGISTERED'));
-    assert.ok(replayHtml.includes('href="/"'));
+    assert.ok(replayHtml.includes('Your application has already been registered for this campaign.'));
+    assert.ok(replayHtml.includes('Continue to Campaign Page'));
+    assert.ok(replayHtml.includes('action="/api/public/campaigns/sample/continue"'));
     assert.ok(!replayHtml.includes('Test Customer'));
+    const continuationToken = replayHtml.match(/name="captureToken" value="([^"]+)"/)![1];
+    const continued = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: continuationToken }) });
+    assert.equal(continued.status, 303);
+    assert.equal(new URL(continued.headers.get('location')!).origin, mockVendorOrigin, 'Duplicate continuation returns to the campaign destination, never the VED homepage');
+    const forgedContinuation = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: 'forged', destination: 'https://attacker.example' }) });
+    assert.equal(forgedContinuation.status, 410);
+    assert.notEqual(forgedContinuation.headers.get('location'), 'https://attacker.example');
     const receipt = saved.headers.get('set-cookie')!.split(';')[0];
     const remembered = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: receipt } });
     assert.ok((await remembered.text()).includes('NUMBER ALREADY REGISTERED'));
+    const duplicateMobileToken = await getForm();
+    const duplicateMobile = await post(duplicateMobileToken);
+    assert.equal(duplicateMobile.status, 200);
+    assert.ok((await duplicateMobile.text()).includes('Continue to Campaign Page'));
+    const duplicateReceipt = duplicateMobile.headers.get('set-cookie')!.split(';')[0];
+    const duplicateRefresh = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: duplicateReceipt } });
+    assert.ok((await duplicateRefresh.text()).includes('Your application has already been registered for this campaign.'));
+    assert.equal(leads.length, 1, 'A duplicate from another click does not create a lead');
     const forged = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: 'ved_customer_capture=forged' } });
     assert.ok(!(await forged.text()).includes('NUMBER ALREADY REGISTERED'));
     assert.equal(leads.length, 1, 'Repeated form submit should resume the same enquiry');
-    assert.equal(clicks.length, 1);
+    assert.equal(clicks.length, 3, 'Each independent partner-link visit receives its own click id');
     assert.equal(notices.length, 1);
 
     assert.equal((await patch('/leads/lead-1/process', { processStatus: 'NOT_SUBMITTED' }, false)).status, 401);
@@ -219,17 +244,17 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
 
     const failingToken = await getForm();
     failSave = true;
-    const failed = await post(failingToken);
+    const failed = await post(failingToken, { clientMobile: '9876543216' });
     assert.equal(failed.status, 503);
     assert.equal(failed.headers.get('location'), null, 'Never redirect when storage fails');
     const failureHtml = await failed.text();
-    assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="+91 98765 43210"'), 'Failed saves retain entered details on the form');
+    assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="9876543216"'), 'Failed saves retain entered details on the form');
     assert.match(failureHtml, /<input(?=[^>]*name="consent")(?=[^>]*value="yes")(?=[^>]*checked)[^>]*>/, 'Retry must preserve consent despite HTML formatting');
-    assert.equal(failed.headers.get('referrer-policy'), 'same-origin', 'Retry forms must preserve the native POST origin too');
+    assert.equal(failed.headers.get('referrer-policy'), 'no-referrer');
     assert.equal(leads.length, 1);
     failSave = false;
     campaign.baseTrackingUrl = 'https://wa.me/911234567890?text=Hello&utm_source=old';
-    const whatsapp = await post(failingToken);
+    const whatsapp = await post(failingToken, { clientMobile: '9876543211' });
     const whatsappTarget = new URL(whatsapp.headers.get('location')!);
     assert.ok(whatsappTarget.searchParams.get('text')!.includes('VED reference:'));
     assert.equal(whatsappTarget.searchParams.has('utm_source'), false);
@@ -253,7 +278,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
 
     // Existing manual partner submission remains available and does not create customer-form progress fields.
     const partnerToken = signToken({ id: 'partner-1', partnerId: partner.partnerId, email: 'partner@example.test', role: 'PARTNER' });
-    const manualBody = { campaignId: 'sample', clientName: 'Manual Customer', clientMobile: '9876543210', accountId: 'APPLICATION-123', submittedNotes: 'Existing manual flow', status: 'APPROVED' };
+    const manualBody = { campaignId: 'sample', clientName: 'Manual Customer', clientMobile: '9876543212', accountId: 'APPLICATION-123', submittedNotes: 'Existing manual flow', status: 'APPROVED' };
     partner.payoutSettings = { defaultPayout: 325, campaignOverrides: [{ campaignId: campaign._id, payout: 410 }] };
     const manualSubmit = () => fetch(`${base}/api/partner/leads`, { method: 'POST', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(manualBody) });
     const manualResponse = await manualSubmit();
@@ -287,7 +312,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     clicks.push({ ...clicks[0], clickId: 'legacy-click', subTeamLinkId: 'team-link-abc' });
     const legacyCallback = await fetch(`${base}/api/webhooks/vendor`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-vendor-secret' },
-      body: JSON.stringify({ eventId: 'legacy-event', clickId: 'legacy-click', conversionId: 'legacy-conversion', status: 'approved', customerName: 'Vendor Customer', customerMobile: '9876543210' }),
+      body: JSON.stringify({ eventId: 'legacy-event', clickId: 'legacy-click', conversionId: 'legacy-conversion', status: 'approved', customerName: 'Vendor Customer', customerMobile: '9876543213' }),
     });
     assert.equal(legacyCallback.status, 200);
     assert.equal((await legacyCallback.json()).data.status, 'APPROVED');
@@ -321,7 +346,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const beforeClicks = clicks.length;
     const beforeLeads = leads.length;
     const mstockToken = await getForm();
-    const mstockSubmit = await post(mstockToken);
+    const mstockSubmit = await post(mstockToken, { clientMobile: '9876543214' });
     assert.equal(mstockSubmit.status, 303);
     assert.equal(mstockSubmit.headers.get('location'), campaign.baseTrackingUrl);
     assert.equal(clicks.length, beforeClicks + 1);
@@ -364,7 +389,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const priorReports = leads.length, priorEarnings = ledger.length, priorClicks = clicks.length;
     const pausedReport = await fetch(`${base}/api/partner/leads`, {
       method: 'POST', headers: { Authorization: `Bearer ${partnerToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...manualBody, accountId: 'PAUSED-APPLICATION-456' }),
+      body: JSON.stringify({ ...manualBody, clientMobile: '9876543215', accountId: 'PAUSED-APPLICATION-456' }),
     });
     assert.equal(pausedReport.status, 201, 'Manual reports remain accepted after a LIVE campaign becomes PAUSED');
     const report = (await pausedReport.json()).data;

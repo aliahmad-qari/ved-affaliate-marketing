@@ -10,6 +10,7 @@ import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { Notification } from '../models/Notification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { generateLeadId, generateTransactionId } from '../utils/idGenerator.ts';
+import { LeadDuplicateProtection } from '../services/leadDuplicateProtection.ts';
 
 const text = (value: unknown, maxLength = 160): string =>
   typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -61,6 +62,9 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
     return;
   }
 
+  try { await LeadDuplicateProtection.assertReady(); }
+  catch (error) { next(error); return; }
+
   const session = await mongoose.startSession();
   try {
     let response: Record<string, unknown> = {};
@@ -90,6 +94,12 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
       if (lead && click.subTeamLinkId && lead.subTeamLinkId && lead.subTeamLinkId !== click.subTeamLinkId) {
         throw Object.assign(new Error('Conversion sub-team attribution does not match the original click.'), { status: 409 });
       }
+      if (lead && !lead.clientMobile && req.body?.customerMobile) {
+        const normalizedMobile = LeadDuplicateProtection.normalize(req.body.customerMobile);
+        if (!normalizedMobile) throw Object.assign(new Error('A valid customer mobile number is required to reconcile this vendor conversion.'), { status: 422 });
+        await LeadDuplicateProtection.claim(String(campaign._id), normalizedMobile, lead.leadId, partner.partnerId, session);
+        lead.clientMobile = normalizedMobile;
+      }
       if (lead && lead.status !== 'PENDING' && lead.status !== targetStatus) {
         response = { leadId: lead.leadId, status: lead.status, ignoredTerminalUpdate: true };
         return;
@@ -97,14 +107,18 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
 
       if (!lead) {
         const accountId = text(req.body?.accountId, 120) || `VENDOR:${conversionId}`.slice(0, 120);
+        const customerMobile = LeadDuplicateProtection.normalize(req.body?.customerMobile);
+        if (!customerMobile) throw Object.assign(new Error('A valid customer mobile number is required to reconcile a new vendor conversion.'), { status: 422, code: 'CUSTOMER_MOBILE_REQUIRED' });
+        const leadId = generateLeadId();
+        await LeadDuplicateProtection.claim(String(campaign._id), customerMobile, leadId, partner.partnerId, session);
         [lead] = await Lead.create([{
-          leadId: generateLeadId(),
+          leadId,
           partnerId: partner.partnerId,
           campaignId: String(campaign._id),
           campaignName: campaign.name,
           campaignType: campaign.campaignType,
           clientName: text(req.body?.customerName, 120),
-          clientMobile: text(req.body?.customerMobile, 40),
+          clientMobile: customerMobile,
           accountId,
           action: campaign.requiredAction,
           vendorClickId: clickId,
@@ -125,7 +139,7 @@ export const receiveVendorWebhook = async (req: Request, res: Response, next: Ne
         }], { session });
       } else {
         if (!lead.clientName && req.body?.customerName) lead.clientName = text(req.body.customerName, 120);
-        if (!lead.clientMobile && req.body?.customerMobile) lead.clientMobile = text(req.body.customerMobile, 40);
+        if (!lead.clientMobile && req.body?.customerMobile) lead.clientMobile = LeadDuplicateProtection.normalize(req.body.customerMobile) || '';
         if (!lead.subTeamLinkId && click.subTeamLinkId) lead.subTeamLinkId = click.subTeamLinkId;
         lead.status = targetStatus;
         lead.reviewedBy = 'VENDOR_WEBHOOK';

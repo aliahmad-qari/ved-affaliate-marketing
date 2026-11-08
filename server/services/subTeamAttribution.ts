@@ -58,7 +58,7 @@ type SubTeamPayoutSnapshot = {
   payoutEligibilitySnapshot?: Record<string, string>;
 };
 
-export async function createSubTeamClick(link: any, campaign: any, partner: any, clickId: string, payout: number | SubTeamPayoutSnapshot, currency: string) {
+export async function createSubTeamClick(link: any, campaign: any, partner: any, clickId: string, payout: number | SubTeamPayoutSnapshot, currency: string, trackingLink = '') {
   const payoutSnapshot = typeof payout === 'number'
     ? { payoutSnapshot: payout, payoutTypeSnapshot: 'FIXED' as const }
     : payout;
@@ -66,7 +66,8 @@ export async function createSubTeamClick(link: any, campaign: any, partner: any,
   try {
     await session.withTransaction(async () => {
       await TrackingClick.create([{
-        clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug,
+        clickId, partnerId: partner.partnerId, campaignId: String(campaign._id), campaignSlug: campaign.slug, campaignNameSnapshot: campaign.name,
+        referralCodeSnapshot: partner.referralCode, trackingLink, subTeamTrackingId: link.trackingId, clickedAt: new Date(),
         ...payoutSnapshot, currency, subTeamLinkId: String(link._id), expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
       }], { session });
       const updated = await PartnerSubTeamLink.updateOne(

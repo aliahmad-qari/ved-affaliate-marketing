@@ -171,7 +171,7 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
 
     const lead = await LeadStore.createLead({
       partnerId,
-      campaignId: campaign.slug || campaign._id?.toString() || campaignId,
+      campaignId: String(campaign._id),
       campaignName: campaign.name,
       campaignType: campaign.campaignType,
       clientName: clientName.trim(),
@@ -197,11 +197,11 @@ export const submitLead = async (req: Request, res: Response, next: NextFunction
       data: lead,
     });
   } catch (error: any) {
-    if (error.status === 409 || error.code === 'DUPLICATE_LEAD') {
+    if (error.status === 409 || error.code === 'DUPLICATE_LEAD' || error.code === 'DUPLICATE_CAMPAIGN_MOBILE') {
       res.status(409).json({
         success: false,
         message: error.message,
-        code: 'DUPLICATE_LEAD',
+        code: error.code === 'DUPLICATE_CAMPAIGN_MOBILE' ? error.code : 'DUPLICATE_LEAD',
       });
       return;
     }

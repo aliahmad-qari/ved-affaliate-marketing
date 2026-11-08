@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getPublicCampaigns, getPublicCampaignBySlug } from '../controllers/campaignController.ts';
-import { showLeadCaptureForm, submitCapturedLead } from '../controllers/leadCaptureController.ts';
+import { continueCapturedCampaign, showLeadCaptureForm, submitCapturedLead } from '../controllers/leadCaptureController.ts';
 import rateLimit from 'express-rate-limit';
 import { getCampaignLogo } from '../controllers/campaignLogoController.ts';
 
@@ -16,6 +16,10 @@ router.post('/:slug/go', rateLimit({
   windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
   message: 'Too many submissions. Please try again later.',
 }), submitCapturedLead);
+router.post('/:slug/continue', rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
+  message: 'Too many continuation attempts. Please reopen the original campaign link.',
+}), continueCapturedCampaign);
 
 // GET /api/public/campaigns/:slug
 router.get('/:slug', getPublicCampaignBySlug);
