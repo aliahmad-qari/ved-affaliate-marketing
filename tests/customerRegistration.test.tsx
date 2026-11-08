@@ -23,3 +23,11 @@ test('already registered view uses a signed same-origin campaign continuation wi
   assert.ok(html.includes('registration-confirmation-icon'));
   assert.ok(html.includes('name="referrer" content="no-referrer"'));
 });
+
+test('registration styling keeps the campaign form compact and mobile placeholders readable', () => {
+  const html = registrationDocument({ token: 'test-opaque-token', action: '/api/public/campaigns/test/go' });
+  assert.ok(html.includes('@media(max-width:440px)'));
+  assert.ok(html.includes('.registration-input input{height:43px;font-size:13px;padding-left:9px;padding-right:29px}'));
+  assert.ok(html.includes('.registration-hero{min-height:184px'));
+  assert.ok(html.includes('registration-card{margin-right:5%;margin-left:5%;padding:36px 14px 16px;border-radius:18px}'));
+});

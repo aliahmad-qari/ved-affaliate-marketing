@@ -27,3 +27,40 @@ svg.registration-ribbon{display:block;width:100%;background:none;clip-path:none}
  .registration-home-button{font-size:17px}.registration-trust:before,.registration-trust:after{width:35px}
 }
 @media(max-width:440px){.registration-home-button{font-size:13px}.registration-welcome{gap:10px;padding:13px 10px}.registration-confirmation-icon{flex-basis:36px;width:36px;height:36px}.registration-welcome h2{font-size:14px}.registration-welcome p{font-size:11px}.registration-hero h1{font-size:46px}.registration-hero strong{font-size:59px}}
+
+/* Final narrow-screen adjustments take precedence over the legacy base rules. */
+@media(max-width:850px){
+ .registration-hero{min-height:205px;padding-top:22px;padding-bottom:26px}
+ .registration-hero h1{margin-bottom:17px;line-height:.88}
+ .registration-hero strong{margin-top:-4px;line-height:.88}
+ .registration-card{border-radius:21px;padding-bottom:19px}
+ .registration-field{grid-template-columns:38px minmax(0,1fr);gap:10px}
+ .field-medallion{width:38px;height:38px}
+ .field-medallion svg{width:23px;height:23px}
+ .registration-input input{font-size:14px;padding-left:11px;padding-right:31px;letter-spacing:-.15px}
+ .registration-input>svg{right:9px;width:18px;height:18px}
+ .registration-consent{gap:12px;margin:20px 2px}
+ .registration-consent input{flex-basis:26px;width:26px;height:26px}
+ .registration-footer{padding-top:20px}
+ .registration-assurances{padding-bottom:18px}
+}
+@media(max-width:440px){
+ .registration-brand{padding-top:15px}
+ .registration-hero{min-height:184px;padding-top:18px;padding-bottom:21px;background-position:60% center}
+ .registration-hero h1{font-size:43px;margin-bottom:14px}
+ .registration-hero strong{font-size:55px;margin-top:-3px}
+ .registration-card{margin-right:5%;margin-left:5%;padding:36px 14px 16px;border-radius:18px}
+ .registration-trust{border-radius:12px;padding:7px 15px;font-size:15px}
+ .registration-trust svg{width:24px;height:24px}
+ .registration-field{grid-template-columns:34px minmax(0,1fr);gap:8px;margin-bottom:18px}
+ .field-medallion{width:34px;height:34px}
+ .registration-field label{font-size:16px}
+ .registration-input input{height:43px;font-size:13px;padding-left:9px;padding-right:29px}
+ .registration-input>svg{top:12px;right:8px;width:17px;height:17px}
+ .registration-consent{font-size:14px;line-height:1.4}
+ .registration-button{min-height:54px;font-size:16px;gap:10px}
+ .registration-button svg{width:30px;height:30px}
+ .registration-assurances span{font-size:9px}
+ .registration-assurances svg{width:25px;height:29px}
+ .registration-footer>p{font-size:10px;letter-spacing:2px}
+}

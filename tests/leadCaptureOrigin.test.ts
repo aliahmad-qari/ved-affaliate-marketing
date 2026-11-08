@@ -38,6 +38,8 @@ test('native capture POST origin checks behind production proxies', async () => 
   try {
     const scenarios = [
       { label: 'native local same-origin form', origin: base, headers: {}, expected: 400 },
+      { label: 'VED apex production origin', origin: 'https://vedaffiliatepvtltd.com', headers: {}, expected: 400 },
+      { label: 'VED www production origin', origin: 'https://www.vedaffiliatepvtltd.com', headers: {}, expected: 400 },
       { label: 'Render HTTPS origin with internal HTTP host', origin: process.env.RENDER_EXTERNAL_URL, headers: { Host: 'internal-service:10000', 'X-Forwarded-Proto': 'https' }, expected: 400 },
       { label: 'custom domain with TLS termination', origin: 'https://apply.example.test', headers: { Host: 'apply.example.test', 'X-Forwarded-Proto': 'https' }, expected: 400 },
       { label: 'configured frontend', origin: 'https://frontend.example', headers: {}, expected: 400 },
@@ -48,16 +50,25 @@ test('native capture POST origin checks behind production proxies', async () => 
     for (const scenario of scenarios) {
       const response = await post(scenario.origin, scenario.headers);
       assert.equal(response.status, scenario.expected, scenario.label);
+      if (scenario.origin.startsWith('https://vedaffiliatepvtltd.com') || scenario.origin.startsWith('https://www.vedaffiliatepvtltd.com')) {
+        assert.equal(response.headers.get('access-control-allow-origin'), scenario.origin, `${scenario.label}: production origin is explicitly allowed by CORS`);
+      }
       if (scenario.expected === 400) {
         assert.equal(response.headers.get('referrer-policy'), 'same-origin', `${scenario.label}: recovered forms must preserve their native POST origin`);
         assert.ok((await response.text()).includes('This form has expired or is invalid'));
       }
     }
     assert.equal((await post(process.env.RENDER_EXTERNAL_URL, {}, '/api/admin/leads/test/process')).status, 403, 'Public form exception must not permit admin mutations');
+    const productionOriginAdminMutation = await post('https://vedaffiliatepvtltd.com', {}, '/api/admin/leads/test/process');
+    assert.notEqual(productionOriginAdminMutation.status, 403, 'A trusted production origin passes origin validation; authentication still protects admin routes');
+    assert.equal(productionOriginAdminMutation.headers.get('access-control-allow-origin'), 'https://vedaffiliatepvtltd.com');
     delete process.env.RENDER_EXTERNAL_URL;
     assert.equal((await post(base)).status, 400, 'Same-origin forms still work on hosts without Render environment variables');
     process.env.RENDER_EXTERNAL_URL = 'not-a-url';
     assert.equal((await post('https://untrusted.example')).status, 403, 'Malformed Render configuration must not allow untrusted origins');
+    const rejectedOrigin = await post('https://vedaffiliatepvtltd.com.evil.example');
+    assert.equal(rejectedOrigin.status, 403, 'A lookalike hostname is not trusted');
+    assert.ok((await rejectedOrigin.text()).includes('reopen the original campaign link'), 'Origin failures provide a safe next step');
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

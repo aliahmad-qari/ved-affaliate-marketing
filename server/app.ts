@@ -19,14 +19,37 @@ import { getPublicSuccessfulLeads } from './controllers/publicLeaderboardControl
 const getAllowedOrigins = (): Set<string> => {
   const configuredOrigins = (process.env.FRONTEND_URL || '')
     .split(',')
-    .map((value) => value.trim().replace(/\/$/, ''))
-    .filter(Boolean);
+    .map((value) => normalizeOrigin(value))
+    .filter((value): value is string => Boolean(value));
+  // The public customer registration page is served by the API, but the
+  // branded site may submit it from either canonical production hostname.
+  // Keep these explicit origins so a missing FRONTEND_URL cannot block live
+  // registrations; never use wildcard CORS.
+  const productionOrigins = [
+    'https://vedaffiliatepvtltd.com',
+    'https://www.vedaffiliatepvtltd.com',
+  ];
   const localOrigins = process.env.NODE_ENV === 'production'
     ? []
     : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
-  return new Set([...configuredOrigins, ...localOrigins]);
+  return new Set([...configuredOrigins, ...productionOrigins, ...localOrigins]);
 };
+
+function normalizeOrigin(value: string): string | undefined {
+  try {
+    const url = new URL(value.trim());
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin === 'null') return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function isAllowedOrigin(origin: string): boolean {
+  const normalized = normalizeOrigin(origin);
+  return normalized !== undefined && getAllowedOrigins().has(normalized);
+}
 
 export const createApp = (): Express => {
   const app = express();
@@ -52,7 +75,7 @@ export const createApp = (): Express => {
   app.use(
     cors({
       origin(origin, callback) {
-        callback(null, !origin || getAllowedOrigins().has(origin));
+        callback(null, !origin || isAllowedOrigin(origin));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -71,8 +94,11 @@ export const createApp = (): Express => {
     // The public capture form is served by this API, including when the frontend is hosted separately.
     const isCaptureFormPost = req.method === 'POST' && /^\/api\/public\/campaigns\/[^/]+\/(?:go|continue)$/.test(req.path)
       && (origin === `${req.protocol}://${req.get('host')}` || (renderOrigin !== undefined && origin === renderOrigin));
-    if (isMutation && origin && !getAllowedOrigins().has(origin) && !isCaptureFormPost) {
-      res.status(403).json({ success: false, message: 'Request origin is not allowed.' });
+    if (isMutation && origin && !isAllowedOrigin(origin) && !isCaptureFormPost) {
+      res.status(403).json({
+        success: false,
+        message: 'We could not verify this registration request. Please reopen the original campaign link and try again.',
+      });
       return;
     }
     next();

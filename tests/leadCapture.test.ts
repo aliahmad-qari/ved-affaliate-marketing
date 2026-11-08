@@ -168,7 +168,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok((await expiredResponse.text()).includes('Reopen the form'), 'Expired forms offer a safe way to resume');
 
     campaign.baseTrackingUrl = `${mockVendorOrigin}/apply?offer=original`;
-    const saved = await post(token, {}, renderOrigin);
+    const saved = await post(token, {}, 'https://vedaffiliatepvtltd.com');
     assert.equal(saved.status, 303);
     const target = new URL(saved.headers.get('location')!);
     assert.equal(target.origin, mockVendorOrigin);
@@ -188,6 +188,14 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(leads[0].submittedData.consentAt);
     assert.equal(notices.length, 1);
     assert.equal(financialWrites, 0);
+    const approvedDestination = campaign.baseTrackingUrl;
+    campaign.baseTrackingUrl = 'javascript:alert(1)';
+    const invalidDestination = await post(token, { clientName: 'Test Customer', clientMobile: '9876543210' });
+    assert.equal(invalidDestination.status, 404);
+    assert.equal(invalidDestination.headers.get('location'), null, 'An invalid vendor destination never causes a redirect');
+    assert.ok((await invalidDestination.text()).includes('This campaign link is not active yet.'));
+    assert.equal(leads.length, 1, 'A missing or invalid destination does not create another lead');
+    campaign.baseTrackingUrl = approvedDestination;
     const replay = await post(token, { clientName: '', clientMobile: '', consent: '' });
     assert.equal(replay.status, 200);
     const replayHtml = await replay.text();
