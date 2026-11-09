@@ -113,7 +113,7 @@ function renderForm(res: Response, campaign: any, token: string, error = '', nam
 
 function registrationResponse(res: Response, props: Parameters<typeof registrationDocument>[0], status = 200) {
   res.set('Cache-Control', 'no-store');
-  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.set('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
   res.status(status).type('html').send(registrationDocument(props));
 }

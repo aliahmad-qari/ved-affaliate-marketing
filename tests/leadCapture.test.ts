@@ -143,7 +143,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.ok(html.includes('action="/api/public/campaigns/sample/go"'));
     assert.ok(html.includes('name="clientName"') && html.includes('name="clientMobile"'));
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
     return html.match(/name="captureToken" value="([^"]+)"/)![1];
   };
   const post = (token: string, fields: Record<string, string> = {}, origin = base, cookie?: string) => fetch(`${base}/api/public/campaigns/sample/go`, {
@@ -295,7 +295,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const failureHtml = await failed.text();
     assert.ok(failureHtml.includes('We could not save your enquiry') && failureHtml.includes('value="Test Customer"') && failureHtml.includes('value="9876543216"'), 'Failed saves retain entered details on the form');
     assert.match(failureHtml, /<input(?=[^>]*name="consent")(?=[^>]*value="yes")(?=[^>]*checked)[^>]*>/, 'Retry must preserve consent despite HTML formatting');
-    assert.equal(failed.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(failed.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
     assert.equal(leads.length, 2);
     assert.equal(claims.length, priorClaims, 'The transaction rolls back the new claim when lead creation fails');
     failSave = false;
