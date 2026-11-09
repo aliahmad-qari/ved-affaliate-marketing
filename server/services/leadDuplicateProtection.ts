@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Campaign } from '../models/Campaign.ts';
 import { CampaignMobileClaim } from '../models/CampaignMobileClaim.ts';
 import { normalizeCustomerMobile } from '../../shared/customerMobile.ts';
+import { isForwardOnlyRegistryReady } from './forwardOnlyCampaignMobileRegistry.ts';
 
 export const DUPLICATE_MOBILE_MESSAGE = 'This mobile number is already registered for this campaign.';
 export const duplicateMobileError = () => Object.assign(new Error(DUPLICATE_MOBILE_MESSAGE), {
@@ -34,7 +35,11 @@ export const LeadDuplicateProtection = {
     }
     try {
       const state = await db.collection('leadDeduplicationState').findOne({ _id: 'campaign-mobile-v1' as any });
-      if (!state?.ready || state.version !== 1 || state.coverageVerified !== true || state.unidentifiedHistoryCount !== 0 || state.transactionTopologyVerified !== true) {
+      const historicallyCoveredReady = state?.ready === true && state.version === 1
+        && state.coverageVerified === true && state.unidentifiedHistoryCount === 0
+        && state.transactionTopologyVerified === true;
+      const forwardOnlyReady = isForwardOnlyRegistryReady(state);
+      if (!historicallyCoveredReady && !forwardOnlyReady) {
         throw new Error('not-ready');
       }
       const indexes = await db.collection('campaignmobileclaims').indexes();

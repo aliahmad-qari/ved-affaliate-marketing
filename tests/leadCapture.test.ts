@@ -17,7 +17,7 @@ import { WalletTransaction } from '../server/models/WalletTransaction.ts';
 import { AppSetting } from '../server/models/AppSetting.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { redirectToCampaignTracking } from '../server/controllers/campaignController.ts';
-import { LeadDuplicateProtection } from '../server/services/leadDuplicateProtection.ts';
+import { LeadDuplicateProtection, duplicateMobileError } from '../server/services/leadDuplicateProtection.ts';
 
 // Exercise real HTTP routes with isolated database doubles; no live database or vendor calls.
 test('customer capture, redirect, admin progress and existing tracking compatibility', async (t) => {
@@ -36,7 +36,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
   const campaigns: any[] = [campaign];
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
-  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [];
+  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [], claims: any[] = [];
   let failSave = false, financialWrites = 0, transactionQueue = Promise.resolve();
   const chain = (value: any): any => {
     const query: any = { exec: async () => typeof value === 'function' ? value() : value };
@@ -59,16 +59,22 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
       let release!: () => void;
       transactionQueue = new Promise<void>(resolve => { release = resolve; });
       await preceding;
-      const sizes = [leads.length, clicks.length, notices.length];
+      const sizes = [leads.length, clicks.length, notices.length, claims.length];
       try { await operation(); } catch (error) {
-        [leads.length, clicks.length, notices.length] = sizes;
+        [leads.length, clicks.length, notices.length, claims.length] = sizes;
         throw error;
       } finally { release(); }
     }, endSession: async () => {},
   }) as any);
   t.mock.method(Campaign, 'findOne', (query: any) => chain(campaigns.find(item => query.slug === item.slug && item.status === 'LIVE') || null));
   t.mock.method(LeadDuplicateProtection, 'assertReady', async () => {});
-  t.mock.method(LeadDuplicateProtection, 'claim', async (_campaignId: string, rawMobile: unknown) => LeadDuplicateProtection.normalize(rawMobile)!);
+  t.mock.method(LeadDuplicateProtection, 'claim', async (campaignId: string, rawMobile: unknown, leadId: string, partnerId: string) => {
+    const mobile = LeadDuplicateProtection.normalize(rawMobile)!;
+    if (process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT !== 'true') return mobile;
+    if (claims.some(claim => claim.canonicalCampaignId === campaignId && claim.normalizedMobile === mobile)) throw duplicateMobileError();
+    claims.push({ canonicalCampaignId: campaignId, normalizedMobile: mobile, leadId, partnerId });
+    return mobile;
+  });
   t.mock.method(Campaign, 'findById', (id: string) => chain(campaigns.find(item => String(item._id) === String(id)) || null));
   t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
   t.mock.method(Partner, 'findOne', (query: any) => {
@@ -281,6 +287,8 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
 
     const failingToken = await getForm();
     failSave = true;
+    process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = 'true';
+    const priorClaims = claims.length;
     const failed = await post(failingToken, { clientMobile: '9876543216' });
     assert.equal(failed.status, 503);
     assert.equal(failed.headers.get('location'), null, 'Never redirect when storage fails');
@@ -289,7 +297,9 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.match(failureHtml, /<input(?=[^>]*name="consent")(?=[^>]*value="yes")(?=[^>]*checked)[^>]*>/, 'Retry must preserve consent despite HTML formatting');
     assert.equal(failed.headers.get('referrer-policy'), 'no-referrer');
     assert.equal(leads.length, 2);
+    assert.equal(claims.length, priorClaims, 'The transaction rolls back the new claim when lead creation fails');
     failSave = false;
+    delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
     campaign.baseTrackingUrl = 'https://wa.me/911234567890?text=Hello&utm_source=old';
     const whatsapp = await post(failingToken, { clientMobile: '9876543211' });
     const whatsappTarget = new URL(whatsapp.headers.get('location')!);
