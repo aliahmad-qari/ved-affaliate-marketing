@@ -5,9 +5,10 @@ import test from 'node:test';
 import { createApp } from '../server/app.ts';
 
 test('native capture POST origin checks behind production proxies', async () => {
-  const previous = { NODE_ENV: process.env.NODE_ENV, FRONTEND_URL: process.env.FRONTEND_URL, RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL, JWT_SECRET: process.env.JWT_SECRET };
+  const previous = { NODE_ENV: process.env.NODE_ENV, FRONTEND_URL: process.env.FRONTEND_URL, PUBLIC_APP_URL: process.env.PUBLIC_APP_URL, RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL, JWT_SECRET: process.env.JWT_SECRET };
   process.env.NODE_ENV = 'production';
   process.env.FRONTEND_URL = 'https://frontend.example';
+  process.env.PUBLIC_APP_URL = 'https://public-app.example';
   process.env.RENDER_EXTERNAL_URL = 'https://ved-affaliate-marketing.onrender.com';
   process.env.JWT_SECRET = 'production-origin-test-secret-at-least-32-characters';
   const server = createApp().listen(0, '127.0.0.1');
@@ -43,6 +44,7 @@ test('native capture POST origin checks behind production proxies', async () => 
       { label: 'Render HTTPS origin with internal HTTP host', origin: process.env.RENDER_EXTERNAL_URL, headers: { Host: 'internal-service:10000', 'X-Forwarded-Proto': 'https' }, expected: 400 },
       { label: 'custom domain with TLS termination', origin: 'https://apply.example.test', headers: { Host: 'apply.example.test', 'X-Forwarded-Proto': 'https' }, expected: 400 },
       { label: 'configured frontend', origin: 'https://frontend.example', headers: {}, expected: 400 },
+      { label: 'configured public application origin', origin: 'https://public-app.example', headers: {}, expected: 400 },
       { label: 'another Render service', origin: 'https://another-service.onrender.com', headers: { 'X-Forwarded-Proto': 'https' }, expected: 403 },
       { label: 'opaque origin', origin: 'null', headers: {}, expected: 403 },
       { label: 'untrusted forwarded host', origin: 'https://attacker.example', headers: { 'X-Forwarded-Host': 'attacker.example', 'X-Forwarded-Proto': 'https' }, expected: 403 },
@@ -52,6 +54,9 @@ test('native capture POST origin checks behind production proxies', async () => 
       assert.equal(response.status, scenario.expected, scenario.label);
       if (scenario.origin.startsWith('https://vedaffiliatepvtltd.com') || scenario.origin.startsWith('https://www.vedaffiliatepvtltd.com')) {
         assert.equal(response.headers.get('access-control-allow-origin'), scenario.origin, `${scenario.label}: production origin is explicitly allowed by CORS`);
+      }
+      if (scenario.origin === 'https://public-app.example') {
+        assert.equal(response.headers.get('access-control-allow-origin'), scenario.origin, 'The explicitly configured public app origin is allowed');
       }
       if (scenario.expected === 400) {
         assert.equal(response.headers.get('referrer-policy'), 'same-origin', `${scenario.label}: recovered forms must preserve their native POST origin`);

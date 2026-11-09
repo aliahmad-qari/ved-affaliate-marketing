@@ -3,14 +3,28 @@ import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AdminLeadCard } from '../src/components/admin/AdminLeadCard.tsx';
-import { campaignCaptureUrl, campaignSlugFromPath } from '../src/lib/campaignTracking.ts';
+import { buildPartnerCampaignUrl, campaignCaptureUrl, campaignSlugFromPath } from '../src/lib/campaignTracking.ts';
 import { LeadItem } from '../src/types/partner.ts';
 
 test('shared links open capture independently of the campaign list and preserve attribution', () => {
+  const copiedLink = buildPartnerCampaignUrl('https://vedaffiliatepvtltd.com/', 'upstox-fno-trade', 'VED35E54D', 'VED-PTR-6C6007');
+  assert.equal(copiedLink, 'https://vedaffiliatepvtltd.com/campaigns/upstox-fno-trade?ref=VED35E54D&pid=VED-PTR-6C6007');
+  assert.equal(buildPartnerCampaignUrl('https://vedaffiliatepvtltd.com', 'upstox-fno-trade', 'VED35E54D', 'VED-PTR-6C6007', 'sub-team-123'), 'https://vedaffiliatepvtltd.com/campaigns/upstox-fno-trade?ref=VED35E54D&pid=VED-PTR-6C6007&subteam=sub-team-123');
+  assert.throws(() => buildPartnerCampaignUrl('https://vedaffiliatepvtltd.com', 'upstox-fno-trade/go', 'VED35E54D', 'VED-PTR-6C6007'), /Invalid campaign slug/);
   assert.equal(campaignCaptureUrl('/campaigns/new-campaign', '?ref=REF-123&pid=VED-PTR-123'), '/api/public/campaigns/new-campaign/go?ref=REF-123&pid=VED-PTR-123');
   assert.equal(campaignCaptureUrl('/CAMPAIGNS/New-Campaign/', '?ref=REF-123&pid=VED-PTR-123', 'https://api.example/'), 'https://api.example/api/public/campaigns/new-campaign/go?ref=REF-123&pid=VED-PTR-123');
-  assert.equal(campaignCaptureUrl('/campaigns/sample', '?ref=REF-123'), '/api/public/campaigns/sample/go?ref=REF-123');
-  assert.equal(campaignCaptureUrl('/campaigns/sample', '?pid=VED-PTR-123&destination=https://evil.example'), '/api/public/campaigns/sample/go?pid=VED-PTR-123');
+  const malformedBase = 'https://vedaffiliatepvtltd.com/campaigns/upstox-fno-trade/go?ref=VED35E54D&pid=VED-PTR-6C6007https://vedaffiliatepvtltd.com/api/public/campaigns/upstox-fno-trade/go';
+  const safeCaptureUrl = campaignCaptureUrl('/campaigns/upstox-fno-trade', '?ref=VED35E54D&pid=VED-PTR-6C6007', malformedBase)!;
+  assert.equal(safeCaptureUrl, '/api/public/campaigns/upstox-fno-trade/go?ref=VED35E54D&pid=VED-PTR-6C6007');
+  assert.equal((safeCaptureUrl.match(/https:\/\//g) || []).length, 0, 'Malformed API base is never concatenated with the campaign URL');
+  for (const slug of ['upstox-fno-trade', 'sample', 'angel-one']) {
+    const link = campaignCaptureUrl(`/campaigns/${slug}`, '?ref=REF-123&pid=VED-PTR-123')!;
+    assert.equal(new URL(link, 'https://vedaffiliatepvtltd.com').pathname, `/api/public/campaigns/${slug}/go`);
+  }
+  assert.equal(campaignCaptureUrl('/campaigns/sample', '?pid=VED-PTR-123&destination=https://evil.example'), null);
+  assert.equal(campaignCaptureUrl('/campaigns/sample', '?ref=REF-123'), null, 'Incomplete partner attribution is not sent to registration');
+  assert.equal(campaignCaptureUrl('/campaigns/sample', '?ref=bad%2Fref&pid=VED-PTR-123'), null, 'Malformed attribution is not sent to registration');
+  assert.equal(campaignCaptureUrl('/campaigns/sample', '?ref=REF-123&pid=VED-PTR-123&destination=https://evil.example'), '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', 'Untrusted redirect parameters are discarded');
   assert.equal(campaignCaptureUrl('/campaigns/sample', ''), null);
   assert.equal(campaignCaptureUrl('/register', '?ref=REF-123'), null);
   assert.equal(campaignCaptureUrl('/campaigns', '?ref=REF-123'), null);

@@ -25,6 +25,7 @@ import { copyText } from '../lib/clipboard.ts';
 import { ManualCopyField } from '../components/ui/ManualCopyField.tsx';
 import { resolvePartnerPayoutAmount } from '../../shared/partnerPayout.ts';
 import { payoutBasisLabel, resolvePayoutRate } from '../../shared/percentagePayout.ts';
+import { buildPartnerCampaignUrl } from '../lib/campaignTracking.ts';
 
 interface CampaignsPageProps {
   campaigns: Campaign[];
@@ -91,9 +92,9 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   const getPartnerTrackingUrl = (slug: string) => {
     const origin = window.location.origin;
     if (partner) {
-      return `${origin}/campaigns/${slug}?ref=${partner.referralCode}&pid=${partner.partnerId}`;
+      return buildPartnerCampaignUrl(origin, slug, partner.referralCode, partner.partnerId);
     }
-    return `${origin}/campaigns/${slug}`;
+    return new URL(`/campaigns/${encodeURIComponent(slug)}`, origin).toString();
   };
 
   const handleCopyPartnerLink = async (slug: string) => {

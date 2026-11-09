@@ -17,8 +17,10 @@ import rateLimit from 'express-rate-limit';
 import { getPublicSuccessfulLeads } from './controllers/publicLeaderboardController.ts';
 
 const getAllowedOrigins = (): Set<string> => {
-  const configuredOrigins = (process.env.FRONTEND_URL || '')
-    .split(',')
+  const configuredOrigins = [
+    ...(process.env.FRONTEND_URL || '').split(','),
+    process.env.PUBLIC_APP_URL || '',
+  ]
     .map((value) => normalizeOrigin(value))
     .filter((value): value is string => Boolean(value));
   // The public customer registration page is served by the API, but the
