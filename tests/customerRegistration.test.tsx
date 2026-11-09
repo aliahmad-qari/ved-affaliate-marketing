@@ -15,12 +15,12 @@ test('new registration has accessible native controls and consent; no database d
   assert.ok(!html.includes('â€¦'));
 });
 
-test('already registered view uses a signed same-origin campaign continuation without customer details', () => {
-  const html = registrationDocument({ registered: true, name: 'PRIVATE CUSTOMER', mobile: '9876543210', token: 'opaque-signed-continuation', continuationAction: '/api/public/campaigns/test/continue' });
-  for (const value of ['NUMBER ALREADY REGISTERED', 'Your application has already been registered for this campaign.', 'Continue to Campaign Page']) assert.ok(html.includes(value));
-  for (const value of ['PRIVATE CUSTOMER', '9876543210', 'name="consent"', 'registration-button registration-home-button" href="/']) assert.ok(!html.includes(value));
-  assert.ok(html.includes('action="/api/public/campaigns/test/continue"'));
-  assert.ok(html.includes('name="captureToken" value="opaque-signed-continuation"'));
+test('already registered view shows a private-safe message and returns to the VED homepage', () => {
+  const html = registrationDocument({ registered: true });
+  for (const value of ['Already Registered', 'This mobile number is already registered for this campaign.', 'data-duplicate-countdown="true">3</strong>', 'window.location.replace(\'/\')', 'href="/"']) assert.ok(html.includes(value));
+  assert.ok(!html.includes('PRIVATE CUSTOMER') && !html.includes('9876543210'));
+  for (const value of ['PRIVATE CUSTOMER', '9876543210', 'name="consent"', 'name="captureToken"', 'data-registration-form']) assert.ok(!html.includes(value));
+  assert.ok(html.includes('class="registration-button registration-home-button" href="/"'));
   assert.equal((html.match(/disabled=""/g) || []).length, 0);
   assert.ok(html.includes('registration-confirmation-icon'));
   assert.ok(html.includes('name="referrer" content="no-referrer"'));

@@ -17,10 +17,16 @@ import { WalletTransaction } from '../server/models/WalletTransaction.ts';
 import { AppSetting } from '../server/models/AppSetting.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { redirectToCampaignTracking } from '../server/controllers/campaignController.ts';
-import { LeadDuplicateProtection, duplicateMobileError } from '../server/services/leadDuplicateProtection.ts';
+import { LeadDuplicateProtection } from '../server/services/leadDuplicateProtection.ts';
 
 // Exercise real HTTP routes with isolated database doubles; no live database or vendor calls.
 test('customer capture, redirect, admin progress and existing tracking compatibility', async (t) => {
+  const previousRegistryFlag = process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+  t.after(() => {
+    if (previousRegistryFlag === undefined) delete process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT;
+    else process.env.VED_CAMPAIGN_MOBILE_REGISTRY_ENFORCEMENT = previousRegistryFlag;
+  });
   process.env.JWT_SECRET = 'test-secret-for-capture-only-32-characters';
   process.env.VENDOR_WEBHOOK_SECRET = 'test-vendor-secret';
   process.env.NODE_ENV = 'test';
@@ -30,7 +36,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
   const campaigns: any[] = [campaign];
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
-  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [], claims: any[] = [];
+  const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [];
   let failSave = false, financialWrites = 0, transactionQueue = Promise.resolve();
   const chain = (value: any): any => {
     const query: any = { exec: async () => typeof value === 'function' ? value() : value };
@@ -53,21 +59,16 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
       let release!: () => void;
       transactionQueue = new Promise<void>(resolve => { release = resolve; });
       await preceding;
-      const sizes = [leads.length, clicks.length, notices.length, claims.length];
+      const sizes = [leads.length, clicks.length, notices.length];
       try { await operation(); } catch (error) {
-        [leads.length, clicks.length, notices.length, claims.length] = sizes;
+        [leads.length, clicks.length, notices.length] = sizes;
         throw error;
       } finally { release(); }
     }, endSession: async () => {},
   }) as any);
   t.mock.method(Campaign, 'findOne', (query: any) => chain(campaigns.find(item => query.slug === item.slug && item.status === 'LIVE') || null));
   t.mock.method(LeadDuplicateProtection, 'assertReady', async () => {});
-  t.mock.method(LeadDuplicateProtection, 'claim', async (campaignId: string, rawMobile: unknown, leadId: string, partnerId: string) => {
-    const mobile = LeadDuplicateProtection.normalize(rawMobile)!;
-    if (claims.some(claim => claim.canonicalCampaignId === campaignId && claim.normalizedMobile === mobile)) throw duplicateMobileError();
-    claims.push({ canonicalCampaignId: campaignId, normalizedMobile: mobile, leadId, partnerId });
-    return mobile;
-  });
+  t.mock.method(LeadDuplicateProtection, 'claim', async (_campaignId: string, rawMobile: unknown) => LeadDuplicateProtection.normalize(rawMobile)!);
   t.mock.method(Campaign, 'findById', (id: string) => chain(campaigns.find(item => String(item._id) === String(id)) || null));
   t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
   t.mock.method(Partner, 'findOne', (query: any) => {
@@ -200,15 +201,13 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const replay = await post(token, { clientName: '', clientMobile: '', consent: '' });
     assert.equal(replay.status, 200);
     const replayHtml = await replay.text();
-    assert.ok(replayHtml.includes('NUMBER ALREADY REGISTERED'));
-    assert.ok(replayHtml.includes('Your application has already been registered for this campaign.'));
-    assert.ok(replayHtml.includes('Continue to Campaign Page'));
-    assert.ok(replayHtml.includes('action="/api/public/campaigns/sample/continue"'));
+    assert.ok(replayHtml.includes('Already Registered'));
+    assert.ok(replayHtml.includes('This mobile number is already registered for this campaign.'));
+    assert.ok(replayHtml.includes('data-duplicate-countdown="true">3</strong>'));
+    assert.ok(replayHtml.includes('window.location.replace(\'/\')'));
+    assert.ok(replayHtml.includes('href="/"'));
+    assert.ok(!replayHtml.includes('/api/public/campaigns/sample/continue'));
     assert.ok(!replayHtml.includes('Test Customer'));
-    const continuationToken = replayHtml.match(/name="captureToken" value="([^"]+)"/)![1];
-    const continued = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: continuationToken }) });
-    assert.equal(continued.status, 303);
-    assert.equal(new URL(continued.headers.get('location')!).origin, mockVendorOrigin, 'Duplicate continuation returns to the campaign destination, never the VED homepage');
     const forgedContinuation = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: 'forged', destination: 'https://attacker.example' }) });
     assert.equal(forgedContinuation.status, 410);
     assert.notEqual(forgedContinuation.headers.get('location'), 'https://attacker.example');
@@ -221,38 +220,41 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const expiredContinuationHtml = await expiredContinuation.text();
     assert.ok(expiredContinuationHtml.includes('Reopen the campaign form to continue.'));
     assert.ok(expiredContinuationHtml.includes('ref=REF-123&amp;pid=VED-PTR-123&amp;subteam=SUB-TRACK'), 'An expired but validly signed continuation preserves original attribution for a safe retry');
-    const receipt = saved.headers.get('set-cookie')!.split(';')[0];
-    const remembered = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: receipt } });
+    const remembered = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123');
     const rememberedHtml = await remembered.text();
     assert.equal(remembered.status, 200);
-    assert.ok(rememberedHtml.includes('name="clientMobile"') && !rememberedHtml.includes('NUMBER ALREADY REGISTERED'), 'A receipt cookie does not block another customer sharing this device');
+    assert.ok(rememberedHtml.includes('name="clientName"') && rememberedHtml.includes('name="clientMobile"') && !rememberedHtml.includes('Already Registered'), 'Every tracking-link visit displays the form irrespective of previous submissions');
     const rememberedToken = rememberedHtml.match(/name="captureToken" value="([^"]+)"/)![1];
-    const sameCustomerRetry = await post(rememberedToken, {}, base, receipt);
+    const sameCustomerRetry = await post(rememberedToken, { clientMobile: '91 (98765)-43210' });
     assert.equal(sameCustomerRetry.status, 200);
     const sameCustomerRetryHtml = await sameCustomerRetry.text();
-    assert.ok(sameCustomerRetryHtml.includes('NUMBER ALREADY REGISTERED'));
-    const sameCustomerContinuation = sameCustomerRetryHtml.match(/name="captureToken" value="([^"]+)"/)![1];
-    const resumedOriginal = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: sameCustomerContinuation }) });
-    assert.equal(resumedOriginal.status, 303);
-    assert.equal(new URL(resumedOriginal.headers.get('location')!).origin, mockVendorOrigin, 'Returning customers resume the original campaign click');
+    assert.ok(sameCustomerRetryHtml.includes('This mobile number is already registered for this campaign.'));
+    assert.ok(sameCustomerRetryHtml.includes('window.location.replace(\'/\')'), 'Duplicate customer automatically returns to the VED homepage');
     assert.equal(leads.length, 1, 'Returning on the same signed browser context does not insert another lead');
-    const otherCustomerToken = await getForm(receipt);
-    const otherCustomer = await post(otherCustomerToken, { clientName: 'Another Customer', clientMobile: '9123456789' }, base, receipt);
+    const originalPartnerId = leads[0].partnerId;
+    leads[0].partnerId = 'VED-PTR-OTHER';
+    const crossPartnerDuplicate = await post(await getForm());
+    assert.equal(crossPartnerDuplicate.status, 200, 'A duplicate mobile from a different partner is detected too');
+    assert.ok((await crossPartnerDuplicate.text()).includes('This mobile number is already registered for this campaign.'));
+    leads[0].partnerId = originalPartnerId;
+    assert.equal(leads.length, 1);
+    const otherCustomerToken = await getForm();
+    const otherCustomer = await post(otherCustomerToken, { clientName: 'Another Customer', clientMobile: '9123456789' });
     assert.equal(otherCustomer.status, 303, 'A different mobile on the same device may submit as a new customer');
     assert.equal(leads.length, 2);
     assert.equal(leads[1].partnerId, partner.partnerId, 'The original parent partner attribution remains intact');
     const duplicateMobileToken = await getForm();
     const duplicateMobile = await post(duplicateMobileToken);
     assert.equal(duplicateMobile.status, 200);
-    assert.ok((await duplicateMobile.text()).includes('Continue to Campaign Page'));
-    const duplicateReceipt = duplicateMobile.headers.get('set-cookie')!.split(';')[0];
-    const duplicateRefresh = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: duplicateReceipt } });
-    assert.ok((await duplicateRefresh.text()).includes('name="clientMobile"'));
+    assert.ok((await duplicateMobile.text()).includes('This mobile number is already registered for this campaign.'));
+    const duplicateRefresh = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123');
+    const duplicateRefreshHtml = await duplicateRefresh.text();
+    assert.ok(duplicateRefreshHtml.includes('name="clientMobile"') && !duplicateRefreshHtml.includes('Already Registered'));
     assert.equal(leads.length, 2, 'An independent visit does not create a lead until a valid form is submitted');
     const forged = await fetch(base + '/api/public/campaigns/sample/go?ref=REF-123&pid=VED-PTR-123', { headers: { Cookie: 'ved_customer_capture=forged' } });
-    assert.ok(!(await forged.text()).includes('NUMBER ALREADY REGISTERED'));
+    assert.ok((await forged.text()).includes('name="clientMobile"'), 'A forged or stale cookie never hides the registration form');
     assert.equal(leads.length, 2, 'Repeated form submit should resume the same enquiry');
-    assert.equal(clicks.length, 6, 'Each independent partner-link visit receives its own click id');
+    assert.equal(clicks.length, 7, 'Each independent partner-link visit receives its own click id');
     assert.equal(notices.length, 2, 'Only the two accepted customer submissions create notifications');
 
     assert.equal((await patch('/leads/lead-1/process', { processStatus: 'NOT_SUBMITTED' }, false)).status, 401);
@@ -391,7 +393,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal(leads.at(-1).partnerId, partner.partnerId);
     const mstockReplay = await post(mstockToken);
     assert.equal(mstockReplay.headers.get('location'), null);
-    assert.ok((await mstockReplay.text()).includes('NUMBER ALREADY REGISTERED'));
+    assert.ok((await mstockReplay.text()).includes('This mobile number is already registered for this campaign.'));
     assert.equal(leads.length, beforeLeads + 1, 'mStock retry must not duplicate the enquiry');
     let directLocation = '', directStatus = 0;
     await redirectToCampaignTracking(
@@ -445,16 +447,16 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal((await fetch(`${base}/api/public/campaigns/sample/go?ref=bad&pid=wrong`)).status, 400);
 
     const secondCampaign: any = {
-      ...campaign, _id: 'campaign-2', slug: 'other-campaign', name: 'Other Campaign',
+      ...campaign, _id: 'campaign-2', slug: 'investment', name: 'Investment Campaign',
       baseTrackingUrl: `${mockVendorOrigin}/second-campaign/apply?offer=second`,
     };
     campaigns.push(secondCampaign);
-    const secondForm = await fetch(`${base}/api/public/campaigns/other-campaign/go?ref=REF-123&pid=VED-PTR-123`);
+    const secondForm = await fetch(`${base}/api/public/campaigns/investment/go?ref=REF-123&pid=VED-PTR-123`);
     assert.equal(secondForm.status, 200);
     const secondHtml = await secondForm.text();
     const secondCaptureToken = secondHtml.match(/name="captureToken" value="([^"]+)"/)![1];
-    assert.equal(jwt.verify(secondCaptureToken, process.env.JWT_SECRET!, { audience: 'ved-lead-capture', issuer: 'ved-api' }).slug, 'other-campaign');
-    const secondSubmission = await fetch(`${base}/api/public/campaigns/other-campaign/go`, {
+    assert.equal(jwt.verify(secondCaptureToken, process.env.JWT_SECRET!, { audience: 'ved-lead-capture', issuer: 'ved-api' }).slug, 'investment');
+    const secondSubmission = await fetch(`${base}/api/public/campaigns/investment/go`, {
       method: 'POST', redirect: 'manual', headers: { Origin: base },
       body: new URLSearchParams({ captureToken: secondCaptureToken, clientName: 'Second Campaign Customer', clientMobile: '9876543210', consent: 'yes' }),
     });

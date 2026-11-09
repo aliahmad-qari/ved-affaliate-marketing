@@ -118,37 +118,20 @@ function registrationResponse(res: Response, props: Parameters<typeof registrati
   res.status(status).type('html').send(registrationDocument(props));
 }
 
-function registeredResponse(res: Response, slug: string, token: CaptureToken, status = 200) {
-  const continuationToken = jwt.sign({
-    slug: token.slug, ref: token.ref, pid: token.pid, clickId: token.clickId,
-    ...(token.subteam ? { subteam: token.subteam } : {}),
-  }, secret(), {
-    expiresIn: '30m', audience: 'ved-campaign-continuation', issuer: 'ved-api', algorithm: 'HS256',
-  });
-  registrationResponse(res, {
-    registered: true,
-    token: continuationToken,
-    continuationAction: `/api/public/campaigns/${encodeURIComponent(slug)}/continue`,
-  }, status);
+function registeredResponse(res: Response, status = 200) {
+  registrationResponse(res, { registered: true }, status);
 }
 
-const receiptName = 'ved_customer_capture';
-function verifiedCaptureReceipt(req: Request): CaptureToken | undefined {
-  try {
-    const receipt = jwt.verify(req.cookies?.[receiptName], secret(), {
-      algorithms: ['HS256'], audience: 'ved-customer-receipt', issuer: 'ved-api',
-    }) as CaptureToken;
-    if (typeof receipt.slug !== 'string' || typeof receipt.ref !== 'string' || typeof receipt.pid !== 'string'
-      || typeof receipt.clickId !== 'string' || (receipt.subteam !== undefined && typeof receipt.subteam !== 'string')) return undefined;
-    return receipt;
-  } catch { return undefined; }
-}
-
-function rememberCapture(req: Request, res: Response, token: CaptureToken, registered = false) {
-  const receipt = jwt.sign({ slug: token.slug, ref: token.ref, pid: token.pid, clickId: token.clickId, registered, ...(token.subteam ? { subteam: token.subteam } : {}) }, secret(), {
-    expiresIn: '7d', audience: 'ved-customer-receipt', issuer: 'ved-api', algorithm: 'HS256',
-  });
-  res.cookie(receiptName, receipt, { httpOnly: true, secure: req.secure || process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 86400000, path: '/api/public/campaigns/' + encodeURIComponent(token.slug) + '/go' });
+function campaignMobileMatch(campaign: any, normalizedMobile: string) {
+  // Match the canonical campaign ID and its exact current slug for legacy lead
+  // rows. This is a best-effort compatibility lookup; only the approved
+  // campaign-mobile registry's unique index can serialize concurrent writers.
+  const digits = normalizedMobile.split('').join('[\\s()-]*');
+  const formattedIndianMobile = new RegExp(`^\\s*(?:\\+?91[\\s()-]*)?${digits}\\s*$`);
+  return {
+    campaignId: { $in: [String(campaign._id), String(campaign.slug)] },
+    clientMobile: formattedIndianMobile,
+  };
 }
 
 export const showLeadCaptureForm = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -162,9 +145,8 @@ export const showLeadCaptureForm = async (req: Request, res: Response, next: Nex
     const pid = typeof req.query.pid === 'string' ? req.query.pid.trim() : '';
     const subteam = typeof req.query.subteam === 'string' ? req.query.subteam.trim() : '';
     const { campaign, partner, subTeamLink } = await resolveTracking(req.params.slug, ref, pid, subteam);
-    // A browser cookie alone cannot tell whether the next person on a shared
-    // device is the same customer. Always issue a fresh form/click; a signed
-    // receipt is compared with the submitted mobile only after form validation.
+    // Each visit gets a new form and click. A past session or device cookie
+    // never hides the form or identifies the next customer.
     const clickId = crypto.randomUUID();
     const verifiedLink = buildVerifiedTrackingLink(campaign.slug, partner.referralCode, partner.partnerId, subTeamLink?.trackingId || '');
     if (subTeamLink) await createSubTeamClick(subTeamLink, campaign, partner, clickId, resolvePayoutSnapshot(campaign, partner.payoutSettings), campaign.currency || 'INR', verifiedLink);
@@ -216,37 +198,21 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     const { campaign, partner, target, subTeamLink } = tracking = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
     const ownEnquiry = { partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + token.clickId };
     if (await Lead.findOne(ownEnquiry).lean().exec()) {
-      rememberCapture(req, res, token, true);
-      registeredResponse(res, campaign.slug, token);
+      registeredResponse(res);
       return;
     }
     const mobile = LeadDuplicateProtection.normalize(rawMobile);
-    let error = '';
-    if (name.length < 2 || name.length > 120 || /[\u0000-\u001f<>]/.test(name)) error = 'Please enter a valid full name (2–120 characters).';
-    else if (!mobile) error = 'Please enter a valid 10-digit Indian mobile number.';
-    else if (req.body.consent !== 'yes') error = 'Please consent to saving your details before continuing.';
-    if (error) {
-      renderForm(res, campaign, req.body.captureToken, error, name.slice(0, 120), rawMobile.slice(0, 20), 400, consent);
+    if (name.length < 2 || name.length > 120 || /[\u0000-\u001f<>]/.test(name)) {
+      renderForm(res, campaign, req.body.captureToken, 'Please enter a valid full name (2–120 characters).', name.slice(0, 120), rawMobile.slice(0, 20), 400, consent);
       return;
     }
-
-    const receipt = verifiedCaptureReceipt(req);
-    if (receipt && receipt.clickId !== token.clickId && receipt.slug === token.slug
-      && receipt.ref === token.ref && receipt.pid === token.pid && (receipt.subteam || '') === (token.subteam || '')) {
-      const previousLead = await Lead.findOne({
-        partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + receipt.clickId,
-      }).lean().exec();
-      const previousClick = previousLead ? await TrackingClick.findOne({
-        clickId: receipt.clickId, partnerId: partner.partnerId, campaignId: String(campaign._id),
-        ...(subTeamLink ? { subTeamLinkId: String(subTeamLink._id) } : { $or: [{ subTeamLinkId: { $exists: false } }, { subTeamLinkId: '' }] }),
-        expiresAt: { $gt: new Date() },
-      }).lean().exec() : null;
-      if (previousLead && previousClick && LeadDuplicateProtection.normalize(previousLead.clientMobile) === mobile) {
-        const originalContext = { ...receipt, registered: true };
-        rememberCapture(req, res, originalContext, true);
-        registeredResponse(res, campaign.slug, originalContext);
-        return;
-      }
+    if (!mobile) {
+      renderForm(res, campaign, req.body.captureToken, 'Please enter a valid 10-digit Indian mobile number.', name, rawMobile.slice(0, 20), 400, consent);
+      return;
+    }
+    if (req.body.consent !== 'yes') {
+      renderForm(res, campaign, req.body.captureToken, 'Please consent to saving your details before continuing.', name, mobile, 400, consent);
+      return;
     }
 
     const accountId = `ENQUIRY:${token.clickId}`;
@@ -256,6 +222,9 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     await session.withTransaction(async () => {
       const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId }).session(session!).exec();
       if (existing) { alreadyRegistered = true; return; } // Same signed flow only; never a phone lookup.
+      const existingCampaignMobile = await Lead.findOne(campaignMobileMatch(campaign, mobile))
+        .select('_id').session(session!).lean().exec();
+      if (existingCampaignMobile) { alreadyRegistered = true; return; }
       const leadId = generateLeadId();
       await LeadDuplicateProtection.claim(String(campaign._id), mobile, leadId, partner.partnerId, session!);
       let payoutConfig = resolvePayoutSnapshot(campaign, partner.payoutSettings);
@@ -288,8 +257,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         referenceType: 'LEAD', referenceId: String(lead._id), dedupeKey: `CUSTOMER_ENQUIRY:${token.clickId}`,
       }], { session });
     });
-    rememberCapture(req, res, token, alreadyRegistered);
-    if (alreadyRegistered) registeredResponse(res, campaign.slug, token);
+    if (alreadyRegistered) registeredResponse(res);
     else res.redirect(303, destination(target, campaign, partner, token.clickId));
   } catch (error: any) {
     // Concurrent submissions may race on the unique enquiry/click indexes.
@@ -298,15 +266,13 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
         if (existing) {
-          rememberCapture(req, res, token, true);
-          registeredResponse(res, campaign.slug, token);
+          registeredResponse(res);
           return;
         }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
     }
     if (error?.code === 'DUPLICATE_CAMPAIGN_MOBILE' && tracking) {
-      rememberCapture(req, res, token, true);
-      registeredResponse(res, tracking.campaign.slug, token);
+      registeredResponse(res);
       return;
     }
     const status = error?.status || 503;

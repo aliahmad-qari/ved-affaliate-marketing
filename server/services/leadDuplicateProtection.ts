@@ -3,7 +3,7 @@ import { Campaign } from '../models/Campaign.ts';
 import { CampaignMobileClaim } from '../models/CampaignMobileClaim.ts';
 import { normalizeCustomerMobile } from '../../shared/customerMobile.ts';
 
-export const DUPLICATE_MOBILE_MESSAGE = 'Your application has already been registered for this campaign.';
+export const DUPLICATE_MOBILE_MESSAGE = 'This mobile number is already registered for this campaign.';
 export const duplicateMobileError = () => Object.assign(new Error(DUPLICATE_MOBILE_MESSAGE), {
   status: 409, code: 'DUPLICATE_CAMPAIGN_MOBILE',
 });
