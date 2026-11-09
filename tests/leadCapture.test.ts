@@ -28,6 +28,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
   process.env.RENDER_EXTERNAL_URL = renderOrigin;
   mongoose.connection.readyState = 1;
   const campaign: any = { _id: 'campaign-1', slug: 'sample', name: 'Sample <Campaign>', companyName: 'Broker & Co', status: 'LIVE', requiredAction: 'Open an account', campaignType: 'Demat & Trading', payout: 250, currency: 'INR', baseTrackingUrl: 'https://vendor.example/apply?offer=original' };
+  const campaigns: any[] = [campaign];
   const partner = { partnerId: 'VED-PTR-123', referralCode: 'REF-123', accountStatus: 'ACTIVE' };
   const leads: any[] = [], clicks: any[] = [], notices: any[] = [], audits: any[] = [], ledger: any[] = [], claims: any[] = [];
   let failSave = false, financialWrites = 0, transactionQueue = Promise.resolve();
@@ -59,7 +60,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
       } finally { release(); }
     }, endSession: async () => {},
   }) as any);
-  t.mock.method(Campaign, 'findOne', (query: any) => chain(query.slug === campaign.slug && campaign.status === 'LIVE' ? campaign : null));
+  t.mock.method(Campaign, 'findOne', (query: any) => chain(campaigns.find(item => query.slug === item.slug && item.status === 'LIVE') || null));
   t.mock.method(LeadDuplicateProtection, 'assertReady', async () => {});
   t.mock.method(LeadDuplicateProtection, 'claim', async (campaignId: string, rawMobile: unknown, leadId: string, partnerId: string) => {
     const mobile = LeadDuplicateProtection.normalize(rawMobile)!;
@@ -67,7 +68,7 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     claims.push({ canonicalCampaignId: campaignId, normalizedMobile: mobile, leadId, partnerId });
     return mobile;
   });
-  t.mock.method(Campaign, 'findById', () => chain(campaign));
+  t.mock.method(Campaign, 'findById', (id: string) => chain(campaigns.find(item => String(item._id) === String(id)) || null));
   t.mock.method(Campaign, 'find', (query: any = {}) => chain(matches(campaign, query) ? [{ ...campaign, toJSON: () => ({ ...campaign }) }] : []));
   t.mock.method(Partner, 'findOne', (query: any) => {
     const found = matches(partner, query) ? partner : null;
@@ -442,6 +443,30 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     assert.equal((await fetch(`${base}${link}`)).status, 404);
     campaign.status = 'LIVE';
     assert.equal((await fetch(`${base}/api/public/campaigns/sample/go?ref=bad&pid=wrong`)).status, 400);
+
+    const secondCampaign: any = {
+      ...campaign, _id: 'campaign-2', slug: 'other-campaign', name: 'Other Campaign',
+      baseTrackingUrl: `${mockVendorOrigin}/second-campaign/apply?offer=second`,
+    };
+    campaigns.push(secondCampaign);
+    const secondForm = await fetch(`${base}/api/public/campaigns/other-campaign/go?ref=REF-123&pid=VED-PTR-123`);
+    assert.equal(secondForm.status, 200);
+    const secondHtml = await secondForm.text();
+    const secondCaptureToken = secondHtml.match(/name="captureToken" value="([^"]+)"/)![1];
+    assert.equal(jwt.verify(secondCaptureToken, process.env.JWT_SECRET!, { audience: 'ved-lead-capture', issuer: 'ved-api' }).slug, 'other-campaign');
+    const secondSubmission = await fetch(`${base}/api/public/campaigns/other-campaign/go`, {
+      method: 'POST', redirect: 'manual', headers: { Origin: base },
+      body: new URLSearchParams({ captureToken: secondCaptureToken, clientName: 'Second Campaign Customer', clientMobile: '9876543210', consent: 'yes' }),
+    });
+    assert.equal(secondSubmission.status, 303);
+    const secondDestination = new URL(secondSubmission.headers.get('location')!);
+    assert.equal(secondDestination.pathname, '/second-campaign/apply');
+    assert.equal(secondDestination.searchParams.get('offer'), 'second');
+    assert.equal(secondDestination.searchParams.get('campaign_id'), 'campaign-2');
+    assert.equal(secondDestination.searchParams.get('ref'), partner.referralCode);
+    assert.equal(secondDestination.searchParams.get('pid'), partner.partnerId);
+    assert.equal(leads.at(-1).campaignId, 'campaign-2');
+    assert.equal(leads.at(-1).clientMobile, '9876543210', 'The same mobile remains eligible for a different campaign');
     mongoose.connection.readyState = 0;
     assert.equal((await fetch(`${base}${link}`)).status, 503);
   } finally {
