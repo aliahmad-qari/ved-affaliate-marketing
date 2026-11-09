@@ -11,18 +11,27 @@ export interface PublicStats {
 
 export interface PublicSuccessfulLeadPartner {
   partnerName: string;
-  partnerId: string;
-  successfulLeads: number;
+  rank: number;
+  approvedConversions: number;
 }
 
-export async function fetchPublicSuccessfulLeads(signal?: AbortSignal): Promise<PublicSuccessfulLeadPartner[]> {
+export interface PublicMonthlyLeaderboard {
+  monthKey: string;
+  timeZone: string;
+  rankings: PublicSuccessfulLeadPartner[];
+}
+
+export async function fetchPublicSuccessfulLeads(signal?: AbortSignal): Promise<PublicMonthlyLeaderboard> {
   const response = await safeFetch(`${API_BASE}/api/public/successful-leads`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error('Unable to fetch public successful leads.');
   const result = await response.json();
-  if (!result.success || !Array.isArray(result.data?.partners) || result.data.partners.some((row: any) =>
-    typeof row.partnerName !== 'string' || typeof row.partnerId !== 'string' || !Number.isInteger(row.successfulLeads) || row.successfulLeads < 0
-  )) throw new Error('Invalid public successful leads response.');
-  return result.data.partners as PublicSuccessfulLeadPartner[];
+  if (!result.success || typeof result.data?.monthKey !== 'string' || result.data.timeZone !== 'Asia/Kolkata'
+    || !Array.isArray(result.data?.rankings) || result.data.rankings.length > 5 || result.data.rankings.some((row: any) =>
+      typeof row.partnerName !== 'string' || !Number.isInteger(row.rank) || row.rank < 1
+      || !Number.isInteger(row.approvedConversions) || row.approvedConversions < 0
+      || Object.keys(row).some(key => !['rank', 'partnerName', 'approvedConversions'].includes(key))
+    )) throw new Error('Invalid public monthly leaderboard response.');
+  return result.data as PublicMonthlyLeaderboard;
 }
 
 export async function fetchPublicStats(signal?: AbortSignal): Promise<PublicStats> {

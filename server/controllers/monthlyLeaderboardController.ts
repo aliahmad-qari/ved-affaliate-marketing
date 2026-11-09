@@ -5,7 +5,7 @@ import { Partner } from '../models/Partner.ts';
 import { MonthlyRewardPolicy, MonthlyRewardRule } from '../models/MonthlyRewardPolicy.ts';
 import { MonthlyLeaderboardReward } from '../models/MonthlyLeaderboardReward.ts';
 import { AuditLog } from '../models/AuditLog.ts';
-import { adminApprovedLeadFilter, getMonthlyLeaderboard, validateReportMonth } from '../services/monthlyLeaderboard.ts';
+import { adminApprovedLeadFilter, getMonthlyLeaderboard, getPublicMonthlyLeaderboard, validateReportMonth } from '../services/monthlyLeaderboard.ts';
 import { insertMonthlyRewardOnce, normalizeMonthlyRewardRules, partnerMonthlyRewardsFilter } from '../services/monthlyRewards.ts';
 import { monthlyRewardId } from '../../shared/monthlyLeaderboard.ts';
 
@@ -15,7 +15,7 @@ const adminIdFor = (req: Request) => String(req.user?._id || '');
 export const getPartnerMonthlyLeaderboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const monthKey = String(req.query.month || '').trim();
-    const board = await getMonthlyLeaderboard(monthKey);
+    const board = await getPublicMonthlyLeaderboard(monthKey);
     const rewards = await MonthlyLeaderboardReward.find(partnerMonthlyRewardsFilter(partnerIdFor(req), monthKey))
       .select('monthKey partnerId rewardType label amount currency paymentStatus approvedAt paidAt paymentReference')
       .sort({ createdAt: -1 }).lean().exec();

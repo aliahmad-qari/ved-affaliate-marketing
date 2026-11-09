@@ -1,6 +1,7 @@
 import { LEADERBOARD_TIME_ZONE, LeaderboardCandidate, rankLeaderboard, validateReportMonth } from '../../shared/monthlyLeaderboard.ts';
 import { Lead } from '../models/Lead.ts';
 import { Partner } from '../models/Partner.ts';
+import { maskPublicPartnerName } from '../utils/publicPartnerMasking.ts';
 
 export { LEADERBOARD_TIME_ZONE, rankLeaderboard, validateReportMonth };
 
@@ -38,5 +39,19 @@ export async function getMonthlyLeaderboard(monthKey: string, now = new Date()) 
     rangeStart: window.start.toISOString(),
     rangeEndExclusive: window.end.toISOString(),
     rankings: rankLeaderboard(candidates),
+  };
+}
+
+/** Privacy-safe monthly rankings shared by the public homepage and partner dashboard. */
+export async function getPublicMonthlyLeaderboard(monthKey: string, now = new Date()) {
+  const board = await getMonthlyLeaderboard(monthKey, now);
+  return {
+    monthKey: board.monthKey,
+    timeZone: board.timeZone,
+    rankings: board.rankings.slice(0, 5).map(row => ({
+      rank: row.rank,
+      partnerName: maskPublicPartnerName(row.fullName),
+      approvedConversions: row.approvedConversions,
+    })),
   };
 }

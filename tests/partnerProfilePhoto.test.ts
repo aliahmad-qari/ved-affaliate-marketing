@@ -47,6 +47,7 @@ test('partner profile photo upload, replacement, removal and authorization stay 
   const uploadedOptions: any[] = [];
   const deletedIds: string[] = [];
   let uploadCount = 0;
+  let nextDimensions = { width: 128, height: 128 };
   t.mock.method(Partner, 'findById', (id: string) => chain(() => {
     const record = partners.get(id);
     return record ? responsePartner(record) : null;
@@ -62,7 +63,7 @@ test('partner profile photo upload, replacement, removal and authorization stay 
   t.mock.method(cloudinary.uploader, 'upload_stream', (options: any, callback: (error: Error | null, result?: any) => void) => {
     uploadedOptions.push(options);
     const publicId = `${options.folder}/${options.public_id}`;
-    return { end: (_buffer: Buffer) => { uploadCount++; callback(null, { public_id: publicId, width: 128, height: 128, secure_url: `https://res.cloudinary.com/test/${publicId}` }); } } as any;
+    return { end: (_buffer: Buffer) => { uploadCount++; callback(null, { public_id: publicId, format: 'png', ...nextDimensions, secure_url: `https://res.cloudinary.com/test/${publicId}` }); } } as any;
   });
   t.mock.method(cloudinary.uploader, 'destroy', async (publicId: string) => { deletedIds.push(publicId); return { result: 'ok' } as any; });
 
@@ -78,10 +79,20 @@ test('partner profile photo upload, replacement, removal and authorization stay 
     assert.equal(first.status, 200);
     const firstBody = await first.json() as any;
     assert.match(firstBody.data.profilePhotoUrl, /^https:\/\//);
+    assert.match(firstBody.data.profilePhotoUrl, /\.png(?:\?|$)/, 'Cloudinary delivery URL uses the verified stored format');
+    assert.doesNotMatch(firstBody.data.profilePhotoUrl, /\.auto(?:\?|$)/, 'stored URL avoids the literal .auto extension that returns 404');
     assert.equal('profilePhotoPublicId' in firstBody.data, false);
     assert.equal(updates[0].id, 'partner-1', 'query parameters cannot select another partner');
     assert.equal(updates[0].update.$set.profilePhotoPublicId, uploadedOptions[0].folder + '/' + uploadedOptions[0].public_id);
     assert.ok(deletedIds.includes('old-photo-one'), 'replacement removes the prior remote photo after saving the new one');
+
+    const profileAfterRefresh = await request('http://127.0.0.1:' + (app.address() as any).port + '/api/auth/me', oneToken, 'GET');
+    assert.equal(profileAfterRefresh.status, 200);
+    assert.equal((await profileAfterRefresh.json() as any).data.profilePhotoUrl, firstBody.data.profilePhotoUrl,
+      'authenticated profile reload reads the saved URL from the partner record');
+    const profileAfterRelogin = await request('http://127.0.0.1:' + (app.address() as any).port + '/api/auth/me', signToken({ id: 'partner-1', partnerId: 'VED-PTR-ONE', role: 'PARTNER' }), 'GET');
+    assert.equal((await profileAfterRelogin.json() as any).data.profilePhotoUrl, firstBody.data.profilePhotoUrl,
+      'a fresh authenticated session receives the persisted image URL');
 
     const afterValidUpload = uploadCount;
     const invalidType = await request(base, oneToken, 'POST', photoForm(Buffer.from('not an image'), 'image/png'));
@@ -90,6 +101,16 @@ test('partner profile photo upload, replacement, removal and authorization stay 
     const tooLarge = await request(base, oneToken, 'POST', photoForm(Buffer.alloc(3 * 1024 * 1024 + 1), 'image/png'));
     assert.equal(tooLarge.status, 400);
     assert.equal(uploadCount, afterValidUpload);
+
+    nextDimensions = { width: 4096, height: 4096 };
+    const boundaryImage = await request(base, oneToken, 'POST', photoForm(png));
+    assert.equal(boundaryImage.status, 200, '4096 by 4096 is within the configured dimension and pixel limits');
+    const savedBoundaryUrl = (await boundaryImage.json() as any).data.profilePhotoUrl;
+    nextDimensions = { width: 4097, height: 128 };
+    const oversizedDimensions = await request(base, oneToken, 'POST', photoForm(png));
+    assert.equal(oversizedDimensions.status, 400);
+    assert.equal(partners.get('partner-1')?.profilePhotoUrl, savedBoundaryUrl, 'invalid replacement leaves the previous photo intact');
+    nextDimensions = { width: 128, height: 128 };
 
     const otherUpload = await request(`${base}?partnerId=partner-1`, twoToken, 'POST', photoForm(png));
     assert.equal(otherUpload.status, 200);
@@ -101,7 +122,8 @@ test('partner profile photo upload, replacement, removal and authorization stay 
     assert.equal(updates.at(-1)?.id, 'partner-2', 'remove ignores identifiers supplied by the caller');
     assert.equal(partners.get('partner-2')?.profilePhotoUrl, '');
     assert.equal('profilePhotoPublicId' in partners.get('partner-2'), false);
-    assert.ok(deletedIds.includes(uploadedOptions[1].folder + '/' + uploadedOptions[1].public_id));
+    const partnerTwoUpload = uploadedOptions.at(-1);
+    assert.ok(deletedIds.includes(partnerTwoUpload.folder + '/' + partnerTwoUpload.public_id));
     assert.equal((await request(`${base}/partner-1`, twoToken, 'DELETE')).status, 404, 'there is no route for targeting another partner profile');
   } finally {
     app.closeAllConnections();

@@ -58,9 +58,14 @@ export async function storePartnerProfilePhoto(buffer: Buffer): Promise<StoredPr
     throw storageError('Image dimensions must be no larger than 4096 × 4096 pixels.', 400);
   }
 
+  const outputFormat = ['png', 'jpg', 'jpeg', 'webp'].includes(String(uploaded.format || '').toLowerCase())
+    ? String(uploaded.format).toLowerCase()
+    : detected.ext;
   const url = cloudinary.url(uploaded.public_id, {
     secure: true,
-    format: 'auto',
+    // Do not use format: 'auto' here: the SDK serializes it as a literal
+    // `.auto` file extension, which Cloudinary does not serve (404).
+    format: outputFormat,
     transformation: [{ width: 512, height: 512, crop: 'limit', quality: 'auto:good' }],
   });
   if (!url.startsWith('https://')) {

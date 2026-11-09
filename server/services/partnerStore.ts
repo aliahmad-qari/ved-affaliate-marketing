@@ -60,7 +60,7 @@ export const PartnerStore = {
 
   async findById(id: string, includePassword = false): Promise<any | null> {
     if (isMongooseReady()) {
-      let query = Partner.findById(id);
+      let query = Partner.findById(id).select('+profilePhotoUrl');
       if (includePassword) {
         query = query.select('+passwordHash +resetPasswordToken +resetPasswordExpires');
       }
