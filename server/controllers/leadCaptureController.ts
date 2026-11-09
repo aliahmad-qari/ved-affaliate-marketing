@@ -118,8 +118,8 @@ function registrationResponse(res: Response, props: Parameters<typeof registrati
   res.status(status).type('html').send(registrationDocument(props));
 }
 
-function registeredResponse(res: Response, status = 200) {
-  registrationResponse(res, { registered: true }, status);
+function registeredResponse(res: Response, redirectUrl: string, status = 200) {
+  registrationResponse(res, { registered: true, registeredRedirectUrl: redirectUrl }, status);
 }
 
 function campaignMobileMatch(campaign: any, normalizedMobile: string) {
@@ -198,7 +198,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
     const { campaign, partner, target, subTeamLink } = tracking = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
     const ownEnquiry = { partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: 'ENQUIRY:' + token.clickId };
     if (await Lead.findOne(ownEnquiry).lean().exec()) {
-      registeredResponse(res);
+      registeredResponse(res, destination(target, campaign, partner, token.clickId));
       return;
     }
     const mobile = LeadDuplicateProtection.normalize(rawMobile);
@@ -257,7 +257,7 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         referenceType: 'LEAD', referenceId: String(lead._id), dedupeKey: `CUSTOMER_ENQUIRY:${token.clickId}`,
       }], { session });
     });
-    if (alreadyRegistered) registeredResponse(res);
+    if (alreadyRegistered) registeredResponse(res, destination(target, campaign, partner, token.clickId));
     else res.redirect(303, destination(target, campaign, partner, token.clickId));
   } catch (error: any) {
     // Concurrent submissions may race on the unique enquiry/click indexes.
@@ -266,13 +266,13 @@ export const submitCapturedLead = async (req: Request, res: Response, next: Next
         const { campaign, partner, target } = await resolveTracking(token.slug, token.ref, token.pid, token.subteam || '', Boolean(token.subteam));
         const existing = await Lead.findOne({ partnerId: partner.partnerId, campaignId: String(campaign._id), accountId: `ENQUIRY:${token.clickId}` }).lean().exec();
         if (existing) {
-          registeredResponse(res);
+          registeredResponse(res, destination(target, campaign, partner, token.clickId));
           return;
         }
       } catch { /* Preserve the original failure if the enquiry cannot be confirmed. */ }
     }
     if (error?.code === 'DUPLICATE_CAMPAIGN_MOBILE' && tracking) {
-      registeredResponse(res);
+      registeredResponse(res, destination(tracking.target, tracking.campaign, tracking.partner, token.clickId));
       return;
     }
     const status = error?.status || 503;

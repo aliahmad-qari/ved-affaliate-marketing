@@ -15,15 +15,15 @@ test('new registration has accessible native controls and consent; no database d
   assert.ok(!html.includes('â€¦'));
 });
 
-test('already registered view shows a private-safe message and returns to the VED homepage', () => {
-  const html = registrationDocument({ registered: true });
-  for (const value of ['Already Registered', 'This mobile number is already registered for this campaign.', 'data-duplicate-countdown="true">3</strong>', 'window.location.replace(\'/\')', 'href="/"']) assert.ok(html.includes(value));
+test('already registered view shows the popup and honors only its server-provided destination', () => {
+  const html = registrationDocument({ registered: true, registeredRedirectUrl: 'https://vendor.example/campaign?clickid=synthetic' });
+  for (const value of ['Already Registered', 'This mobile number is already registered for this campaign.', 'data-duplicate-countdown="true">3</strong>', 'window.location.replace("https://vendor.example/campaign?clickid=synthetic")', 'href="/"']) assert.ok(html.includes(value));
   assert.ok(!html.includes('PRIVATE CUSTOMER') && !html.includes('9876543210'));
   for (const value of ['PRIVATE CUSTOMER', '9876543210', 'name="consent"', 'name="captureToken"', 'data-registration-form']) assert.ok(!html.includes(value));
   assert.ok(html.includes('class="registration-button registration-home-button" href="/"'));
   assert.equal((html.match(/disabled=""/g) || []).length, 0);
   assert.ok(html.includes('registration-confirmation-icon'));
-  assert.ok(html.includes('name="referrer" content="no-referrer"'));
+  assert.ok(html.includes('name="referrer" content="strict-origin-when-cross-origin"'));
 });
 
 test('registration styling keeps the campaign form compact and mobile placeholders readable', () => {

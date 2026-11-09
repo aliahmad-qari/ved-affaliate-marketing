@@ -3,6 +3,7 @@ import { UserRound, Smartphone, ShieldCheck, LockKeyhole, Handshake, Zap, ArrowR
 
 export interface RegistrationScreenProps {
   registered?: boolean;
+  registeredRedirectUrl?: string;
   token?: string;
   continuationAction?: string;
   action?: string;
