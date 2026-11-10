@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CustomerRegistrationScreen } from '../src/components/CustomerRegistrationScreen.tsx';
 import { AdminLeadCard } from '../src/components/admin/AdminLeadCard.tsx';
 import { buildPartnerCampaignUrl, campaignCaptureUrl, campaignSlugFromPath } from '../src/lib/campaignTracking.ts';
 import { LeadItem } from '../src/types/partner.ts';
@@ -29,6 +30,22 @@ test('shared links open capture independently of the campaign list and preserve 
   assert.equal(campaignCaptureUrl('/register', '?ref=REF-123'), null);
   assert.equal(campaignCaptureUrl('/campaigns', '?ref=REF-123'), null);
   assert.equal(campaignSlugFromPath('/campaigns/%ZZ'), null, 'Malformed URL encoding must not crash the app');
+});
+
+test('customer registration presentation keeps the form contract and approved copy', () => {
+  const markup = renderToStaticMarkup(<CustomerRegistrationScreen action="/api/public/campaigns/sample/go" token="signed-test-token" />);
+  assert.ok(markup.includes('Enter your details below to continue'));
+  assert.ok(!markup.includes('we will redirect to your'));
+  assert.ok(markup.includes('I agree to the use of my contact details for application updates.'));
+  assert.ok(markup.includes('method="post"') && markup.includes('action="/api/public/campaigns/sample/go"'));
+  assert.ok(markup.includes('name="captureToken" value="signed-test-token"'));
+  assert.ok(markup.includes('name="clientName"') && markup.includes('name="clientMobile"'));
+  assert.ok(markup.includes('type="checkbox"') && markup.includes('name="consent"') && markup.includes('value="yes"') && markup.includes('required=""'));
+
+  const registered = renderToStaticMarkup(<CustomerRegistrationScreen registered />);
+  assert.ok(registered.includes('Already Registered'));
+  assert.ok(registered.includes('data-duplicate-countdown="true">3</strong>'));
+  assert.ok(registered.includes('href="/"'));
 });
 
 const baseLead: LeadItem = {

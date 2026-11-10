@@ -7,6 +7,9 @@ test('new registration has accessible native controls and consent; no database d
   for (const value of ['Unlock', 'Success', 'CONTINUE SECURELY', 'name="consent"', 'htmlFor']) {
     if (value !== 'htmlFor') assert.ok(html.includes(value));
   }
+  assert.ok(html.includes('Enter your details below to continue'));
+  assert.ok(!html.includes('we will redirect to your'));
+  assert.ok(html.includes('I agree to the use of my contact details for application updates.'));
   assert.ok(html.includes('for="customer-name"'));
   assert.ok(html.includes('for="customer-mobile"'));
   assert.ok(html.includes('&lt;unsafe&gt;'));
@@ -26,12 +29,14 @@ test('already registered view shows the popup and honors only its server-provide
   assert.ok(html.includes('name="referrer" content="strict-origin-when-cross-origin"'));
 });
 
-test('registration styling keeps the campaign form compact and mobile placeholders readable', () => {
+test('registration styling stays responsive at mobile widths and uses readable input sizing', () => {
   const html = registrationDocument({ token: 'test-opaque-token', action: '/api/public/campaigns/test/go' });
-  assert.ok(html.includes('@media(max-width:440px)'));
-  assert.ok(html.includes('.registration-input input{height:43px;font-size:13px;padding-left:9px;padding-right:29px}'));
-  assert.ok(html.includes('.registration-hero{min-height:184px'));
-  assert.ok(html.includes('registration-card{margin-right:5%;margin-left:5%;padding:36px 14px 16px;border-radius:18px}'));
-  assert.ok(html.includes('.registration-hero h1{font-size:clamp(58px,8vw,82px)'));
-  assert.ok(html.includes('.registration-field label{font-size:clamp(21px,2.4vw,26px)}'));
+  assert.ok(html.includes('@media (max-width: 620px)'));
+  assert.ok(html.includes('@media (max-width: 360px)'));
+  assert.ok(html.includes('width: calc(100vw - 28px)'));
+  assert.ok(html.includes('grid-template-columns: 22px minmax(0, 1fr)'));
+  assert.ok(html.includes('height: 49px; padding: 10px 35px 10px 11px'));
+  assert.ok(html.includes('min-height: 250px'));
+  assert.ok(html.includes('grid-template-columns: 38px minmax(0, 1fr)'));
+  assert.ok(html.includes('font-size: clamp(16px, 2.15vw, 23px)'));
 });

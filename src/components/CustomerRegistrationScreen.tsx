@@ -20,7 +20,7 @@ export function CustomerRegistrationScreen({ registered = false, token = '', act
       <header className="registration-brand"><a href="/" aria-label="VED Affiliate homepage"><span className="ved-seal">VED</span><span className="ved-wordmark">VED <b>AFFILIATE</b></span></a><span className="registration-motto">Promote <i>•</i> Earn <i>•</i> Grow</span></header>
       <section className="registration-hero" aria-labelledby="registration-title">
         <h1 id="registration-title">Unlock <LockKeyhole aria-hidden="true"/><strong>Success</strong></h1>
-        <p>Enter your details below to continue,<br/>we will redirect to your <b>campaign page.</b></p>
+        <p>Enter your details below to continue</p>
       </section>
       <main className="registration-card">
         <div className="registration-trust"><ShieldCheck aria-hidden="true"/> Secure &amp; Trusted</div>
@@ -29,7 +29,7 @@ export function CustomerRegistrationScreen({ registered = false, token = '', act
           <input type="hidden" name="captureToken" value={token}/>
           <div className="registration-field"><span className="field-medallion"><UserRound aria-hidden="true"/></span><div><label htmlFor="customer-name">Full Name</label><div className="registration-input"><input id="customer-name" name="clientName" autoComplete="name" placeholder="Enter your full name" defaultValue={name} minLength={2} maxLength={120} required/><UserRound aria-hidden="true"/></div></div></div>
           <div className="registration-field"><span className="field-medallion"><Smartphone aria-hidden="true"/></span><div><label htmlFor="customer-mobile">Mobile Number</label><div className="registration-input"><input id="customer-mobile" name="clientMobile" type="tel" inputMode="tel" autoComplete="tel" placeholder="Enter 10-digit mobile number" defaultValue={mobile} maxLength={20} required/><Smartphone aria-hidden="true"/></div></div></div>
-            <label className="registration-consent"><input type="checkbox" name="consent" value="yes" defaultChecked={consent} required/><span>I agree that <b>VED Affiliate</b> may save my name and contact number and contact me regarding this application.</span></label>
+            <label className="registration-consent"><input type="checkbox" name="consent" value="yes" defaultChecked={consent} required/><span>I agree to the use of my contact details for application updates.</span></label>
             <button className="registration-button" type="submit" data-idle-label="CONTINUE SECURELY"><span>CONTINUE SECURELY</span><ArrowRight aria-hidden="true"/></button>
             <p className="registration-progress" role="status" aria-live="polite"></p>
         </form>}
