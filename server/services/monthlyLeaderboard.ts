@@ -20,7 +20,15 @@ export async function getMonthlyLeaderboard(monthKey: string, now = new Date()) 
   const filter = adminApprovedLeadFilter(monthKey, now);
   const groups = await Lead.aggregate([
     { $match: filter },
-    { $group: { _id: '$partnerId', approvedConversions: { $sum: 1 } } },
+    { $group: {
+      _id: '$partnerId',
+      approvedConversions: { $sum: 1 },
+      approvedEarnings: { $sum: { $cond: [
+        { $eq: ['$payoutTypeSnapshot', 'PERCENTAGE'] },
+        { $cond: [{ $eq: ['$payoutCommission.state', 'AVAILABLE'] }, { $ifNull: ['$payoutSnapshot', 0] }, 0] },
+        { $ifNull: ['$payoutSnapshot', 0] },
+      ] } },
+    } },
   ]).exec();
   const partnerIds = groups.map((group: any) => String(group._id)).filter(Boolean);
   const partners: any[] = partnerIds.length
@@ -31,6 +39,7 @@ export async function getMonthlyLeaderboard(monthKey: string, now = new Date()) 
     partnerId: String(group._id),
     fullName: names.get(String(group._id).toUpperCase()) || 'VED Partner',
     approvedConversions: Number(group.approvedConversions) || 0,
+    approvedEarnings: Math.round((Number(group.approvedEarnings) || 0) * 100) / 100,
   }));
   const window = validateReportMonth(monthKey, now);
   return {
@@ -52,6 +61,7 @@ export async function getPublicMonthlyLeaderboard(monthKey: string, now = new Da
       rank: row.rank,
       partnerName: maskPublicPartnerName(row.fullName),
       approvedConversions: row.approvedConversions,
+      approvedEarnings: row.approvedEarnings,
     })),
   };
 }

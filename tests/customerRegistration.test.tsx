@@ -18,12 +18,12 @@ test('new registration has accessible native controls and consent; no database d
   assert.ok(!html.includes('â€¦'));
 });
 
-test('already registered view shows the popup and honors only its server-provided destination', () => {
+test('already registered view shows the popup and uses its server-provided destination for button and countdown', () => {
   const html = registrationDocument({ registered: true, registeredRedirectUrl: 'https://vendor.example/campaign?clickid=synthetic' });
-  for (const value of ['Already Registered', 'This mobile number is already registered for this campaign.', 'data-duplicate-countdown="true">3</strong>', 'window.location.replace("https://vendor.example/campaign?clickid=synthetic")', 'href="/"']) assert.ok(html.includes(value));
+  for (const value of ['Already Registered', 'This mobile number is already registered for this campaign.', 'Redirecting you to the campaign page in <strong data-duplicate-countdown="true">3</strong> seconds', 'window.location.replace("https://vendor.example/campaign?clickid=synthetic")', 'href="https://vendor.example/campaign?clickid=synthetic"', '>CONTINUE</span>']) assert.ok(html.includes(value));
   assert.ok(!html.includes('PRIVATE CUSTOMER') && !html.includes('9876543210'));
   for (const value of ['PRIVATE CUSTOMER', '9876543210', 'name="consent"', 'name="captureToken"', 'data-registration-form']) assert.ok(!html.includes(value));
-  assert.ok(html.includes('class="registration-button registration-home-button" href="/"'));
+  assert.ok(html.includes('class="registration-button registration-home-button" href="https://vendor.example/campaign?clickid=synthetic"'));
   assert.equal((html.match(/disabled=""/g) || []).length, 0);
   assert.ok(html.includes('registration-confirmation-icon'));
   assert.ok(html.includes('name="referrer" content="strict-origin-when-cross-origin"'));

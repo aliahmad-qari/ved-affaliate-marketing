@@ -14,15 +14,15 @@ test('admin click report has the exact approved column order and protects spread
   assert.equal(protectClickReportCell('VED123'), 'VED123');
 });
 
-test('click report filters are exact, IST bounded and reject malformed date/status inputs', () => {
+test('click report filters are exact, UTC bounded and reject malformed date/status inputs', () => {
   const query = buildAdminClickReportFilter({
     partnerId: 'ved1', campaign: 'broker', clickId: 'click-1', startDate: '2026-11-01', endDate: '2026-11-02',
   });
   assert.equal(query.partnerId, 'VED1');
   assert.deepEqual(query.$or, [{ campaignId: 'broker' }, { campaignSlug: 'broker' }]);
   assert.equal(query.clickId, 'click-1');
-  assert.equal(query.createdAt.$gte.toISOString(), '2026-10-31T18:30:00.000Z');
-  assert.equal(query.createdAt.$lt.toISOString(), '2026-11-02T18:30:00.000Z');
+  assert.equal(query.createdAt.$gte.toISOString(), '2026-11-01T00:00:00.000Z');
+  assert.equal(query.createdAt.$lt.toISOString(), '2026-11-03T00:00:00.000Z');
   assert.throws(() => buildAdminClickReportFilter({ startDate: '2026-02-30' }), /valid YYYY-MM-DD/);
 });
 

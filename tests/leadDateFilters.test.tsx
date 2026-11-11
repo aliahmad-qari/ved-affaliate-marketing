@@ -14,21 +14,21 @@ import { Campaign } from '../server/models/Campaign.ts';
 import { PartnerStore } from '../server/services/partnerStore.ts';
 import { signToken } from '../server/utils/jwt.ts';
 
-test('IST dates, complete inclusive days, month/year intersections, leap years and invalid dates', () => {
+test('UTC dates, complete inclusive days, month/year intersections, leap years and invalid dates', () => {
   const same = leadDateQuery({ startDate: '2026-10-01', endDate: '2026-10-01' })!;
-  assert.equal(same.$gte?.toISOString(), '2026-09-30T18:30:00.000Z');
-  assert.equal(same.$lt?.toISOString(), '2026-10-01T18:30:00.000Z');
-  assert.equal(leadDateQuery({ year: '2026', month: '12' })?.$lt?.toISOString(), '2026-12-31T18:30:00.000Z');
+  assert.equal(same.$gte?.toISOString(), '2026-10-01T00:00:00.000Z');
+  assert.equal(same.$lt?.toISOString(), '2026-10-02T00:00:00.000Z');
+  assert.equal(leadDateQuery({ year: '2026', month: '12' })?.$lt?.toISOString(), '2027-01-01T00:00:00.000Z');
   const leap = leadDateQuery({ startDate: '2024-02-29', endDate: '2024-02-29' })!;
   assert.equal(leap.$lt?.getTime()! - leap.$gte?.getTime()!, 86400000);
-  assert.equal(leadDateQuery({ year: '2026' })?.$gte?.toISOString(), '2025-12-31T18:30:00.000Z');
+  assert.equal(leadDateQuery({ year: '2026' })?.$gte?.toISOString(), '2026-01-01T00:00:00.000Z');
   const intersect = leadDateQuery({ year: '2026', month: '10', startDate: '2026-10-15', endDate: '2026-11-10' })!;
-  assert.equal(intersect.$gte?.toISOString(), '2026-10-14T18:30:00.000Z'); assert.equal(intersect.$lt?.toISOString(), '2026-10-31T18:30:00.000Z');
+  assert.equal(intersect.$gte?.toISOString(), '2026-10-15T00:00:00.000Z'); assert.equal(intersect.$lt?.toISOString(), '2026-11-01T00:00:00.000Z');
   assert.equal(leadDateQuery({ endDate: '2026-10-01T12:00:00.000Z' })?.$lte?.toISOString(), '2026-10-01T12:00:00.000Z');
   for (const input of [{ startDate: '2026-02-29' }, { endDate: '2026-04-31' }, { startDate: 'no' }, { month: '0', year: '2026' }, { month: '13', year: '2026' }, { month: '1' }, { year: '2026bad' }, { year: ['2026'] }, { startDate: '2026-10-02', endDate: '2026-10-01' }]) assert.throws(() => leadDateQuery(input), { status: 400 });
   assert.equal(leadDateQuery({}), undefined);
   const html = renderToStaticMarkup(<LeadDateFilterControls value={emptyLeadDateFilters} onChange={() => {}} onReset={() => {}} />);
-  for (const label of ['From Date', 'To Date', 'Month', 'Year', 'Reset Filters', 'Asia/Kolkata']) assert.ok(html.includes(label));
+  for (const label of ['From Date', 'To Date', 'Month', 'Year', 'Reset Filters', 'UTC']) assert.ok(html.includes(label));
 });
 
 function matches(row: any, query: any): boolean {
@@ -63,11 +63,11 @@ test('partner/admin lists and CSV filter before pagination with correct counts a
   const partner: any = { _id: '507f1f77bcf86cd799439011', partnerId: 'VED-PTR-DATE', email: 'date@example.test', accountStatus: 'ACTIVE' };
   const admin: any = { _id: '507f1f77bcf86cd799439012', email: 'admin@example.test', status: 'ACTIVE', toJSON: () => ({ email: 'admin@example.test' }) };
   const rows = [
-    { leadId: 'before', createdAt: '2026-09-30T18:29:59.999Z' },
-    { leadId: 'first', createdAt: '2026-09-30T18:30:00.000Z' },
+    { leadId: 'before', createdAt: '2026-09-30T23:59:59.999Z' },
+    { leadId: 'first', createdAt: '2026-10-01T00:00:00.000Z' },
     { leadId: 'middle', createdAt: '2026-10-15T00:00:00.000Z' },
-    { leadId: 'last', createdAt: '2026-10-31T18:29:59.999Z' },
-    { leadId: 'after', createdAt: '2026-10-31T18:30:00.000Z' },
+    { leadId: 'last', createdAt: '2026-10-31T23:59:59.999Z' },
+    { leadId: 'after', createdAt: '2026-11-01T00:00:00.000Z' },
     { leadId: 'other', partnerId: 'VED-PTR-OTHER', createdAt: '2026-10-15T00:00:00.000Z' },
     { leadId: 'rejected', status: 'REJECTED', rejectedAt: new Date('2026-01-01'), createdAt: '2026-10-15T00:00:00.000Z' },
   ].map(row => ({ partnerId: partner.partnerId, campaignId: 'broker', campaignName: 'Broker', status: 'PENDING', clientName: 'Customer', clientMobile: '9876543210', ...row, toJSON() { return { ...this }; } }));

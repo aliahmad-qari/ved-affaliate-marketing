@@ -60,7 +60,8 @@ test('partner CSV privacy, historical campaigns, complete exports, categories, s
     result.cursor = () => ({ async *[Symbol.asyncIterator]() { for (const row of found) yield { ...row }; }, close: async () => {} });
     return result;
   });
-  t.mock.method(Lead, 'aggregate', () => chain([{ amount: 6250 }]));
+  let publicPayoutPipeline: any[] = [];
+  t.mock.method(Lead, 'aggregate', (pipeline: any[]) => { publicPayoutPipeline = pipeline; return chain([{ amount: 6250 }]); });
   t.mock.method(WalletTransaction, 'aggregate', () => chain([{ amount: 1000 }]));
   t.mock.method(WalletTransaction, 'find', () => chain([{ partnerId: partner.partnerId, type: 'WITHDRAWAL', amount: 1000, status: 'PAID' }, { partnerId: partner.partnerId, type: 'WITHDRAWAL', amount: 200, status: 'PENDING' }]));
   const app = createApp().listen(0,'127.0.0.1'); await once(app,'listening'); const base=`http://127.0.0.1:${(app.address() as any).port}/api`;
@@ -97,7 +98,10 @@ test('partner CSV privacy, historical campaigns, complete exports, categories, s
       const created=await fetch(base+'/admin/campaigns',{ method:'POST',headers:{ Authorization:`Bearer ${adminToken}`,'Content-Type':'application/json' },body:JSON.stringify({ name:'Category test',slug:`category-test-${i}`,companyName:'Test',campaignType:category,description:'Test description',requiredAction:'Test action',status:'DRAFT' }) }); assert.equal(created.status,201);
     }
     const invalidCategory=await fetch(base+'/admin/campaigns',{ method:'POST',headers:{ Authorization:`Bearer ${adminToken}`,'Content-Type':'application/json' },body:JSON.stringify({ campaignType:'Unconfigured category' }) }); assert.equal(invalidCategory.status,400);
-    const stats=(await (await request('/public/stats')).json()).data; assert.equal(stats.liveCampaigns,3); assert.equal(stats.activePartners,7); assert.ok(Number.isInteger(stats.approvedLeads)); assert.equal('totalPayouts' in stats, false);
+    const stats=(await (await request('/public/stats')).json()).data; assert.equal(stats.liveCampaigns,3); assert.equal(stats.activePartners,7); assert.ok(Number.isInteger(stats.approvedLeads)); assert.equal(stats.approvedPayout,6250); assert.equal('totalPayouts' in stats, false);
+    assert.deepEqual(publicPayoutPipeline[0].$match.status, { $in: ['APPROVED', 'PAID'] });
+    assert.deepEqual(publicPayoutPipeline[0].$match.approvalReversal, { $exists: false });
+    assert.deepEqual(publicPayoutPipeline[0].$match.rejectionReasonCode, { $ne: 'DUPLICATE_LEAD' });
     const wallet=(await (await request('/partner/wallet',ownerToken)).json()).data; assert.equal(wallet.pendingBalance,12500); assert.equal(wallet.totalEarned,12750); assert.equal(wallet.availableBalance,5300); assert.equal(wallet.totalWithdrawn,1000); assert.equal(wallet.totalDisbursed,7250); assert.equal(wallet.minimumWithdrawal,200);
     assert.equal(JSON.stringify(leads),original); assert.ok(audits.some(row=>row.action==='BUSINESS_SETTINGS_UPDATED'));
     mongoose.connection.readyState=0; assert.equal((await request('/public/site-settings')).status,503);

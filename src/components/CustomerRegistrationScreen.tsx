@@ -14,7 +14,7 @@ export interface RegistrationScreenProps {
 }
 
 // Shared by the server-rendered, progressively enhanced form and isolated previews.
-export function CustomerRegistrationScreen({ registered = false, token = '', action = '', error = '', name = '', mobile = '', consent = false }: RegistrationScreenProps) {
+export function CustomerRegistrationScreen({ registered = false, registeredRedirectUrl = '/', token = '', action = '', error = '', name = '', mobile = '', consent = false }: RegistrationScreenProps) {
   return <div className="registration-page">
     <div className="registration-shell">
       <header className="registration-brand"><a href="/" aria-label="VED Affiliate homepage"><span className="ved-seal">VED</span><span className="ved-wordmark">VED <b>AFFILIATE</b></span></a><span className="registration-motto">Promote <i>•</i> Earn <i>•</i> Grow</span></header>
@@ -25,7 +25,7 @@ export function CustomerRegistrationScreen({ registered = false, token = '', act
       <main className="registration-card">
         <div className="registration-trust"><ShieldCheck aria-hidden="true"/> Secure &amp; Trusted</div>
         {error && <p className="registration-error" role="alert">{error}</p>}
-        {registered ? <><section className="registration-welcome" role="alertdialog" aria-modal="true" aria-live="assertive"><CircleCheck className="registration-confirmation-icon" aria-hidden="true"/><div><h2>Already Registered</h2><p>This mobile number is already registered for this campaign.</p><p>Returning to the VED homepage in <strong data-duplicate-countdown>3</strong> seconds.</p></div></section><a className="registration-button registration-home-button" href="/"><span>Go to homepage now</span><ArrowRight aria-hidden="true"/></a></> : <form method="post" action={action} data-registration-form="true">
+        {registered ? <><section className="registration-welcome" role="alertdialog" aria-modal="true" aria-live="assertive"><CircleCheck className="registration-confirmation-icon" aria-hidden="true"/><div><h2>Already Registered</h2><p>This mobile number is already registered for this campaign.</p><p>Redirecting you to the campaign page in <strong data-duplicate-countdown>3</strong> seconds</p></div></section><a className="registration-button registration-home-button" href={registeredRedirectUrl}><span>CONTINUE</span><ArrowRight aria-hidden="true"/></a></> : <form method="post" action={action} data-registration-form="true">
           <input type="hidden" name="captureToken" value={token}/>
           <div className="registration-field"><span className="field-medallion"><UserRound aria-hidden="true"/></span><div><label htmlFor="customer-name">Full Name</label><div className="registration-input"><input id="customer-name" name="clientName" autoComplete="name" placeholder="Enter your full name" defaultValue={name} minLength={2} maxLength={120} required/><UserRound aria-hidden="true"/></div></div></div>
           <div className="registration-field"><span className="field-medallion"><Smartphone aria-hidden="true"/></span><div><label htmlFor="customer-mobile">Mobile Number</label><div className="registration-input"><input id="customer-mobile" name="clientMobile" type="tel" inputMode="tel" autoComplete="tel" placeholder="Enter 10-digit mobile number" defaultValue={mobile} maxLength={20} required/><Smartphone aria-hidden="true"/></div></div></div>

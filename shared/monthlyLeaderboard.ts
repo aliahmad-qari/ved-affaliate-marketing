@@ -1,39 +1,19 @@
-export const LEADERBOARD_TIME_ZONE = 'Asia/Kolkata';
+export const LEADERBOARD_TIME_ZONE = 'UTC';
 export const MONTHLY_REWARD_PAYMENT_STATUSES = ['PENDING', 'PROCESSING', 'PAID'] as const;
 export type MonthlyRewardPaymentStatus = typeof MONTHLY_REWARD_PAYMENT_STATUSES[number];
 
-export function monthKeyInTimeZone(date = new Date(), timeZone = LEADERBOARD_TIME_ZONE): string {
-  const parts = new Intl.DateTimeFormat('en', { timeZone, year: 'numeric', month: '2-digit' }).formatToParts(date);
-  const year = parts.find(part => part.type === 'year')?.value;
-  const month = parts.find(part => part.type === 'month')?.value;
-  if (!year || !month) throw new Error('Unable to determine the reporting month.');
-  return `${year}-${month}`;
+export function monthKeyInTimeZone(date = new Date()): string {
+  if (!Number.isFinite(date.getTime())) throw new Error('Unable to determine the reporting month.');
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function offsetAt(instant: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(instant);
-  const value = (type: string) => Number(parts.find(part => part.type === type)?.value);
-  const localAsUtc = Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second'));
-  return localAsUtc - Math.floor(instant.getTime() / 1000) * 1000;
-}
-
-function localMidnightUtc(year: number, monthIndex: number, timeZone: string): Date {
-  const localMidnightAsUtc = Date.UTC(year, monthIndex, 1);
-  let candidate = localMidnightAsUtc;
-  for (let attempt = 0; attempt < 3; attempt++) candidate = localMidnightAsUtc - offsetAt(new Date(candidate), timeZone);
-  return new Date(candidate);
-}
-
-export function monthWindow(monthKey: string, timeZone = LEADERBOARD_TIME_ZONE): { monthKey: string; start: Date; end: Date } {
+export function monthWindow(monthKey: string): { monthKey: string; start: Date; end: Date } {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(monthKey);
   if (!match) throw Object.assign(new Error('Month must use YYYY-MM format.'), { status: 400 });
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;
-  const start = localMidnightUtc(year, monthIndex, timeZone);
-  const end = localMidnightUtc(year, monthIndex + 1, timeZone);
+  const start = new Date(Date.UTC(year, monthIndex, 1));
+  const end = new Date(Date.UTC(year, monthIndex + 1, 1));
   return { monthKey, start, end };
 }
 
@@ -54,6 +34,7 @@ export interface LeaderboardCandidate {
   partnerId: string;
   fullName: string;
   approvedConversions: number;
+  approvedEarnings: number;
 }
 
 export function rankLeaderboard(candidates: LeaderboardCandidate[]) {

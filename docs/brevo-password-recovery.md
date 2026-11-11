@@ -42,9 +42,9 @@ No VITE_ prefix, frontend secret, SMTP setting or new paid mailbox is needed. A 
 
 ## Previously requested lead filters (also retained on this branch)
 
-Admin Leads and Partner Leads now have From Date, To Date, Month, Year and Reset Filters. Shared configuration is Asia/Kolkata (IST, UTC+05:30), labelled on-screen. Existing UTC timestamps remain unchanged. Date-only To Date includes the whole business day via exclusive next-day boundary. Explicit ISO dates with offsets retain their prior instant semantics. Month requires a year; year alone filters the full year; dates and month/year intersect. Invalid/inverted ranges return 400; nonoverlapping combined valid filters return no rows. Reset restores all search/status/campaign/date filters and page one.
+Admin Leads and Partner Leads now have From Date, To Date, Month, Year and Reset Filters. Shared calendar boundaries use UTC and are labelled on-screen. Existing timestamps remain unchanged. Date-only To Date includes the whole UTC day via exclusive next-day boundary. Explicit ISO dates with offsets retain their prior instant semantics. Month requires a year; year alone filters the full year; dates and month/year intersect. Invalid/inverted ranges return 400; nonoverlapping combined valid filters return no rows. Reset restores all search/status/campaign/date filters and page one.
 
-Partner list queries enforce the authenticated partner ID; CSV export receives the same date filters and retains mobile masking. Admin visibility/archive policy is preserved. Counts and data share the same backend query before pagination. No records or monetary amounts are rewritten. CSV timestamps stay labelled UTC; calendar selection uses IST. Changed tests/adminPagination.test.ts only updates its state double for new date filters.
+Partner list queries enforce the authenticated partner ID; CSV export receives the same date filters and retains mobile masking. Admin visibility/archive policy is preserved. Counts and data share the same backend query before pagination. No records or monetary amounts are rewritten. CSV timestamps and report calendar selection use UTC. Changed tests/adminPagination.test.ts only updates its state double for new date filters.
 
 ## Changed files
 
@@ -64,7 +64,7 @@ node --import tsx --test --test-concurrency=2 $testFiles
 git diff --check
 ```
 
-Tests cover known/unknown response equality, invalid/mismatched/weak/expired/reused tokens, concurrent one-time consumption, both original logins, old/new password login, old-session rejection, account cooldown, IP limits, sender/body/URL format, config validation, provider failure, sanitized logs, bootstrap token/referrer protection and recovery markup. Brevo and Mongo are mocked. Date tests cover IST midnight boundaries, leap days, December rollover, combined filters, permissions, counts, pagination and filtered CSV. Existing tracking, referrals, financial, admin and UI tests must also pass before release.
+Tests cover known/unknown response equality, invalid/mismatched/weak/expired/reused tokens, concurrent one-time consumption, both original logins, old/new password login, old-session rejection, account cooldown, IP limits, sender/body/URL format, config validation, provider failure, sanitized logs, bootstrap token/referrer protection and recovery markup. Brevo and Mongo are mocked. Date tests cover UTC midnight boundaries, leap days, December rollover, combined filters, permissions, counts, pagination and filtered CSV. Existing tracking, referrals, financial, admin and UI tests must also pass before release.
 
 Real email sending, real Mongo atomic updates, real browser/mobile interaction and the exact production release/service configuration still require an authorized acceptance test. Domain/sender verification is developer-confirmed, not reverified by these tests. No inbox-delivery claim is made.
 

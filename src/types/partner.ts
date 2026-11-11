@@ -130,7 +130,7 @@ export interface PartnerSubTeamLinkItem {
 export interface PartnerMonthlyLeaderboardData {
   monthKey: string;
   timeZone: string;
-  rankings: { rank: number; partnerName: string; approvedConversions: number }[];
+    rankings: { rank: number; partnerName: string; approvedConversions: number; approvedEarnings: number }[];
   rewards: { _id: string; rewardType: string; label: string; amount: number; currency: string; paymentStatus: 'PENDING' | 'PROCESSING' | 'PAID'; paidAt?: string }[];
 }
 

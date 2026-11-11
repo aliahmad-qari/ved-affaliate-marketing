@@ -391,10 +391,10 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         </div>
       </section>
       <section className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/60 to-[#070B14]/60 p-5">
-        <div><h2 className="text-lg font-bold text-white">Click Tracking Report</h2><p className="mt-1 text-xs text-slate-400">Customer details are included only in this authenticated admin export. Dates use India Standard Time.</p></div>
+        <div><h2 className="text-lg font-bold text-white">Click Tracking Report</h2><p className="mt-1 text-xs text-slate-400">Customer details are included only in this authenticated admin export. Dates use UTC.</p></div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="text-xs text-slate-400">From date (IST)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.startDate} onChange={event => setClickReportFilters({ ...clickReportFilters, startDate: event.target.value })}/></label>
-          <label className="text-xs text-slate-400">To date (IST)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.endDate} onChange={event => setClickReportFilters({ ...clickReportFilters, endDate: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">From date (UTC)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.startDate} onChange={event => setClickReportFilters({ ...clickReportFilters, startDate: event.target.value })}/></label>
+          <label className="text-xs text-slate-400">To date (UTC)<input className={`${inputClass} mt-2`} type="date" value={clickReportFilters.endDate} onChange={event => setClickReportFilters({ ...clickReportFilters, endDate: event.target.value })}/></label>
           <label className="text-xs text-slate-400">Partner ID<input className={`${inputClass} mt-2`} value={clickReportFilters.partnerId} onChange={event => setClickReportFilters({ ...clickReportFilters, partnerId: event.target.value })}/></label>
           <label className="text-xs text-slate-400">Campaign ID or slug<input className={`${inputClass} mt-2`} value={clickReportFilters.campaign} onChange={event => setClickReportFilters({ ...clickReportFilters, campaign: event.target.value })}/></label>
           <label className="text-xs text-slate-400">Click ID<input className={`${inputClass} mt-2`} value={clickReportFilters.clickId} onChange={event => setClickReportFilters({ ...clickReportFilters, clickId: event.target.value })}/></label>

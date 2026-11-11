@@ -11,14 +11,22 @@ export const getPublicStats = async (_req: Request, res: Response, next: NextFun
   }
 
   try {
-    const [liveCampaigns, activePartners, approvedLeads] = await Promise.all([
+    const [liveCampaigns, activePartners, approvedLeads, approvedPayoutRows] = await Promise.all([
       Campaign.countDocuments({ status: 'LIVE' }),
       Partner.countDocuments({ accountStatus: 'ACTIVE' }),
       Lead.countDocuments({ status: { $in: ['APPROVED', 'PAID'] } }),
+      Lead.aggregate([
+        { $match: { status: { $in: ['APPROVED', 'PAID'] }, approvalReversal: { $exists: false }, rejectionReasonCode: { $ne: 'DUPLICATE_LEAD' } } },
+        { $group: { _id: null, amount: { $sum: { $cond: [
+          { $eq: ['$payoutTypeSnapshot', 'PERCENTAGE'] },
+          { $cond: [{ $eq: ['$payoutCommission.state', 'AVAILABLE'] }, { $ifNull: ['$payoutSnapshot', 0] }, 0] },
+          { $ifNull: ['$payoutSnapshot', 0] },
+        ] } } } },
+      ]).exec(),
     ]);
 
-    // Public stats intentionally exclude earnings, withdrawals and wallet totals.
-    res.json({ success: true, data: { liveCampaigns, activePartners, approvedLeads } });
+    const approvedPayout = Math.round((Number(approvedPayoutRows[0]?.amount) || 0) * 100) / 100;
+    res.json({ success: true, data: { liveCampaigns, activePartners, approvedLeads, approvedPayout } });
   } catch (error) {
     next(error);
   }

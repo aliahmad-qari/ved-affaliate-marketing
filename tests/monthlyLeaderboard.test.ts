@@ -9,13 +9,13 @@ import { insertMonthlyRewardOnce, normalizeMonthlyRewardRules, partnerMonthlyRew
 import { MonthlyLeaderboardReward } from '../server/models/MonthlyLeaderboardReward.ts';
 import { requireRole } from '../server/middleware/authMiddleware.ts';
 
-test('monthly reporting boundaries use Asia/Kolkata local months and an exclusive end', () => {
+test('monthly reporting boundaries use UTC calendar months and an exclusive end', () => {
   const window = monthWindow('2026-11');
-  assert.equal(LEADERBOARD_TIME_ZONE, 'Asia/Kolkata');
-  assert.equal(window.start.toISOString(), '2026-10-31T18:30:00.000Z');
-  assert.equal(window.end.toISOString(), '2026-11-30T18:30:00.000Z');
-  assert.equal(monthKeyInTimeZone(new Date('2026-10-31T18:29:59.999Z')), '2026-10');
-  assert.equal(monthKeyInTimeZone(new Date('2026-10-31T18:30:00.000Z')), '2026-11');
+  assert.equal(LEADERBOARD_TIME_ZONE, 'UTC');
+  assert.equal(window.start.toISOString(), '2026-11-01T00:00:00.000Z');
+  assert.equal(window.end.toISOString(), '2026-12-01T00:00:00.000Z');
+  assert.equal(monthKeyInTimeZone(new Date('2026-10-31T23:59:59.999Z')), '2026-10');
+  assert.equal(monthKeyInTimeZone(new Date('2026-11-01T00:00:00.000Z')), '2026-11');
   assert.equal(shiftMonth('2026-01', -1), '2025-12');
   assert.equal(shiftMonth('2025-12', 1), '2026-01');
   assert.throws(() => monthWindow('2026-13'));
@@ -25,7 +25,7 @@ test('monthly reporting boundaries use Asia/Kolkata local months and an exclusiv
 test('monthly eligibility uses approved admin-reviewed leads and excludes vendor-only, reversed, pending, rejected records', () => {
   const match = adminApprovedLeadFilter('2026-11', new Date('2026-11-10T00:00:00Z'));
   assert.deepEqual(match.status, { $in: ['APPROVED', 'PAID'] });
-  assert.deepEqual(match.approvedAt, { $gte: new Date('2026-10-31T18:30:00.000Z'), $lt: new Date('2026-11-30T18:30:00.000Z') });
+  assert.deepEqual(match.approvedAt, { $gte: new Date('2026-11-01T00:00:00.000Z'), $lt: new Date('2026-12-01T00:00:00.000Z') });
   assert.deepEqual(match.reviewedBy, { $nin: ['', 'VENDOR_WEBHOOK', 'SYSTEM'] });
   assert.deepEqual(match.rejectionReasonCode, { $ne: 'DUPLICATE_LEAD' });
   assert.deepEqual(match.approvalReversal, { $exists: false });
@@ -39,10 +39,10 @@ test('monthly eligibility uses approved admin-reviewed leads and excludes vendor
 
 test('rankings are deterministic and ties share competition rank', () => {
   assert.deepEqual(rankLeaderboard([
-    { partnerId: 'VED-PTR-Z', fullName: 'Beta', approvedConversions: 5 },
-    { partnerId: 'VED-PTR-B', fullName: 'Alpha', approvedConversions: 5 },
-    { partnerId: 'VED-PTR-A', fullName: 'Alpha', approvedConversions: 5 },
-    { partnerId: 'VED-PTR-C', fullName: 'Gamma', approvedConversions: 3 },
+    { partnerId: 'VED-PTR-Z', fullName: 'Beta', approvedConversions: 5, approvedEarnings: 500 },
+    { partnerId: 'VED-PTR-B', fullName: 'Alpha', approvedConversions: 5, approvedEarnings: 1000 },
+    { partnerId: 'VED-PTR-A', fullName: 'Alpha', approvedConversions: 5, approvedEarnings: 0 },
+    { partnerId: 'VED-PTR-C', fullName: 'Gamma', approvedConversions: 3, approvedEarnings: 3000 },
   ]).map(row => [row.rank, row.partnerId]), [
     [1, 'VED-PTR-A'], [1, 'VED-PTR-B'], [1, 'VED-PTR-Z'], [4, 'VED-PTR-C'],
   ]);

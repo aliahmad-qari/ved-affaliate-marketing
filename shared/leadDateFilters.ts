@@ -1,5 +1,5 @@
-// Existing timestamps stay in UTC; calendar controls represent Indian business days.
-export const LEAD_FILTER_TIMEZONE = 'Asia/Kolkata';
+// Stored timestamps and report calendar boundaries use UTC.
+export const LEAD_FILTER_TIMEZONE = 'UTC';
 export interface LeadDateFilters { startDate: string; endDate: string; month: string; year: string; }
 export const emptyLeadDateFilters: LeadDateFilters = { startDate: '', endDate: '', month: '', year: '' };
 const invalid = (message: string): never => { throw Object.assign(new Error(message), { status: 400 }); };
@@ -8,7 +8,7 @@ function calendarDay(value: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return invalid('Invalid calendar date.');
   const date = new Date(`${value}T00:00:00.000Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return invalid('Invalid calendar date.');
-  return date.getTime() - 330 * 60000;
+  return date.getTime();
 }
 
 export function leadDateQuery(input: Record<string, unknown>): { $gte?: Date; $lt?: Date; $lte?: Date } | undefined {

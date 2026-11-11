@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { Partner } from '../models/Partner.ts';
 import { Campaign } from '../models/Campaign.ts';
 import { Lead } from '../models/Lead.ts';
+import { TrackingClick } from '../models/TrackingClick.ts';
 import { WalletTransaction } from '../models/WalletTransaction.ts';
 import { buildAdminLeadQuery } from '../services/adminLeadQuery.ts';
 import { createAdminLeadWorkbook } from '../services/adminLeadWorkbook.ts';
@@ -76,11 +77,28 @@ export const exportAdminCampaignWorkbook = async (req: Request, res: Response, n
   try {
     const query = await buildAdminLeadQuery(req.query as Record<string, unknown>);
     const leads: any[] = await Lead.find(query)
-      .select('leadId campaignName partnerId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason')
+      .select('leadId campaignName partnerId campaignId vendorClickId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason')
       .sort({ createdAt: -1, _id: 1 })
       .lean()
       .exec();
-    const workbook = createAdminLeadWorkbook(leads);
+    const clickIds = [...new Set(leads.map(lead => String(lead.vendorClickId || '')).filter(Boolean))];
+    const clicks: any[] = clickIds.length ? await TrackingClick.find({ clickId: { $in: clickIds } })
+      .select('clickId partnerId campaignId campaignSlug trackingLink').lean().exec() : [];
+    const leadByClick = new Map(leads.filter(lead => lead.vendorClickId).map(lead => [String(lead.vendorClickId), lead]));
+    const trackingLinks = new Map<string, string>();
+    for (const click of clicks) {
+      const lead = leadByClick.get(String(click.clickId));
+      const campaignMatches = lead && (String(lead.campaignId) === String(click.campaignId)
+        || String(lead.campaignId) === String(click.campaignSlug));
+      if (lead && campaignMatches && String(lead.partnerId).toUpperCase() === String(click.partnerId).toUpperCase()
+        && typeof click.trackingLink === 'string' && click.trackingLink.trim()) {
+        trackingLinks.set(String(click.clickId), click.trackingLink);
+      }
+    }
+    const workbook = createAdminLeadWorkbook(leads.map(lead => ({
+      ...lead,
+      trackingLink: lead.vendorClickId ? trackingLinks.get(String(lead.vendorClickId)) || '' : '',
+    })));
     const workbookBuffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="ved-leads-' + new Date().toISOString().slice(0, 10) + '.xlsx"');

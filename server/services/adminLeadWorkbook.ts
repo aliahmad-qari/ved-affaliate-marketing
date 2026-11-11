@@ -11,6 +11,7 @@ export const ADMIN_LEAD_EXPORT_COLUMNS = [
   { header: 'Created At', key: 'createdAt', width: 25 },
   { header: 'Approved At', key: 'approvedAt', width: 25 },
   { header: 'Rejection Reason', key: 'rejectionReason', width: 40 },
+  { header: 'Tracking Link', key: 'trackingLink', width: 60 },
 ] as const;
 
 function safeSpreadsheetText(value: unknown): string {
@@ -47,6 +48,7 @@ export function createAdminLeadWorkbook(leads: Record<string, unknown>[]): Excel
       createdAt: timestamp(lead.createdAt),
       approvedAt: timestamp(lead.approvedAt),
       rejectionReason: safeSpreadsheetText(lead.rejectionReason),
+      trackingLink: safeSpreadsheetText(lead.trackingLink),
     });
   }
   return workbook;

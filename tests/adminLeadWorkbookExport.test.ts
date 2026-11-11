@@ -8,19 +8,20 @@ import { AdminUser } from '../server/models/AdminUser.ts';
 import { Campaign } from '../server/models/Campaign.ts';
 import { Lead } from '../server/models/Lead.ts';
 import { Partner } from '../server/models/Partner.ts';
+import { TrackingClick } from '../server/models/TrackingClick.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { ADMIN_LEAD_EXPORT_COLUMNS, createAdminLeadWorkbook } from '../server/services/adminLeadWorkbook.ts';
 
 const expectedHeaders = [
   'Lead ID', 'Campaign Name', 'Partner ID', 'Customer Name', 'Mobile Number',
-  'Status', 'Payout Snapshot', 'Created At', 'Approved At', 'Rejection Reason',
+  'Status', 'Payout Snapshot', 'Created At', 'Approved At', 'Rejection Reason', 'Tracking Link',
 ];
 
 test('lead workbook has the exact single-sheet structure, exact ordered headers, blank missing values, and safe text cells', async () => {
   assert.deepEqual(ADMIN_LEAD_EXPORT_COLUMNS.map(column => column.header), expectedHeaders);
   const workbook = createAdminLeadWorkbook([
     { leadId: 'L-1', campaignName: 'Campaign', partnerId: 'PTR-1', status: 'PENDING', payoutSnapshot: undefined },
-    { leadId: 'L-2', campaignName: 'Campaign', partnerId: '+SUM(A1:A2)', clientName: '=HYPERLINK("https://bad.example")', clientMobile: '\t@SUM(A1:A2)', status: 'APPROVED', payoutSnapshot: 125.5, createdAt: new Date('2026-10-01T12:34:56.000Z'), approvedAt: new Date('2026-10-02T01:02:03.000Z'), rejectionReason: '-2+3' },
+    { leadId: 'L-2', campaignName: 'Campaign', partnerId: '+SUM(A1:A2)', clientName: '=HYPERLINK("https://bad.example")', clientMobile: '\t@SUM(A1:A2)', status: 'APPROVED', payoutSnapshot: 125.5, createdAt: new Date('2026-10-01T12:34:56.000Z'), approvedAt: new Date('2026-10-02T01:02:03.000Z'), rejectionReason: '-2+3', trackingLink: '=HYPERLINK("https://bad.example")' },
   ]);
   const buffer = await workbook.xlsx.writeBuffer();
   const parsed = new ExcelJS.Workbook();
@@ -36,6 +37,7 @@ test('lead workbook has the exact single-sheet structure, exact ordered headers,
   assert.equal(sheet.getRow(2).getCell(8).value, '');
   assert.equal(sheet.getRow(2).getCell(9).value, '');
   assert.equal(sheet.getRow(2).getCell(10).value, '');
+  assert.equal(sheet.getRow(2).getCell(11).value, '');
   assert.equal(sheet.getRow(3).getCell(3).value, "'+SUM(A1:A2)");
   assert.equal(sheet.getRow(3).getCell(4).value, "'=HYPERLINK(\"https://bad.example\")");
   assert.equal(sheet.getRow(3).getCell(5).value, "'\t@SUM(A1:A2)");
@@ -43,6 +45,7 @@ test('lead workbook has the exact single-sheet structure, exact ordered headers,
   assert.equal(sheet.getRow(3).getCell(8).value, '2026-10-01T12:34:56.000Z');
   assert.equal(sheet.getRow(3).getCell(9).value, '2026-10-02T01:02:03.000Z');
   assert.equal(sheet.getRow(3).getCell(10).value, "'-2+3");
+  assert.equal(sheet.getRow(3).getCell(11).value, "'=HYPERLINK(\"https://bad.example\")");
   for (const row of [2, 3]) for (let column = 1; column <= expectedHeaders.length; column++) {
     assert.notEqual(sheet.getRow(row).getCell(column).type, ExcelJS.ValueType.Formula);
   }
@@ -63,6 +66,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
   const leads = Array.from({ length: 120 }, (_, index) => ({
     _id: `lead-${index}`,
     leadId: index === 1 ? 'needle-formula-row' : `LEAD-${index}`,
+    ...(index === 1 ? { vendorClickId: 'click-export-1' } : {}),
     campaignId: 'angel-one',
     campaignName: 'Angel One',
     partnerId: `PTR-${index}`,
@@ -80,10 +84,10 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     { ...leads[0], leadId: 'OTHER-CAMPAIGN', campaignId: 'different-campaign' },
     { ...leads[0], leadId: 'OTHER-SEARCH', clientName: 'unmatched' },
   );
-  const queryState: { query?: Record<string, any>; select?: string; paginated: boolean } = { paginated: false };
+  const queryState: { query?: Record<string, any>; selects: string[]; paginated: boolean; clickQuery?: any } = { selects: [], paginated: false };
   const queryChain = (execute: () => unknown) => {
     const chain: any = {
-      select(value: string) { queryState.select = value; return chain; },
+      select(value: string) { queryState.selects.push(value); return chain; },
       sort() { return chain; },
       skip() { queryState.paginated = true; return chain; },
       limit() { queryState.paginated = true; return chain; },
@@ -111,6 +115,10 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     queryState.query = query;
     return queryChain(() => leads.filter(lead => matches(lead, query)));
   });
+  t.mock.method(TrackingClick, 'find', (query: any) => {
+    queryState.clickQuery = query;
+    return queryChain(() => [{ clickId: 'click-export-1', partnerId: 'PTR-1', campaignId, campaignSlug: 'angel-one', trackingLink: 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token' }]);
+  });
 
   const app = createApp().listen(0, '127.0.0.1');
   await once(app, 'listening');
@@ -124,7 +132,9 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     const response = await fetch(base + url, { headers: { Authorization: `Bearer ${adminToken}` } });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    assert.equal(queryState.select, 'leadId campaignName partnerId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason');
+    assert.ok(queryState.selects.includes('leadId campaignName partnerId campaignId vendorClickId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason'));
+    assert.ok(queryState.selects.includes('clickId partnerId campaignId campaignSlug trackingLink'));
+    assert.deepEqual(queryState.clickQuery, { clickId: { $in: ['click-export-1'] } });
     assert.equal(queryState.paginated, false);
     assert.equal(queryState.query?.status, 'APPROVED');
     assert.deepEqual(queryState.query?.campaignId, { $in: [campaignId, 'angel-one'] });
@@ -140,6 +150,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     assert.equal(sheet.getRow(2).getCell(9).value, '');
     assert.equal(sheet.getRow(3).getCell(4).value, "'=HYPERLINK(\"x\")");
     assert.equal(sheet.getRow(3).getCell(5).value, "'+91 9876543210");
+    assert.equal(sheet.getRow(3).getCell(11).value, 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token');
 
     const empty = await fetch(base + '/admin/reports/campaign-report.xlsx?campaignId=angel-one&status=PAID', { headers: { Authorization: `Bearer ${adminToken}` } });
     assert.equal(empty.status, 200);

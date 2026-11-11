@@ -16,12 +16,12 @@ function safeCell(value: unknown): string {
   return /^[\s\u0000-\u001f]*[=+\-@]/.test(text) ? `'${text}` : text;
 }
 
-function istDate(value: unknown): Date | undefined {
+function utcDate(value: unknown): Date | undefined {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const [year, month, day] = value.split('-').map(Number);
   const calendar = new Date(Date.UTC(year, month - 1, day));
   if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) return undefined;
-  const date = new Date(Date.UTC(year, month - 1, day) - 330 * 60_000);
+  const date = new Date(Date.UTC(year, month - 1, day));
   return Number.isFinite(date.getTime()) ? date : undefined;
 }
 
@@ -33,8 +33,8 @@ export function buildAdminClickReportFilter(query: Request['query']) {
     filter.$or = [{ campaignId: campaign }, { campaignSlug: campaign }];
   }
   if (typeof query.clickId === 'string' && query.clickId.trim()) filter.clickId = query.clickId.trim().slice(0, 80);
-  const start = istDate(query.startDate as string);
-  const end = istDate(query.endDate as string);
+  const start = utcDate(query.startDate as string);
+  const end = utcDate(query.endDate as string);
   if ((query.startDate && !start) || (query.endDate && !end) || (start && end && start > end)) {
     throw Object.assign(new Error('Use valid YYYY-MM-DD date filters.'), { status: 400 });
   }
@@ -47,10 +47,10 @@ export function buildAdminClickReportFilter(query: Request['query']) {
 }
 
 function formatClickDate(value: Date) {
-  return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric' }).format(value);
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(value);
 }
 function formatClickTime(value: Date) {
-  return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(value);
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(value);
 }
 
 async function reportRows(req: Request): Promise<Record<string, string>[]> {

@@ -7,12 +7,14 @@ export interface PublicStats {
   liveCampaigns: number;
   activePartners: number;
   approvedLeads: number;
+  approvedPayout: number;
 }
 
 export interface PublicSuccessfulLeadPartner {
   partnerName: string;
   rank: number;
   approvedConversions: number;
+  approvedEarnings: number;
 }
 
 export interface PublicMonthlyLeaderboard {
@@ -25,11 +27,12 @@ export async function fetchPublicSuccessfulLeads(signal?: AbortSignal): Promise<
   const response = await safeFetch(`${API_BASE}/api/public/successful-leads`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error('Unable to fetch public successful leads.');
   const result = await response.json();
-  if (!result.success || typeof result.data?.monthKey !== 'string' || result.data.timeZone !== 'Asia/Kolkata'
+  if (!result.success || typeof result.data?.monthKey !== 'string' || result.data.timeZone !== 'UTC'
     || !Array.isArray(result.data?.rankings) || result.data.rankings.length > 5 || result.data.rankings.some((row: any) =>
       typeof row.partnerName !== 'string' || !Number.isInteger(row.rank) || row.rank < 1
       || !Number.isInteger(row.approvedConversions) || row.approvedConversions < 0
-      || Object.keys(row).some(key => !['rank', 'partnerName', 'approvedConversions'].includes(key))
+      || typeof row.approvedEarnings !== 'number' || !Number.isFinite(row.approvedEarnings) || row.approvedEarnings < 0
+      || Object.keys(row).some(key => !['rank', 'partnerName', 'approvedConversions', 'approvedEarnings'].includes(key))
     )) throw new Error('Invalid public monthly leaderboard response.');
   return result.data as PublicMonthlyLeaderboard;
 }
@@ -41,7 +44,7 @@ export async function fetchPublicStats(signal?: AbortSignal): Promise<PublicStat
   });
   if (!response.ok) throw new Error('Unable to fetch homepage statistics.');
   const result = await response.json();
-  const fields: (keyof PublicStats)[] = ['liveCampaigns', 'activePartners', 'approvedLeads'];
+  const fields: (keyof PublicStats)[] = ['liveCampaigns', 'activePartners', 'approvedLeads', 'approvedPayout'];
   if (!result.success || !result.data || fields.some((field) =>
     typeof result.data[field] !== 'number' || !Number.isFinite(result.data[field]) || result.data[field] < 0
   )) throw new Error('Invalid homepage statistics response.');
