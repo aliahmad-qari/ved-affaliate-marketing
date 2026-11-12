@@ -10,6 +10,7 @@ import { generateTransactionId } from '../utils/idGenerator.ts';
 import { availableBalanceCents } from '../services/adminServices.ts';
 import { countAdminApprovedReferralLeads, findReferrer, issueReferralRewardAtThreshold } from '../services/referralReward.ts';
 import { leadDateQuery } from '../../shared/leadDateFilters.ts';
+import { calculatePercentagePayout, isEligiblePercentageCampaign, isValidPercentageRate } from '../../shared/percentagePayout.ts';
 
 const listOptions = (req: Request) => {
   const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
@@ -97,7 +98,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
   try {
     let updated: any;
     await session.withTransaction(async () => {
-      const lead: any = await Lead.findById(req.params.id).select('+payoutCommission.earningIdempotencyKey').session(session).exec();
+      const lead: any = await Lead.findById(req.params.id).select('+payoutCommission.earningIdempotencyKey +payoutCommission.eventKeys +payoutCommission.reportKey').session(session).exec();
       if (!lead) throw Object.assign(new Error('Lead not found.'), { status: 404 });
       if (lead.submittedData?.source === 'CUSTOMER_FORM' && lead.submittedData.processStatus === 'NOT_SUBMITTED' && target !== 'REJECTED') {
         throw Object.assign(new Error('Mark this enquiry In Process before verifying or approving it.'), { status: 409 });
@@ -107,12 +108,55 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
         PENDING: ['VERIFIED', 'APPROVED', 'REJECTED'],
         VERIFIED: ['APPROVED', 'REJECTED'],
       };
-      if (!allowed[lead.status]?.includes(target)) throw Object.assign(new Error(`Cannot change lead from ${lead.status} to ${target}.`), { status: 409 });
+      const percentage = lead.payoutTypeSnapshot === 'PERCENTAGE';
+      const existingCommissionState = lead.payoutCommission?.state;
+      const completingApprovedPercentage = target === 'APPROVED' && percentage && lead.status === 'APPROVED'
+        && (!existingCommissionState || ['AWAITING_REVIEW', 'REPORT_REJECTED'].includes(existingCommissionState));
+      if (!allowed[lead.status]?.includes(target) && !completingApprovedPercentage) throw Object.assign(new Error(`Cannot change lead from ${lead.status} to ${target}.`), { status: 409 });
+
+      const previousStatus = lead.status;
+      let percentageApproval: { amount: number; calculatedAmount: number; earningIdempotencyKey: string } | undefined;
+      if (target === 'APPROVED' && percentage) {
+        const verifiedBaseAmount = req.body?.verifiedBaseAmount;
+        if (typeof verifiedBaseAmount !== 'number' || !Number.isFinite(verifiedBaseAmount) || verifiedBaseAmount <= 0
+          || Math.abs(verifiedBaseAmount * 100 - Math.round(verifiedBaseAmount * 100)) >= 1e-6) {
+          throw Object.assign(new Error('Enter a confirmed Loan disbursement or Insurance premium amount greater than zero, with no more than two decimal places.'), { status: 400 });
+        }
+        if (!lead.payoutBasisSnapshot || !isEligiblePercentageCampaign({ campaignType: lead.campaignType, payoutBasis: lead.payoutBasisSnapshot })
+          || !isValidPercentageRate(lead.payoutRateSnapshot)) {
+          throw Object.assign(new Error('This lead has no valid frozen Loan/Insurance percentage configuration; approval cannot calculate a commission.'), { status: 409 });
+        }
+        if (lead.payoutBasisSnapshot === 'INSURANCE_ELIGIBLE_PREMIUM'
+          && (!String(lead.payoutEligibilitySnapshot?.eligibility || '').trim() || !String(lead.payoutTermsSnapshot || '').trim())) {
+          throw Object.assign(new Error('Campaign-approved eligible premium terms are missing; no Insurance commission can be calculated.'), { status: 409 });
+        }
+        const existingState = lead.payoutCommission?.state;
+        if (['PENDING', 'AVAILABLE', 'REVERSED'].includes(existingState)) {
+          throw Object.assign(new Error('A commission has already been calculated for this lead; repeated approval cannot change its financial total.'), { status: 409 });
+        }
+        const calculatedAmount = calculatePercentagePayout(verifiedBaseAmount, Number(lead.payoutRateSnapshot));
+        const earningIdempotencyKey = `LEAD_EARNING:${lead._id}:PERCENTAGE_APPROVAL`;
+        const priorCommission = lead.payoutCommission?.toObject?.() ?? lead.payoutCommission;
+        const history = [...(priorCommission?.history || [])];
+        if (priorCommission) history.push({
+          action: 'PRIOR_PERCENTAGE_REPORT_RETAINED_DURING_ADMIN_APPROVAL', adminId: String(req.user._id), at: new Date(),
+          snapshot: { state: priorCommission.state, source: priorCommission.source, reportedBaseAmount: priorCommission.reportedBaseAmount, advertiserName: priorCommission.advertiserName, advertiserReference: priorCommission.advertiserReference, reportReference: priorCommission.reportReference, reportDate: priorCommission.reportDate, evidenceReference: priorCommission.evidenceReference, verificationDetails: priorCommission.verificationDetails },
+          reportKey: priorCommission.reportKey,
+        });
+        history.push({ action: 'ADMIN_APPROVED_PERCENTAGE_COMMISSION', adminId: String(req.user._id), at: new Date(), snapshot: { verifiedBaseAmount, payoutBasis: lead.payoutBasisSnapshot, ratePercent: lead.payoutRateSnapshot, calculatedAmount } });
+        const eventKeys = [...new Set(priorCommission?.eventKeys || [])];
+        lead.payoutCommission = {
+          state: 'PENDING', verifiedBaseAmount, calculatedAmount, verifiedBy: String(req.user._id), verifiedAt: new Date(),
+          earningIdempotencyKey, ...(eventKeys.length ? { eventKeys } : {}), history,
+        };
+        lead.payoutSnapshot = calculatedAmount;
+        percentageApproval = { amount: verifiedBaseAmount, calculatedAmount, earningIdempotencyKey };
+      }
       lead.status = target;
       lead.reviewedBy = String(req.user._id);
       lead.reviewNote = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 2000) : '';
       if (target === 'VERIFIED') lead.verifiedAt = new Date();
-      if (target === 'APPROVED') lead.approvedAt = new Date();
+      if (target === 'APPROVED' && previousStatus !== 'APPROVED') lead.approvedAt = new Date();
       if (target === 'REJECTED') {
         lead.rejectedAt = new Date();
         lead.rejectionReason = rejectionReason;
@@ -121,7 +165,24 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       await lead.save({ session });
 
       if (target === 'APPROVED') {
-        if (lead.payoutTypeSnapshot !== 'PERCENTAGE') {
+        if (percentageApproval) {
+          const existingEarning: any = await WalletTransaction.findOne({ idempotencyKey: percentageApproval.earningIdempotencyKey }).session(session).exec();
+          if (existingEarning && (existingEarning.type !== 'LEAD_EARNING' || existingEarning.partnerId !== lead.partnerId
+            || existingEarning.referenceId !== String(lead._id) || existingEarning.status !== 'PENDING'
+            || Math.round(Number(existingEarning.amount) * 100) !== Math.round(percentageApproval.calculatedAmount * 100))) {
+            throw Object.assign(new Error('A conflicting commission ledger entry exists; no approval or balance change was made.'), { status: 409 });
+          }
+          await WalletTransaction.updateOne(
+            { idempotencyKey: percentageApproval.earningIdempotencyKey },
+            { $setOnInsert: {
+              transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
+              amount: percentageApproval.calculatedAmount, status: 'PENDING', referenceType: 'LEAD',
+              referenceId: String(lead._id), description: `Admin-approved percentage commission awaiting advertiser receipt for ${lead.leadId}`,
+              idempotencyKey: percentageApproval.earningIdempotencyKey, processedBy: String(req.user._id),
+            } },
+            { upsert: true, session, runValidators: true },
+          );
+        } else if (lead.payoutTypeSnapshot !== 'PERCENTAGE') {
           await WalletTransaction.updateOne(
             { idempotencyKey: `LEAD_EARNING:${lead._id}` },
             { $setOnInsert: {
@@ -134,33 +195,35 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
           );
         }
 
-        const referrerPartnerId = await findReferrer(lead.partnerId, session);
-        if (referrerPartnerId) {
-          const approvedCount = await countAdminApprovedReferralLeads(lead.partnerId, session);
-          await issueReferralRewardAtThreshold({
-            referredPartnerId: lead.partnerId,
-            referrerPartnerId,
-            approvedLeadCount: approvedCount,
-            adminId: String(req.user._id),
-            adminEmail: String(req.user.email || ''),
-            ipAddress: req.ip,
-            session,
-          });
+        if (previousStatus !== 'APPROVED') {
+          const referrerPartnerId = await findReferrer(lead.partnerId, session);
+          if (referrerPartnerId) {
+            const approvedCount = await countAdminApprovedReferralLeads(lead.partnerId, session);
+            await issueReferralRewardAtThreshold({
+              referredPartnerId: lead.partnerId,
+              referrerPartnerId,
+              approvedLeadCount: approvedCount,
+              adminId: String(req.user._id),
+              adminEmail: String(req.user.email || ''),
+              ipAddress: req.ip,
+              session,
+            });
+          }
         }
       }
 
-      await Notification.create([{
-        partnerId: lead.partnerId,
-        type: target === 'APPROVED' ? 'PAYMENT_UPDATE' : 'LEAD_UPDATE',
-        title: target === 'APPROVED' ? 'Lead approved' : `Lead ${target.toLowerCase()}`,
-        message: target === 'REJECTED' ? `Lead ${lead.leadId} was rejected: ${rejectionReason}` : `Lead ${lead.leadId} is now ${target.toLowerCase()}.`,
-        referenceType: 'LEAD', referenceId: String(lead._id),
-        dedupeKey: `LEAD_STATUS:${lead._id}:${target}`,
-      }], { session });
+      if (previousStatus !== target) await Notification.create([{
+          partnerId: lead.partnerId,
+          type: target === 'APPROVED' ? 'PAYMENT_UPDATE' : 'LEAD_UPDATE',
+          title: target === 'APPROVED' ? 'Lead approved' : `Lead ${target.toLowerCase()}`,
+          message: target === 'REJECTED' ? `Lead ${lead.leadId} was rejected: ${rejectionReason}` : `Lead ${lead.leadId} is now ${target.toLowerCase()}.`,
+          referenceType: 'LEAD', referenceId: String(lead._id),
+          dedupeKey: `LEAD_STATUS:${lead._id}:${target}`,
+        }], { session });
       await AuditLog.create([{
         adminId: String(req.user._id), adminEmail: req.user.email, action: `LEAD_${target}`,
         entityType: 'Lead', entityId: String(lead._id), before,
-        after: { status: target, payoutSnapshot: lead.payoutSnapshot, rejectionReason: lead.rejectionReason, rejectionReasonCode: lead.rejectionReasonCode }, ipAddress: req.ip,
+        after: { status: target, payoutSnapshot: lead.payoutSnapshot, ...(percentageApproval ? { verifiedBaseAmount: percentageApproval.amount, payoutRateSnapshot: lead.payoutRateSnapshot, calculatedAmount: percentageApproval.calculatedAmount, commissionState: 'PENDING' } : {}), rejectionReason: lead.rejectionReason, rejectionReasonCode: lead.rejectionReasonCode }, ipAddress: req.ip,
       }], { session });
       updated = lead.toJSON();
     });
