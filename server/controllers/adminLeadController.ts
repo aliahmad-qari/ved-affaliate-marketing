@@ -146,7 +146,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
         history.push({ action: 'ADMIN_APPROVED_PERCENTAGE_COMMISSION', adminId: String(req.user._id), at: new Date(), snapshot: { verifiedBaseAmount, payoutBasis: lead.payoutBasisSnapshot, ratePercent: lead.payoutRateSnapshot, calculatedAmount } });
         const eventKeys = [...new Set(priorCommission?.eventKeys || [])];
         lead.payoutCommission = {
-          state: 'PENDING', verifiedBaseAmount, calculatedAmount, verifiedBy: String(req.user._id), verifiedAt: new Date(),
+          state: 'AVAILABLE', verifiedBaseAmount, calculatedAmount, verifiedBy: String(req.user._id), verifiedAt: new Date(),
           earningIdempotencyKey, ...(eventKeys.length ? { eventKeys } : {}), history,
         };
         lead.payoutSnapshot = calculatedAmount;
@@ -167,17 +167,17 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       if (target === 'APPROVED') {
         if (percentageApproval) {
           const existingEarning: any = await WalletTransaction.findOne({ idempotencyKey: percentageApproval.earningIdempotencyKey }).session(session).exec();
-          if (existingEarning && (existingEarning.type !== 'LEAD_EARNING' || existingEarning.partnerId !== lead.partnerId
-            || existingEarning.referenceId !== String(lead._id) || existingEarning.status !== 'PENDING'
-            || Math.round(Number(existingEarning.amount) * 100) !== Math.round(percentageApproval.calculatedAmount * 100))) {
+          // An existing earning means this lead already has ledger history. Never
+          // promote or rewrite it as part of a fresh approval; fail closed instead.
+          if (existingEarning) {
             throw Object.assign(new Error('A conflicting commission ledger entry exists; no approval or balance change was made.'), { status: 409 });
           }
           await WalletTransaction.updateOne(
             { idempotencyKey: percentageApproval.earningIdempotencyKey },
             { $setOnInsert: {
               transactionId: generateTransactionId(), partnerId: lead.partnerId, type: 'LEAD_EARNING',
-              amount: percentageApproval.calculatedAmount, status: 'PENDING', referenceType: 'LEAD',
-              referenceId: String(lead._id), description: `Admin-approved percentage commission awaiting advertiser receipt for ${lead.leadId}`,
+              amount: percentageApproval.calculatedAmount, status: 'AVAILABLE', referenceType: 'LEAD',
+              referenceId: String(lead._id), description: `Admin-approved percentage commission available for ${lead.leadId}`,
               idempotencyKey: percentageApproval.earningIdempotencyKey, processedBy: String(req.user._id),
             } },
             { upsert: true, session, runValidators: true },
@@ -223,7 +223,7 @@ export const reviewAdminLead = async (req: Request, res: Response, next: NextFun
       await AuditLog.create([{
         adminId: String(req.user._id), adminEmail: req.user.email, action: `LEAD_${target}`,
         entityType: 'Lead', entityId: String(lead._id), before,
-        after: { status: target, payoutSnapshot: lead.payoutSnapshot, ...(percentageApproval ? { verifiedBaseAmount: percentageApproval.amount, payoutRateSnapshot: lead.payoutRateSnapshot, calculatedAmount: percentageApproval.calculatedAmount, commissionState: 'PENDING' } : {}), rejectionReason: lead.rejectionReason, rejectionReasonCode: lead.rejectionReasonCode }, ipAddress: req.ip,
+        after: { status: target, payoutSnapshot: lead.payoutSnapshot, ...(percentageApproval ? { verifiedBaseAmount: percentageApproval.amount, payoutRateSnapshot: lead.payoutRateSnapshot, calculatedAmount: percentageApproval.calculatedAmount, commissionState: 'AVAILABLE' } : {}), rejectionReason: lead.rejectionReason, rejectionReasonCode: lead.rejectionReasonCode }, ipAddress: req.ip,
       }], { session });
       updated = lead.toJSON();
     });
