@@ -12,14 +12,18 @@ import { AuditLog } from '../server/models/AuditLog.ts';
 import { Notification } from '../server/models/Notification.ts';
 import { signToken } from '../server/utils/jwt.ts';
 import { AdminOverview } from '../src/components/admin/AdminOverview.tsx';
+import { emptyLeadDateFilters } from '../shared/leadDateFilters.ts';
 import { AdminWithdrawals, defaultWithdrawalFilters } from '../src/components/admin/AdminWithdrawals.tsx';
 
 test('overview uses real totals and loading placeholders without invented trends', () => {
-  const html = renderToStaticMarkup(<AdminOverview metrics={{ totalPartners: 15, activePartners: 12, totalLeads: 19, approvedLeads: 9, pendingLeads: 7, totalEarnings: 2310, pendingPayout: 1310, paidPayout: 1000, withdrawalRequests: 0 }} onSelect={() => {}} />);
+  const html = renderToStaticMarkup(<AdminOverview metrics={{ totalPartners: 15, activePartners: 12, totalLeads: 19, approvedLeads: 9, pendingLeads: 7, totalEarnings: 2310, pendingPayout: 1310, paidPayout: 1000, withdrawalRequests: 0 }} onSelect={() => {}} dateFilters={emptyLeadDateFilters} onDateFilters={() => {}} onApplyFilters={() => {}} onResetFilters={() => {}} />);
   assert.ok(html.includes('₹2,310.00') && html.includes('Withdrawal Requests'));
-  assert.equal((html.match(/<button/g) || []).length, 9);
+  assert.equal((html.match(/<button/g) || []).length, 11, 'nine metric cards plus Overview Apply and Reset controls render');
   assert.ok(!html.includes('last 7 days') && !html.includes('OTP') && !html.includes('+12%'));
-  assert.ok(renderToStaticMarkup(<AdminOverview metrics={null} onSelect={() => {}} />).includes('—'));
+  assert.ok(renderToStaticMarkup(<AdminOverview metrics={null} onSelect={() => {}} dateFilters={emptyLeadDateFilters} onDateFilters={() => {}} onApplyFilters={() => {}} onResetFilters={() => {}} />).includes('—'));
+  const filters = renderToStaticMarkup(<AdminOverview metrics={null} onSelect={() => {}} dateFilters={{ startDate: '2026-11-01', endDate: '', month: '11', year: '2026' }} onDateFilters={() => {}} onApplyFilters={() => {}} onResetFilters={() => {}} />);
+  assert.ok(filters.includes('From Date') && filters.includes('To Date') && filters.includes('Month') && filters.includes('Year') && filters.includes('Apply') && filters.includes('Reset'));
+  assert.ok(filters.includes('Filtered reporting period · UTC'));
 });
 
 test('withdrawals render responsive layouts, filters and status-appropriate actions', () => {

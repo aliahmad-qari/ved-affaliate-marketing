@@ -9,6 +9,7 @@ import { Notification } from '../models/Notification.ts';
 import { generateTransactionId } from '../utils/idGenerator.ts';
 import { availableBalanceCents } from '../services/adminServices.ts';
 import { countAdminApprovedReferralLeads, findReferrer, issueReferralRewardAtThreshold } from '../services/referralReward.ts';
+import { leadDateQuery } from '../../shared/leadDateFilters.ts';
 
 const listOptions = (req: Request) => {
   const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
@@ -16,27 +17,29 @@ const listOptions = (req: Request) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
-export const getAdminDashboard = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getAdminDashboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const dateRange = leadDateQuery(req.query as Record<string, unknown>);
+    const createdAt = dateRange ? { createdAt: dateRange } : {};
     const [totalPartners, activePartners, totalLeads, approvedLeads, pendingLeads, payoutRows, withdrawalRequests] = await Promise.all([
-      Partner.countDocuments(),
-      Partner.countDocuments({ accountStatus: 'ACTIVE' }),
-      Lead.countDocuments(),
-      Lead.countDocuments({ status: { $in: ['APPROVED', 'PAID'] } }),
-      Lead.countDocuments({ status: { $in: ['PENDING', 'VERIFIED'] } }),
+      Partner.countDocuments(createdAt),
+      Partner.countDocuments({ ...createdAt, accountStatus: 'ACTIVE' }),
+      Lead.countDocuments(createdAt),
+      Lead.countDocuments({ ...createdAt, status: { $in: ['APPROVED', 'PAID'] } }),
+      Lead.countDocuments({ ...createdAt, status: { $in: ['PENDING', 'VERIFIED'] } }),
       Lead.aggregate([
-        { $match: { status: { $in: ['APPROVED', 'PAID'] }, $or: [{ payoutTypeSnapshot: { $ne: 'PERCENTAGE' } }, { payoutTypeSnapshot: 'PERCENTAGE', 'payoutCommission.state': 'AVAILABLE' }] } },
+        { $match: { ...createdAt, status: { $in: ['APPROVED', 'PAID'] }, $or: [{ payoutTypeSnapshot: { $ne: 'PERCENTAGE' } }, { payoutTypeSnapshot: 'PERCENTAGE', 'payoutCommission.state': 'AVAILABLE' }] } },
         { $group: { _id: '$status', amount: { $sum: '$payoutSnapshot' } } },
       ]),
-      WalletTransaction.countDocuments({ type: 'WITHDRAWAL', status: { $in: ['PENDING', 'PROCESSING', 'APPROVED'] } }),
+      WalletTransaction.countDocuments({ ...createdAt, type: 'WITHDRAWAL', status: { $in: ['PENDING', 'PROCESSING', 'APPROVED'] } }),
     ]);
     const payouts = Object.fromEntries(payoutRows.map((row: any) => [row._id, row.amount]));
     const pendingWithdrawalRows = await WalletTransaction.aggregate([
-      { $match: { type: 'WITHDRAWAL', status: { $in: ['PENDING', 'PROCESSING', 'APPROVED'] } } },
+      { $match: { ...createdAt, type: 'WITHDRAWAL', status: { $in: ['PENDING', 'PROCESSING', 'APPROVED'] } } },
       { $group: { _id: null, amount: { $sum: '$amount' } } },
     ]);
     const paidWithdrawalRows = await WalletTransaction.aggregate([
-      { $match: { type: 'WITHDRAWAL', status: { $in: ['PAID', 'PROCESSED'] } } },
+      { $match: { ...createdAt, type: 'WITHDRAWAL', status: { $in: ['PAID', 'PROCESSED'] } } },
       { $group: { _id: null, amount: { $sum: '$amount' } } },
     ]);
     const paidWithdrawals = Number(paidWithdrawalRows[0]?.amount || 0);

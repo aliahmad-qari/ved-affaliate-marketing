@@ -46,6 +46,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   const [status, setStatus] = useState('ALL');
   const [leadCampaign, setLeadCampaign] = useState('ALL');
   const [leadDates, setLeadDates] = useState({ ...emptyLeadDateFilters });
+  const [overviewDates, setOverviewDates] = useState({ ...emptyLeadDateFilters });
   const [leadCampaigns, setLeadCampaigns] = useState<any[]>([]);
   const [ledgerPartner, setLedgerPartner] = useState<any>(null);
   const [error, setError] = useState('');
@@ -83,11 +84,12 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
         if (!reset && status !== 'ALL') query.set('status', status);
         if (!reset && target === 'leads' && leadCampaign !== 'ALL') query.set('campaignId', leadCampaign);
         if (!reset && target === 'leads') for (const [key, value] of Object.entries(leadDates)) if (value) query.set(key, value);
-        query.set('page', String(reset ? 1 : requestedPage));
+        if (!reset && target === 'overview') for (const [key, value] of Object.entries(overviewDates)) if (value) query.set(key, value);
+        if (target !== 'overview') query.set('page', String(reset ? 1 : requestedPage));
       }
       const suffix = query.size ? `?${query}` : '';
       const paths: Record<AdminTab, string> = {
-        overview: '/admin/dashboard', campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`, leaderboard: `/admin/monthly-leaderboard?month=${monthKeyInTimeZone()}`,
+        overview: `/admin/dashboard${suffix}`, campaigns: '/admin/campaigns', partners: `/admin/partners${suffix}`, referrals: `/admin/referrals${suffix}`, leaderboard: `/admin/monthly-leaderboard?month=${monthKeyInTimeZone()}`,
         leads: `/admin/leads${suffix}`, withdrawals: `/admin/withdrawals${suffix}`, support: `/admin/support${suffix}`,
         announcements: '/admin/announcements', notifications: '/admin/notifications', reports: '/admin/campaigns',
         settings: '/admin/settings', audit: '/admin/audit',
@@ -256,7 +258,7 @@ export const AdminPage: React.FC<{ route: string; onNavigate: (route: string) =>
   };
 
   const content = () => {
-    if (tab === 'overview') return <AdminOverview metrics={data} onSelect={(target) => selectTab(target as AdminTab)} />;
+    if (tab === 'overview') return <AdminOverview metrics={data} onSelect={(target) => selectTab(target as AdminTab)} dateFilters={overviewDates} onDateFilters={setOverviewDates} onApplyFilters={() => void load('overview')} onResetFilters={() => { setOverviewDates({ ...emptyLeadDateFilters }); void load('overview', true, 1); }} />;
     if (tab === 'leaderboard') return <AdminMonthlyLeaderboard />;
     if (tab === 'campaigns') return <div className="space-y-5">
       <form onSubmit={saveCampaign} className="grid gap-4 border border-[#D4AF37]/20 bg-gradient-to-br from-[#0B1325]/80 to-[#070B14]/80 p-5 sm:grid-cols-2 rounded-xl backdrop-blur-sm">

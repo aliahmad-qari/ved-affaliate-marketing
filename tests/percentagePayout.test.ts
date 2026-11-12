@@ -101,6 +101,7 @@ test('MIS verification and single-lead receipt are separate, idempotent admin-ga
   };
   const duplicateEventLead: any = { ...lead, _id: 'other-lead-doc', leadId: 'LEAD-2', partnerId: 'VED-PTR-2', payoutCommission: undefined, save: async () => { throw Object.assign(new Error('duplicate event key'), { code: 11000 }); } };
   const incompleteInsuranceLead: any = { ...lead, _id: 'insurance-lead-doc', campaignId: 'insurance-1', campaignType: 'Insurance', payoutBasisSnapshot: 'INSURANCE_ELIGIBLE_PREMIUM', payoutTermsSnapshot: '', payoutEligibilitySnapshot: {}, payoutCommission: undefined, save: async () => {} };
+  const eligibleInsuranceLead: any = { ...lead, _id: 'insurance-valid-lead-doc', leadId: 'LEAD-INSURANCE', campaignId: 'insurance-valid-1', partnerId: 'VED-PTR-INSURANCE', campaignType: 'Insurance', payoutBasisSnapshot: 'INSURANCE_ELIGIBLE_PREMIUM', payoutRateSnapshot: 3, payoutTermsSnapshot: 'Campaign-agreed eligible premium rules', payoutEligibilitySnapshot: { eligibility: 'Eligible premium confirmed by insurer MIS' }, payoutCommission: undefined, save: async () => {} };
   const query = (value: any): any => {
     const q: any = { exec: async () => value, session: () => q, select: () => q };
     q.then = (resolve: any, reject: any) => q.exec().then(resolve, reject);
@@ -111,7 +112,7 @@ test('MIS verification and single-lead receipt are separate, idempotent admin-ga
   const auditRows: any[] = [];
   t.mock.method(AdminUser, 'findById', (id: string) => query({ _id: id, email: `${id}@example.test`, status: 'ACTIVE', toJSON: () => ({ email: `${id}@example.test` }) }));
   t.mock.method(PartnerStore, 'getSessionsInvalidatedAt', async () => null);
-  t.mock.method(Lead, 'findById', (id: string) => query(id === 'other-lead-doc' ? duplicateEventLead : id === 'insurance-lead-doc' ? incompleteInsuranceLead : lead));
+  t.mock.method(Lead, 'findById', (id: string) => query(id === 'other-lead-doc' ? duplicateEventLead : id === 'insurance-lead-doc' ? incompleteInsuranceLead : id === 'insurance-valid-lead-doc' ? eligibleInsuranceLead : lead));
   t.mock.method(WalletTransaction, 'findOne', () => query(null));
   t.mock.method(WalletTransaction, 'updateOne', (_filter: any, update: any) => { walletUpdates.push(update); return query({ acknowledged: true }); });
   const walletFilters: any[] = [];
@@ -137,6 +138,9 @@ test('MIS verification and single-lead receipt are separate, idempotent admin-ga
   const invalid = await request(`${endpoint}/evidence`, 'admin-a', { ...report, advertiserName: '', reportDate: '2026-02-30' });
   assert.equal(invalid.status, 400, 'company identity and a real calendar report date are required');
   assert.equal(lead.payoutCommission, undefined, 'invalid evidence does not mutate the lead');
+  const invalidAmount = await request(`${endpoint}/evidence`, 'admin-a', { ...report, reportedBaseAmount: 0 });
+  assert.equal(invalidAmount.status, 400, 'zero or missing verified base amounts cannot enter the commission workflow');
+  assert.equal(lead.payoutCommission, undefined, 'invalid financial values do not mutate the lead');
   const entered = await request(`${endpoint}/evidence`, 'admin-a', report);
   assert.equal(entered.status, 202);
   assert.equal(lead.payoutCommission.state, 'AWAITING_REVIEW');
@@ -152,45 +156,41 @@ test('MIS verification and single-lead receipt are separate, idempotent admin-ga
 
   const unchecked = await request(`${endpoint}/verify`, 'admin-b', { approvedMisReviewed: false });
   assert.equal(unchecked.status, 400, 'verification requires explicit evidence review');
-  const sameAdmin = await request(`${endpoint}/verify`, 'admin-a', { approvedMisReviewed: true });
-  assert.equal(sameAdmin.status, 409, 'the MIS submitter cannot verify their own entry');
+  const verified = await request(`${endpoint}/verify`, 'admin-a', { approvedMisReviewed: true });
+  assert.equal(verified.status, 200, 'the authorized MIS submitter can complete manual review without a second administrator');
+  assert.equal(lead.payoutCommission.state, 'PENDING');
+  assert.equal(lead.payoutCommission.verifiedBaseAmount, 100_000);
+  assert.ok(lead.payoutCommission.history.some((entry: any) => entry.action === 'MIS_REPORT_MANUALLY_VERIFIED' && entry.adminId === 'admin-a'), 'manual verification is retained in the lead audit history with the authorized actor');
+  assert.equal(lead.payoutSnapshot, 2500, 'the frozen 2.5 percent rate applies only to the verified loan disbursement amount');
+  assert.equal(walletUpdates[0].$setOnInsert.status, 'PENDING', 'manual verification remains non-withdrawable pending advertiser receipt');
+  const firstEarningKey = lead.payoutCommission.earningIdempotencyKey;
+  const duplicateFirstVerify = await request(`${endpoint}/verify`, 'admin-a', { approvedMisReviewed: true });
+  assert.equal(duplicateFirstVerify.status, 409, 'repeated manual verification cannot calculate or record the commission twice');
+  assert.equal(walletUpdates.length, 1, 'repeated verification creates no second earning ledger row');
   const rejected = await request(`${endpoint}/reject`, 'admin-b', { reason: 'Incorrect MIS row; corrected approved row will be entered.' });
   assert.equal(rejected.status, 200);
-  const corrected = await request(`${endpoint}/evidence`, 'admin-a', { ...report, reportReference: 'MIS-2', evidenceReference: 'vault/MIS-2', verificationDetails: 'Corrected approved MIS line' });
-  assert.equal(corrected.status, 202, 'corrected MIS data for the same advertiser event can be re-entered after rejection');
-  const verified = await request(`${endpoint}/verify`, 'admin-b', { approvedMisReviewed: true });
-  assert.equal(verified.status, 200);
-  assert.equal(lead.payoutCommission.state, 'PENDING');
-  assert.equal(lead.payoutCommission.verifiedBaseAmount, 100_000, 'only the independent verification stage promotes the reported amount');
-  assert.equal(lead.payoutSnapshot, 2500);
-  assert.equal(walletUpdates[0].$setOnInsert.status, 'PENDING');
-  const duplicateVerify = await request(`${endpoint}/verify`, 'admin-b', { approvedMisReviewed: true });
-  assert.equal(duplicateVerify.status, 409, 'verified commission cannot be calculated or recorded twice');
-  assert.equal(walletUpdates.length, 1, 'repeat verification does not issue another earning ledger write');
-  const firstEarningKey = lead.payoutCommission.earningIdempotencyKey;
-  const correction = await request(`${endpoint}/reject`, 'admin-c', { reason: 'Company report requires correction' });
-  assert.equal(correction.status, 200, 'a third admin can cancel a non-withdrawable pending commission for correction');
-  assert.equal(lead.payoutCommission.state, 'REPORT_REJECTED');
-  assert.equal(walletUpdates[1].$set.status, 'CANCELLED', 'the original pending ledger row is retained as cancelled');
-  assert.equal(walletFilters[0].idempotencyKey, firstEarningKey, 'correction cancels only the original report’s pending ledger row');
   const correctedReport = await request(`${endpoint}/evidence`, 'admin-a', { ...report, reportedBaseAmount: 90_000, reportReference: 'MIS-CORRECTED', evidenceReference: 'vault/MIS-CORRECTED' });
   assert.equal(correctedReport.status, 202);
   assert.notEqual(lead.payoutCommission.earningIdempotencyKey, firstEarningKey, 'correction gets a new idempotency identity while retaining the original row');
-  const reverified = await request(`${endpoint}/verify`, 'admin-b', { approvedMisReviewed: true });
-  assert.equal(reverified.status, 200);
+  assert.equal(lead.payoutCommission.state, 'AWAITING_REVIEW');
+  assert.equal(walletUpdates[1].$set.status, 'CANCELLED', 'the original pending ledger row is retained as cancelled');
+  assert.equal(walletFilters[0].idempotencyKey, firstEarningKey, 'correction cancels only the original report’s pending ledger row');
+  const finalVerified = await request(`${endpoint}/verify`, 'admin-a', { approvedMisReviewed: true });
+  assert.equal(finalVerified.status, 200);
   assert.equal(lead.payoutCommission.verifiedBaseAmount, 90_000);
-  assert.equal(lead.payoutCommission.calculatedAmount, 2250);
+  assert.equal(lead.payoutSnapshot, 2250);
   assert.equal(walletUpdates[2].$setOnInsert.status, 'PENDING');
+  const duplicateVerify = await request(`${endpoint}/verify`, 'admin-b', { approvedMisReviewed: true });
+  assert.equal(duplicateVerify.status, 409, 'verified commission cannot be calculated or recorded twice');
+  assert.equal(walletUpdates.length, 3, 'repeated verification does not issue another earning ledger write');
 
   const noAttestation = await request(`${endpoint}/confirm-receipt`, 'admin-c', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Receipt confirmed' });
   assert.equal(noAttestation.status, 400);
   const submitterReceipt = await request(`${endpoint}/confirm-receipt`, 'admin-a', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Receipt verified', fullSingleLeadReceipt: true });
-  assert.equal(submitterReceipt.status, 409, 'MIS submitter cannot confirm receipt');
-  const verifierReceipt = await request(`${endpoint}/confirm-receipt`, 'admin-b', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Receipt verified', fullSingleLeadReceipt: true });
-  assert.equal(verifierReceipt.status, 409, 'MIS verifier cannot confirm receipt');
+  assert.equal(submitterReceipt.status, 409, 'the administrator who entered and verified the MIS cannot confirm advertiser receipt');
   const receiptRequests = await Promise.all([
+    request(`${endpoint}/confirm-receipt`, 'admin-b', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Full single-lead receipt verified', fullSingleLeadReceipt: true }),
     request(`${endpoint}/confirm-receipt`, 'admin-c', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Full single-lead receipt verified', fullSingleLeadReceipt: true }),
-    request(`${endpoint}/confirm-receipt`, 'admin-d', { paymentReference: 'PAY-1', evidenceReference: 'vault/PAY-1', details: 'Full single-lead receipt verified', fullSingleLeadReceipt: true }),
   ]);
   assert.deepEqual(receiptRequests.map(response => response.status).sort(), [200, 409], 'concurrent receipt replays permit one release only');
   assert.equal(lead.payoutCommission.state, 'AVAILABLE');
@@ -202,4 +202,14 @@ test('MIS verification and single-lead receipt are separate, idempotent admin-ga
   assert.ok(auditRows.some(row => row.action === 'ADVERTISER_RECEIPT_CONFIRMED'));
   const replay = await request(`${endpoint}/confirm-receipt`, 'admin-e', { paymentReference: 'PAY-2', evidenceReference: 'vault/PAY-2', details: 'Replay', fullSingleLeadReceipt: true });
   assert.equal(replay.status, 409, 'available commission cannot be confirmed twice');
+
+  const insuranceReport = { ...report, reportedBaseAmount: 40_000, advertiserName: 'Approved Insurer', advertiserReference: 'INS-EVENT-1', reportReference: 'INS-MIS-1', evidenceReference: 'vault/INS-MIS-1', verificationDetails: 'Insurer-confirmed eligible premium' };
+  const insuranceEntered = await request(`${endpoint}/evidence`.replace('/lead-doc/', '/insurance-valid-lead-doc/'), 'admin-insurance', insuranceReport);
+  assert.equal(insuranceEntered.status, 202);
+  const insuranceVerified = await request(`${endpoint}/verify`.replace('/lead-doc/', '/insurance-valid-lead-doc/'), 'admin-insurance', { approvedMisReviewed: true });
+  assert.equal(insuranceVerified.status, 200, 'the same authorized administrator can manually verify eligible Insurance evidence');
+  assert.equal(eligibleInsuranceLead.payoutCommission.verifiedBaseAmount, 40_000);
+  assert.equal(eligibleInsuranceLead.payoutSnapshot, 1_200, '3 percent applies to the verified eligible premium');
+  assert.equal(eligibleInsuranceLead.payoutCommission.state, 'PENDING');
+  assert.equal(walletUpdates[4].$setOnInsert.status, 'PENDING', 'insurance commission remains non-withdrawable until advertiser receipt confirmation');
 });

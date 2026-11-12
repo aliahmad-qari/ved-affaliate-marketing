@@ -1,10 +1,13 @@
 import React from 'react';
 import { Users, UserCheck, ListChecks, BadgeCheck, Clock3, IndianRupee, Wallet, CreditCard, ArrowUpRight, ShieldCheck, LockKeyhole, FileCheck2 } from 'lucide-react';
+import { LeadDateFilters, LEAD_FILTER_TIMEZONE } from '../../../shared/leadDateFilters.ts';
+import { LeadDateFilterControls } from '../ui/LeadDateFilterControls.tsx';
 
-export const AdminOverview: React.FC<{ metrics: Record<string, number> | null; onSelect: (tab: string) => void }> = ({ metrics, onSelect }) => {
+export const AdminOverview: React.FC<{ metrics: Record<string, number> | null; onSelect: (tab: string) => void; dateFilters: LeadDateFilters; onDateFilters: (filters: LeadDateFilters) => void; onApplyFilters: () => void; onResetFilters: () => void }> = ({ metrics, onSelect, dateFilters, onDateFilters, onApplyFilters, onResetFilters }) => {
+  const filtered = Object.values(dateFilters).some(Boolean);
   const items = [
-    { label: 'Total Partners', key: 'totalPartners', icon: Users, color: '#10b981', bgColor: '#064e3b', target: 'partners', note: 'Registered partner accounts' },
-    { label: 'Active Partners', key: 'activePartners', icon: UserCheck, color: '#34d399', bgColor: '#065f46', target: 'partners', note: 'Accounts ready to promote' },
+    { label: filtered ? 'Partners Registered' : 'Total Partners', key: 'totalPartners', icon: Users, color: '#10b981', bgColor: '#064e3b', target: 'partners', note: filtered ? 'Partner accounts created in period' : 'Registered partner accounts' },
+    { label: filtered ? 'Active Partners Registered' : 'Active Partners', key: 'activePartners', icon: UserCheck, color: '#34d399', bgColor: '#065f46', target: 'partners', note: filtered ? 'Currently active accounts created in period' : 'Accounts ready to promote' },
     { label: 'Total Leads', key: 'totalLeads', icon: ListChecks, color: '#60a5fa', bgColor: '#1e3a8a', target: 'leads', note: 'All campaign submissions' },
     { label: 'Approved Leads', key: 'approvedLeads', icon: BadgeCheck, color: '#fbbf24', bgColor: '#78350f', target: 'leads', note: 'Approved and paid conversions' },
     { label: 'Pending Leads', key: 'pendingLeads', icon: Clock3, color: '#22d3ee', bgColor: '#164e63', target: 'leads', note: 'Awaiting review or approval' },
@@ -23,9 +26,11 @@ export const AdminOverview: React.FC<{ metrics: Record<string, number> | null; o
           <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC]">Platform Overview</h2>
         </div>
         <span className="rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-2 text-xs font-semibold text-[#D4AF37]">
-          Database totals · All time
+          {filtered ? `Filtered reporting period · ${LEAD_FILTER_TIMEZONE}` : 'Database totals · All time'}
         </span>
       </div>
+
+      <LeadDateFilterControls value={dateFilters} onChange={onDateFilters} onApply={onApplyFilters} onReset={onResetFilters} title="Overview reporting filters" description={`Filter overview records by created date · ${LEAD_FILTER_TIMEZONE}. Date and month/year filters combine.`} resetLabel="Reset" />
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 gap-4 min-[440px]:grid-cols-2 lg:grid-cols-3">

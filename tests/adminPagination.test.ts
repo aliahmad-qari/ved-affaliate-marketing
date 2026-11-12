@@ -12,7 +12,7 @@ const logic = source.slice(source.indexOf('  const load ='), source.indexOf('  u
   .replace('target: AdminTab, direction: number', 'target, direction');
 
 function harness(tab: string, page = 1) {
-  const state: any = { tab, pageNumbers: { [tab]: page }, data: { data: [], totalPages: 3 }, loading: false, busy: false, search: 'sample', status: 'PENDING', leadCampaign: 'campaign-1', leadDates: {}, withdrawalFilters: { page, search: '', status: 'ALL', paymentMethod: 'ALL' }, loadRequestId: { current: 0 }, activeTab: { current: tab }, calls: [], updates: [] };
+  const state: any = { tab, pageNumbers: { [tab]: page }, data: { data: [], totalPages: 3 }, loading: false, busy: false, search: 'sample', status: 'PENDING', leadCampaign: 'campaign-1', leadDates: {}, overviewDates: { startDate: '2026-11-01', endDate: '', month: '11', year: '2026' }, withdrawalFilters: { page, search: '', status: 'ALL', paymentMethod: 'ALL' }, loadRequestId: { current: 0 }, activeTab: { current: tab }, calls: [], updates: [] };
   state.setLoading = (value: boolean) => { state.loading = value; };
   state.setError = (value: string) => { state.error = value; };
   state.setData = (value: any) => { state.data = value; };
@@ -80,4 +80,21 @@ test('withdrawal paging remains independent and lead refresh uses the current pa
     assert.ok(source.includes(`changePage('${tab}', 1)`));
     assert.ok(source.includes(`loading || pageNumbers.${tab} >= (data?.totalPages || 1)`));
   }
+});
+
+test('Overview Apply sends UTC period filters to the dashboard endpoint and Reset omits filters', async () => {
+  const h = harness('overview');
+  await h.load();
+  const applied = new URL(h.state.calls[0], 'http://test');
+  assert.equal(applied.pathname, '/admin/dashboard');
+  assert.equal(applied.searchParams.get('startDate'), '2026-11-01');
+  assert.equal(applied.searchParams.get('month'), '11');
+  assert.equal(applied.searchParams.get('year'), '2026');
+  assert.equal(applied.searchParams.has('page'), false);
+  await h.load('overview', true, 1);
+  const reset = new URL(h.state.calls[1], 'http://test');
+  assert.equal(reset.pathname, '/admin/dashboard');
+  assert.equal(reset.search, '');
+  assert.ok(source.includes("onApplyFilters={() => void load('overview')}"));
+  assert.ok(source.includes("onResetFilters={() => { setOverviewDates({ ...emptyLeadDateFilters }); void load('overview', true, 1); }}"));
 });

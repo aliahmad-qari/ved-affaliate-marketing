@@ -70,16 +70,16 @@ export const submitPercentagePayoutEvidence = async (req: Request, res: Response
       }], { session });
       data = { leadId: lead.leadId, state: lead.payoutCommission.state };
     });
-    res.status(202).json({ success: true, message: 'MIS evidence recorded for independent review; no payable balance has been created.', data });
+    res.status(202).json({ success: true, message: 'MIS evidence recorded and remains unverified until an authorized administrator confirms the company report.', data });
   } catch (error: any) {
     if (error?.code === 11000) { res.status(409).json({ success: false, message: 'This advertiser report/reference has already been used.' }); return; }
     next(error);
   } finally { await session.endSession(); }
 };
 
-/** Second-admin verification calculates an immutable snapshot and creates a PENDING, non-withdrawable ledger entry. */
+/** Authorized-admin verification calculates an immutable snapshot and creates a PENDING, non-withdrawable ledger entry. */
 export const verifyPercentagePayoutEvidence = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  if (req.body?.approvedMisReviewed !== true) { res.status(400).json({ success: false, message: 'Confirm that the approved advertiser MIS was independently reviewed.' }); return; }
+  if (req.body?.approvedMisReviewed !== true) { res.status(400).json({ success: false, message: 'Confirm that you reviewed the approved advertiser MIS and qualifying event.' }); return; }
   const session = await mongoose.startSession();
   try {
     let data: any;
@@ -88,7 +88,7 @@ export const verifyPercentagePayoutEvidence = async (req: Request, res: Response
       if (!lead) throw fail(404, 'Lead not found.');
       const evidence = lead.payoutCommission;
       if (lead.status !== 'APPROVED' || lead.payoutTypeSnapshot !== 'PERCENTAGE' || evidence?.state !== 'AWAITING_REVIEW') throw fail(409, 'A pending approved percentage lead with MIS evidence is required.');
-      if (!evidence.enteredBy || evidence.enteredBy === adminId(req)) throw fail(409, 'A different administrator must independently verify the MIS evidence.');
+      if (!evidence.enteredBy) throw fail(409, 'MIS evidence must be recorded before it can be verified.');
       if (!lead.payoutBasisSnapshot || !isEligiblePercentageCampaign({ campaignType: lead.campaignType, payoutBasis: lead.payoutBasisSnapshot }) || !isValidPercentageRate(lead.payoutRateSnapshot)) throw fail(409, 'The frozen percentage payout configuration is invalid; this lead remains non-payable.');
       if (lead.payoutBasisSnapshot === 'INSURANCE_ELIGIBLE_PREMIUM'
         && (!String(lead.payoutEligibilitySnapshot?.eligibility || '').trim() || !String(lead.payoutTermsSnapshot || '').trim())) throw fail(409, 'The campaign-specific eligible premium rules are missing; this commission remains unverified.');
@@ -101,7 +101,7 @@ export const verifyPercentagePayoutEvidence = async (req: Request, res: Response
       evidence.calculatedAmount = calculatedAmount;
       evidence.verifiedBy = adminId(req);
       evidence.verifiedAt = new Date();
-      evidence.history.push({ action: 'MIS_REPORT_INDEPENDENTLY_VERIFIED', adminId: adminId(req), at: new Date(), snapshot: { reportedBaseAmount: evidence.reportedBaseAmount, verifiedBaseAmount, advertiserName: evidence.advertiserName, reportDate: evidence.reportDate, advertiserReference: evidence.advertiserReference, reportReference: evidence.reportReference, evidenceReference: evidence.evidenceReference, ratePercent: lead.payoutRateSnapshot, calculatedAmount } });
+      evidence.history.push({ action: 'MIS_REPORT_MANUALLY_VERIFIED', adminId: adminId(req), at: new Date(), snapshot: { reportedBaseAmount: evidence.reportedBaseAmount, verifiedBaseAmount, advertiserName: evidence.advertiserName, reportDate: evidence.reportDate, advertiserReference: evidence.advertiserReference, reportReference: evidence.reportReference, evidenceReference: evidence.evidenceReference, ratePercent: lead.payoutRateSnapshot, calculatedAmount } });
       lead.payoutSnapshot = calculatedAmount;
       await lead.save({ session });
       const idempotencyKey = evidence.earningIdempotencyKey;
