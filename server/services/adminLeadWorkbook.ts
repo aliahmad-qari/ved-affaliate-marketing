@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs';
 
 export const ADMIN_LEAD_EXPORT_COLUMNS = [
   { header: 'Lead ID', key: 'leadId', width: 22 },
+  { header: 'Click ID', key: 'clickId', width: 38 },
+  { header: 'Campaign ID', key: 'campaignId', width: 28 },
   { header: 'Campaign Name', key: 'campaignName', width: 30 },
   { header: 'Partner ID', key: 'partnerId', width: 22 },
   { header: 'Customer Name', key: 'customerName', width: 28 },
@@ -39,6 +41,8 @@ export function createAdminLeadWorkbook(leads: Record<string, unknown>[]): Excel
     const payout = Number(lead.payoutSnapshot);
     worksheet.addRow({
       leadId: safeSpreadsheetText(lead.leadId),
+      clickId: safeSpreadsheetText(lead.clickId),
+      campaignId: safeSpreadsheetText(lead.campaignId),
       campaignName: safeSpreadsheetText(lead.campaignName),
       partnerId: safeSpreadsheetText(lead.partnerId),
       customerName: safeSpreadsheetText(lead.clientName),

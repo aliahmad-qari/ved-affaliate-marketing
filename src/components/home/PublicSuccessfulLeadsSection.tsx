@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchPublicSuccessfulLeads, type PublicSuccessfulLeadPartner } from '../../services/api.ts';
+import { monthlyLeaderboardTableLayout as tableLayout } from '../monthlyLeaderboardTableLayout.ts';
 
 const monthLabel = (month: string) => new Date(`${month}-15T12:00:00Z`).toLocaleDateString('en-IN', {
   month: 'long', year: 'numeric', timeZone: 'UTC',
@@ -30,12 +31,13 @@ export function PublicSuccessfulLeadsSection() {
         ? <p className="rounded-xl border border-[#20506c] bg-[#081421] p-5 text-center text-sm text-[#AAB3C2]">No admin-approved conversions this month yet.</p>
         : !loaded
           ? <p role="status" className="rounded-xl border border-[#20506c] bg-[#081421] p-5 text-center text-sm text-[#AAB3C2]">Loading monthly rankings…</p>
-          : <div className="mx-auto max-w-3xl overflow-x-auto rounded-xl border border-[#20506c] bg-[#081421]">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <thead className="border-b border-[#20506c] text-xs uppercase tracking-wide text-[#AAB3C2]"><tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Partner</th><th className="px-4 py-3 text-right">Approved Leads</th><th className="px-4 py-3 text-right">Earnings (₹)</th></tr></thead>
+          : <div className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-[#20506c] bg-[#081421]">
+            <table className={tableLayout.table}>
+              <colgroup>{tableLayout.columnWidths.map((width, index) => <col key={index} className={width} />)}</colgroup>
+              <thead className="border-b border-[#20506c] text-[10px] uppercase tracking-wide text-[#AAB3C2] sm:text-xs"><tr><th className={tableLayout.header}>Rank</th><th className={tableLayout.header}>Partner</th><th className={`${tableLayout.header} text-right`}>Approved Leads</th><th className={`${tableLayout.header} text-right`}>Earnings (₹)</th></tr></thead>
               <tbody>{rows.map((row, index) => <tr key={`${row.rank}-${index}`} className="border-b border-[#173247] last:border-0 text-[#E7EDF6]">
-                <td className="px-4 py-3 font-bold text-[#f2ce63]">#{row.rank}</td><td className="px-4 py-3">{row.partnerName}</td>
-                <td className="px-4 py-3 text-right font-semibold text-[#f2ce63]">{row.approvedConversions.toLocaleString('en-IN')}</td><td className="px-4 py-3 text-right font-semibold">{money(row.approvedEarnings)}</td>
+                <td className={`${tableLayout.cell} font-bold text-[#f2ce63]`}>#{row.rank}</td><td className={`${tableLayout.partnerCell} font-medium`}>{row.partnerName}</td>
+                <td className={`${tableLayout.cell} text-right font-semibold text-[#f2ce63]`}>{row.approvedConversions.toLocaleString('en-IN')}</td><td className={`${tableLayout.cell} text-right font-semibold`}>{money(row.approvedEarnings)}</td>
               </tr>)}</tbody>
             </table>
           </div>}

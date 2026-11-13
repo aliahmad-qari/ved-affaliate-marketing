@@ -85,18 +85,22 @@ export const exportAdminCampaignWorkbook = async (req: Request, res: Response, n
     const clicks: any[] = clickIds.length ? await TrackingClick.find({ clickId: { $in: clickIds } })
       .select('clickId partnerId campaignId campaignSlug trackingLink').lean().exec() : [];
     const leadByClick = new Map(leads.filter(lead => lead.vendorClickId).map(lead => [String(lead.vendorClickId), lead]));
+    const clickIdsByLeadClick = new Map<string, string>();
     const trackingLinks = new Map<string, string>();
     for (const click of clicks) {
       const lead = leadByClick.get(String(click.clickId));
       const campaignMatches = lead && (String(lead.campaignId) === String(click.campaignId)
         || String(lead.campaignId) === String(click.campaignSlug));
-      if (lead && campaignMatches && String(lead.partnerId).toUpperCase() === String(click.partnerId).toUpperCase()
-        && typeof click.trackingLink === 'string' && click.trackingLink.trim()) {
-        trackingLinks.set(String(click.clickId), click.trackingLink);
+      if (lead && campaignMatches && String(lead.partnerId).toUpperCase() === String(click.partnerId).toUpperCase()) {
+        clickIdsByLeadClick.set(String(lead.vendorClickId), String(click.clickId));
+        if (typeof click.trackingLink === 'string' && click.trackingLink.trim()) {
+          trackingLinks.set(String(click.clickId), click.trackingLink);
+        }
       }
     }
     const workbook = createAdminLeadWorkbook(leads.map(lead => ({
       ...lead,
+      clickId: lead.vendorClickId ? clickIdsByLeadClick.get(String(lead.vendorClickId)) || '' : '',
       trackingLink: lead.vendorClickId ? trackingLinks.get(String(lead.vendorClickId)) || '' : '',
     })));
     const workbookBuffer = await workbook.xlsx.writeBuffer();

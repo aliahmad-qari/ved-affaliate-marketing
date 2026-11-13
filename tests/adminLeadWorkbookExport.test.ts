@@ -13,7 +13,7 @@ import { signToken } from '../server/utils/jwt.ts';
 import { ADMIN_LEAD_EXPORT_COLUMNS, createAdminLeadWorkbook } from '../server/services/adminLeadWorkbook.ts';
 
 const expectedHeaders = [
-  'Lead ID', 'Campaign Name', 'Partner ID', 'Customer Name', 'Mobile Number',
+  'Lead ID', 'Click ID', 'Campaign ID', 'Campaign Name', 'Partner ID', 'Customer Name', 'Mobile Number',
   'Status', 'Payout Snapshot', 'Created At', 'Approved At', 'Rejection Reason', 'Tracking Link',
 ];
 
@@ -21,7 +21,7 @@ test('lead workbook has the exact single-sheet structure, exact ordered headers,
   assert.deepEqual(ADMIN_LEAD_EXPORT_COLUMNS.map(column => column.header), expectedHeaders);
   const workbook = createAdminLeadWorkbook([
     { leadId: 'L-1', campaignName: 'Campaign', partnerId: 'PTR-1', status: 'PENDING', payoutSnapshot: undefined },
-    { leadId: 'L-2', campaignName: 'Campaign', partnerId: '+SUM(A1:A2)', clientName: '=HYPERLINK("https://bad.example")', clientMobile: '\t@SUM(A1:A2)', status: 'APPROVED', payoutSnapshot: 125.5, createdAt: new Date('2026-10-01T12:34:56.000Z'), approvedAt: new Date('2026-10-02T01:02:03.000Z'), rejectionReason: '-2+3', trackingLink: '=HYPERLINK("https://bad.example")' },
+    { leadId: 'L-2', clickId: '+SUM(A1:A2)', campaignId: 'campaign-2', campaignName: 'Campaign', partnerId: '+SUM(A1:A2)', clientName: '=HYPERLINK("https://bad.example")', clientMobile: '\t@SUM(A1:A2)', status: 'APPROVED', payoutSnapshot: 125.5, createdAt: new Date('2026-10-01T12:34:56.000Z'), approvedAt: new Date('2026-10-02T01:02:03.000Z'), rejectionReason: '-2+3', trackingLink: '=HYPERLINK("https://bad.example")' },
   ]);
   const buffer = await workbook.xlsx.writeBuffer();
   const parsed = new ExcelJS.Workbook();
@@ -31,21 +31,25 @@ test('lead workbook has the exact single-sheet structure, exact ordered headers,
   assert.equal(sheet.columnCount, expectedHeaders.length);
   assert.equal(sheet.rowCount, 3);
   assert.deepEqual(sheet.getRow(1).values.slice(1), expectedHeaders);
-  assert.equal(sheet.getRow(2).getCell(4).value, '');
-  assert.equal(sheet.getRow(2).getCell(5).value, '');
+  assert.equal(sheet.getRow(2).getCell(2).value, '');
+  assert.equal(sheet.getRow(2).getCell(3).value, '');
+  assert.equal(sheet.getRow(2).getCell(6).value, '');
   assert.equal(sheet.getRow(2).getCell(7).value, '');
-  assert.equal(sheet.getRow(2).getCell(8).value, '');
   assert.equal(sheet.getRow(2).getCell(9).value, '');
   assert.equal(sheet.getRow(2).getCell(10).value, '');
   assert.equal(sheet.getRow(2).getCell(11).value, '');
-  assert.equal(sheet.getRow(3).getCell(3).value, "'+SUM(A1:A2)");
-  assert.equal(sheet.getRow(3).getCell(4).value, "'=HYPERLINK(\"https://bad.example\")");
-  assert.equal(sheet.getRow(3).getCell(5).value, "'\t@SUM(A1:A2)");
-  assert.equal(sheet.getRow(3).getCell(7).value, 125.5);
-  assert.equal(sheet.getRow(3).getCell(8).value, '2026-10-01T12:34:56.000Z');
-  assert.equal(sheet.getRow(3).getCell(9).value, '2026-10-02T01:02:03.000Z');
-  assert.equal(sheet.getRow(3).getCell(10).value, "'-2+3");
-  assert.equal(sheet.getRow(3).getCell(11).value, "'=HYPERLINK(\"https://bad.example\")");
+  assert.equal(sheet.getRow(2).getCell(12).value, '');
+  assert.equal(sheet.getRow(2).getCell(13).value, '');
+  assert.equal(sheet.getRow(3).getCell(2).value, "'+SUM(A1:A2)");
+  assert.equal(sheet.getRow(3).getCell(3).value, 'campaign-2');
+  assert.equal(sheet.getRow(3).getCell(5).value, "'+SUM(A1:A2)");
+  assert.equal(sheet.getRow(3).getCell(6).value, "'=HYPERLINK(\"https://bad.example\")");
+  assert.equal(sheet.getRow(3).getCell(7).value, "'\t@SUM(A1:A2)");
+  assert.equal(sheet.getRow(3).getCell(9).value, 125.5);
+  assert.equal(sheet.getRow(3).getCell(10).value, '2026-10-01T12:34:56.000Z');
+  assert.equal(sheet.getRow(3).getCell(11).value, '2026-10-02T01:02:03.000Z');
+  assert.equal(sheet.getRow(3).getCell(12).value, "'-2+3");
+  assert.equal(sheet.getRow(3).getCell(13).value, "'=HYPERLINK(\"https://bad.example\")");
   for (const row of [2, 3]) for (let column = 1; column <= expectedHeaders.length; column++) {
     assert.notEqual(sheet.getRow(row).getCell(column).type, ExcelJS.ValueType.Formula);
   }
@@ -79,6 +83,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     rejectionReason: '',
   }));
   leads.push(
+    { ...leads[0], leadId: 'MISSING-CLICK-RECORD', vendorClickId: 'missing-click' },
     { ...leads[0], leadId: 'PENDING', status: 'PENDING' },
     { ...leads[0], leadId: 'OUTSIDE-DATE', createdAt: new Date('2026-10-03T07:00:00.000Z') },
     { ...leads[0], leadId: 'OTHER-CAMPAIGN', campaignId: 'different-campaign' },
@@ -134,7 +139,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     assert.ok(queryState.selects.includes('leadId campaignName partnerId campaignId vendorClickId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason'));
     assert.ok(queryState.selects.includes('clickId partnerId campaignId campaignSlug trackingLink'));
-    assert.deepEqual(queryState.clickQuery, { clickId: { $in: ['click-export-1'] } });
+    assert.deepEqual(queryState.clickQuery, { clickId: { $in: ['click-export-1', 'missing-click'] } });
     assert.equal(queryState.paginated, false);
     assert.equal(queryState.query?.status, 'APPROVED');
     assert.deepEqual(queryState.query?.campaignId, { $in: [campaignId, 'angel-one'] });
@@ -145,12 +150,16 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['Leads']);
     const sheet = workbook.getWorksheet('Leads')!;
-    assert.equal(sheet.rowCount, 121, 'all matching records are included even when page=3 and limit=1');
+    assert.equal(sheet.rowCount, 122, 'all matching records are included even when page=3 and limit=1');
     assert.deepEqual(sheet.getRow(1).values.slice(1), expectedHeaders);
-    assert.equal(sheet.getRow(2).getCell(9).value, '');
-    assert.equal(sheet.getRow(3).getCell(4).value, "'=HYPERLINK(\"x\")");
-    assert.equal(sheet.getRow(3).getCell(5).value, "'+91 9876543210");
-    assert.equal(sheet.getRow(3).getCell(11).value, 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token');
+    assert.equal(sheet.getRow(2).getCell(2).value, '');
+    assert.equal(sheet.getRow(2).getCell(9).value, 250);
+    assert.equal(sheet.getRow(3).getCell(2).value, 'click-export-1', 'Click ID comes from the matching stored tracking click');
+    assert.equal(sheet.getRow(3).getCell(3).value, 'angel-one');
+    assert.equal(sheet.getRow(122).getCell(2).value, '', 'Click ID remains blank when no stored click can be matched');
+    assert.equal(sheet.getRow(3).getCell(6).value, "'=HYPERLINK(\"x\")");
+    assert.equal(sheet.getRow(3).getCell(7).value, "'+91 9876543210");
+    assert.equal(sheet.getRow(3).getCell(13).value, 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token');
 
     const empty = await fetch(base + '/admin/reports/campaign-report.xlsx?campaignId=angel-one&status=PAID', { headers: { Authorization: `Bearer ${adminToken}` } });
     assert.equal(empty.status, 200);
