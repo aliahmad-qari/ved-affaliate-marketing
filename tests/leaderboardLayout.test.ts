@@ -4,7 +4,7 @@ import test from 'node:test';
 import { monthlyLeaderboardTableLayout as layout } from '../src/components/monthlyLeaderboardTableLayout.ts';
 
 test('homepage and partner leaderboard share compact fixed column widths and wrapping responsive cells', () => {
-  assert.deepEqual(layout.columnWidths, ['w-[9%]', 'w-[36%]', 'w-[25%]', 'w-[30%]']);
+  assert.deepEqual(layout.columnWidths, ['w-[9%]', 'w-[26%]', 'w-[35%]', 'w-[30%]']);
   assert.equal(layout.columnWidths.reduce((total, width) => total + Number(width.match(/\d+/)?.[0] || 0), 0), 100);
   assert.match(layout.table, /w-full table-fixed/);
   assert.match(layout.table, /sm:text-sm/);

@@ -55,7 +55,7 @@ test('lead workbook has the exact single-sheet structure, exact ordered headers,
   }
 });
 
-test('admin lead export applies dashboard filters, ignores page size, emits empty headers, and blocks non-admin access', async t => {
+test('Campaign Report HTTP export applies dashboard filters and returns exact XLSX headers and matched Click IDs', async t => {
   const prior = { NODE_ENV: process.env.NODE_ENV, JWT_SECRET: process.env.JWT_SECRET };
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'isolated-admin-export-test-secret-32-chars';
@@ -84,6 +84,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
   }));
   leads.push(
     { ...leads[0], leadId: 'MISSING-CLICK-RECORD', vendorClickId: 'missing-click' },
+    { ...leads[0], leadId: 'MISMATCHED-CLICK-RECORD', vendorClickId: 'mismatched-click' },
     { ...leads[0], leadId: 'PENDING', status: 'PENDING' },
     { ...leads[0], leadId: 'OUTSIDE-DATE', createdAt: new Date('2026-10-03T07:00:00.000Z') },
     { ...leads[0], leadId: 'OTHER-CAMPAIGN', campaignId: 'different-campaign' },
@@ -122,7 +123,10 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
   });
   t.mock.method(TrackingClick, 'find', (query: any) => {
     queryState.clickQuery = query;
-    return queryChain(() => [{ clickId: 'click-export-1', partnerId: 'PTR-1', campaignId, campaignSlug: 'angel-one', trackingLink: 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token' }]);
+    return queryChain(() => [
+      { clickId: 'click-export-1', partnerId: 'PTR-1', campaignId, campaignSlug: 'angel-one', trackingLink: 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token' },
+      { clickId: 'mismatched-click', partnerId: 'PTR-OTHER', campaignId, campaignSlug: 'angel-one', trackingLink: 'https://untrusted.example/' },
+    ]);
   });
 
   const app = createApp().listen(0, '127.0.0.1');
@@ -139,7 +143,7 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     assert.ok(queryState.selects.includes('leadId campaignName partnerId campaignId vendorClickId clientName clientMobile status payoutSnapshot createdAt approvedAt rejectionReason'));
     assert.ok(queryState.selects.includes('clickId partnerId campaignId campaignSlug trackingLink'));
-    assert.deepEqual(queryState.clickQuery, { clickId: { $in: ['click-export-1', 'missing-click'] } });
+    assert.deepEqual(queryState.clickQuery, { clickId: { $in: ['click-export-1', 'missing-click', 'mismatched-click'] } });
     assert.equal(queryState.paginated, false);
     assert.equal(queryState.query?.status, 'APPROVED');
     assert.deepEqual(queryState.query?.campaignId, { $in: [campaignId, 'angel-one'] });
@@ -150,13 +154,16 @@ test('admin lead export applies dashboard filters, ignores page size, emits empt
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['Leads']);
     const sheet = workbook.getWorksheet('Leads')!;
-    assert.equal(sheet.rowCount, 122, 'all matching records are included even when page=3 and limit=1');
-    assert.deepEqual(sheet.getRow(1).values.slice(1), expectedHeaders);
+    assert.equal(sheet.rowCount, 123, 'all matching records are included even when page=3 and limit=1');
+    const actualHeaders = sheet.getRow(1).values.slice(1);
+    console.log('Campaign Report XLSX headers:', JSON.stringify(actualHeaders));
+    assert.deepEqual(actualHeaders, expectedHeaders);
     assert.equal(sheet.getRow(2).getCell(2).value, '');
     assert.equal(sheet.getRow(2).getCell(9).value, 250);
     assert.equal(sheet.getRow(3).getCell(2).value, 'click-export-1', 'Click ID comes from the matching stored tracking click');
     assert.equal(sheet.getRow(3).getCell(3).value, 'angel-one');
     assert.equal(sheet.getRow(122).getCell(2).value, '', 'Click ID remains blank when no stored click can be matched');
+    assert.equal(sheet.getRow(123).getCell(2).value, '', 'Click ID remains blank when stored click partner attribution does not match the lead');
     assert.equal(sheet.getRow(3).getCell(6).value, "'=HYPERLINK(\"x\")");
     assert.equal(sheet.getRow(3).getCell(7).value, "'+91 9876543210");
     assert.equal(sheet.getRow(3).getCell(13).value, 'https://vedaffiliatepvtltd.com/campaigns/angel-one?ref=REF1&pid=PTR-1&subteam=team-token');
