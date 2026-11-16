@@ -215,7 +215,9 @@ test('customer capture, redirect, admin progress and existing tracking compatibi
     const replayDestination = new URL(JSON.parse(replayTarget!));
     assert.equal(replayDestination.origin, mockVendorOrigin);
     assert.equal(replayDestination.searchParams.get('clickid'), clicks[0].clickId);
-    assert.ok(replayHtml.includes('href="/"'));
+    const continueHref = replayHtml.match(/class="registration-button registration-home-button" href="([^"]+)"/)?.[1];
+    assert.ok(continueHref, 'The duplicate screen exposes its server-selected campaign destination');
+    assert.equal(continueHref.replace(/&amp;/g, '&'), replayDestination.toString(), 'The Continue button uses the same validated campaign destination as the countdown');
     assert.ok(!replayHtml.includes('/api/public/campaigns/sample/continue'));
     assert.ok(!replayHtml.includes('Test Customer'));
     const forgedContinuation = await fetch(`${base}/api/public/campaigns/sample/continue`, { method: 'POST', redirect: 'manual', headers: { Origin: base }, body: new URLSearchParams({ captureToken: 'forged', destination: 'https://attacker.example' }) });
