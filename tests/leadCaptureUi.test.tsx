@@ -48,6 +48,13 @@ test('customer registration presentation keeps the form contract and approved co
   assert.ok(registered.includes('href="/"'));
 });
 
+test('customer registration logo is visible but non-interactive', () => {
+  const markup = renderToStaticMarkup(<CustomerRegistrationScreen />);
+  assert.match(markup, /<div class="registration-brand-logo"><span class="ved-seal">VED<\/span><span class="ved-wordmark">VED <b>AFFILIATE<\/b><\/span><\/div>/);
+  assert.doesNotMatch(markup, /<a\b[^>]*>(?:(?!<\/a>).)*(?:ved-seal|ved-wordmark)/s);
+  assert.doesNotMatch(markup, /registration-brand-logo[^>]*(?:href=|onClick|tabindex=|role="button")/i);
+});
+
 const baseLead: LeadItem = {
   _id: 'lead-1', leadId: 'VED-LD-TEST', partnerId: 'VED-PTR-123', campaignId: 'campaign-1',
   campaignName: 'Sample <Campaign>', clientName: 'Customer <Name>', clientMobile: '9876543210',
