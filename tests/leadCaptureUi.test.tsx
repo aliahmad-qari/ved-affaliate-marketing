@@ -34,6 +34,8 @@ test('shared links open capture independently of the campaign list and preserve 
 
 test('customer registration presentation keeps the form contract and approved copy', () => {
   const markup = renderToStaticMarkup(<CustomerRegistrationScreen action="/api/public/campaigns/sample/go" token="signed-test-token" />);
+  assert.ok(markup.startsWith('<div class="registration-page"><div class="registration-shell"><section class="registration-hero"'), 'The registration page starts with its existing Unlock Success hero');
+  assert.ok(!markup.includes('registration-brand') && !markup.includes('registration-motto') && !markup.includes('ved-seal'));
   assert.ok(markup.includes('Enter your details below to continue'));
   assert.ok(!markup.includes('we will redirect to your'));
   assert.ok(markup.includes('I agree to the use of my contact details for application updates.'));
@@ -48,11 +50,10 @@ test('customer registration presentation keeps the form contract and approved co
   assert.ok(registered.includes('href="/"'));
 });
 
-test('customer registration logo is visible but non-interactive', () => {
+test('customer registration has no top header and begins with the existing hero', () => {
   const markup = renderToStaticMarkup(<CustomerRegistrationScreen />);
-  assert.match(markup, /<div class="registration-brand-logo"><span class="ved-seal">VED<\/span><span class="ved-wordmark">VED <b>AFFILIATE<\/b><\/span><\/div>/);
-  assert.doesNotMatch(markup, /<a\b[^>]*>(?:(?!<\/a>).)*(?:ved-seal|ved-wordmark)/s);
-  assert.doesNotMatch(markup, /registration-brand-logo[^>]*(?:href=|onClick|tabindex=|role="button")/i);
+  assert.ok(markup.startsWith('<div class="registration-page"><div class="registration-shell"><section class="registration-hero"'));
+  assert.doesNotMatch(markup, /<header\b|registration-brand|registration-motto|ved-seal|ved-wordmark/);
 });
 
 const baseLead: LeadItem = {

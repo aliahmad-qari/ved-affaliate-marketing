@@ -26,78 +26,6 @@
   box-shadow: 0 0 48px #0c397010;
 }
 
-.registration-brand {
-  min-height: 104px;
-  padding: 13px clamp(18px, 5vw, 58px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  color: #fff;
-  background: var(--navy);
-}
-
-.registration-brand-logo {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  gap: 17px;
-  min-width: 0;
-  color: inherit;
-}
-
-.ved-seal {
-  width: 68px;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 3px solid var(--gold);
-  border-radius: 50%;
-  color: #ffdc78;
-  font-size: 24px;
-  font-weight: 800;
-  box-shadow: inset 0 0 0 2px #d19427;
-}
-
-.ved-wordmark {
-  padding: 12px 0 12px 17px;
-  border-left: 2px solid #e8c553;
-  color: #fff;
-  font-size: clamp(16px, 2.1vw, 24px);
-  font-weight: 750;
-  letter-spacing: .025em;
-  white-space: nowrap;
-}
-
-.ved-wordmark b { color: #f4d36f; }
-
-.registration-motto {
-  position: relative;
-  flex: 0 1 auto;
-  min-width: 0;
-  padding-bottom: 10px;
-  color: #fff;
-  font-size: clamp(14px, 2vw, 22px);
-  white-space: nowrap;
-}
-
-.registration-motto i {
-  padding: 0 8px;
-  color: #f3cf64;
-  font-style: normal;
-}
-
-.registration-motto::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #f0c34f, transparent);
-  content: "";
-}
-
 .registration-hero {
   min-height: 370px;
   padding: clamp(35px, 6vw, 66px) clamp(24px, 7vw, 76px) 42px;
@@ -366,12 +294,6 @@
 .registration-page :is(input, button, a):focus-visible { outline: 3px solid #d59d21; outline-offset: 3px; }
 
 @media (max-width: 620px) {
-  .registration-brand { min-height: 74px; padding: 10px 16px; gap: 8px; flex-wrap: wrap; }
-  .registration-brand-logo { gap: 9px; }
-  .ved-seal { width: 43px; border-width: 2px; font-size: 16px; }
-  .ved-wordmark { padding: 8px 0 8px 9px; font-size: clamp(11px, 3.3vw, 15px); }
-  .registration-motto { max-width: none; flex: 1 0 100%; padding-bottom: 6px; font-size: clamp(10px, 2.8vw, 13px); letter-spacing: 0; text-align: center; white-space: normal; line-height: 1.2; }
-  .registration-motto i { padding: 0 2px; }
   .registration-hero {
     min-height: 250px;
     padding: 30px 22px 27px;
@@ -417,11 +339,6 @@
 }
 
 @media (max-width: 360px) {
-  .registration-brand { padding-right: 12px; padding-left: 12px; }
-  .registration-brand-logo { gap: 7px; }
-  .ved-seal { width: 38px; font-size: 14px; }
-  .ved-wordmark { font-size: 10.5px; }
-  .registration-motto { font-size: 9px; }
   .registration-hero { min-height: 230px; padding-right: 17px; padding-left: 17px; }
   .registration-card { width: calc(100vw - 20px); max-width: calc(100vw - 20px); margin-right: 10px; margin-left: 10px; padding-right: 12px; padding-left: 12px; }
   .registration-field > div,

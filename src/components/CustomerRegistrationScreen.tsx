@@ -17,7 +17,6 @@ export interface RegistrationScreenProps {
 export function CustomerRegistrationScreen({ registered = false, registeredRedirectUrl = '/', token = '', action = '', error = '', name = '', mobile = '', consent = false }: RegistrationScreenProps) {
   return <div className="registration-page">
     <div className="registration-shell">
-      <header className="registration-brand"><div className="registration-brand-logo"><span className="ved-seal">VED</span><span className="ved-wordmark">VED <b>AFFILIATE</b></span></div><span className="registration-motto">Promote <i>•</i> Earn <i>•</i> Grow</span></header>
       <section className="registration-hero" aria-labelledby="registration-title">
         <h1 id="registration-title">Unlock <LockKeyhole aria-hidden="true"/><strong>Success</strong></h1>
         <p>Enter your details below to continue</p>
